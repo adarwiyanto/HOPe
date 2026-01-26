@@ -3,7 +3,7 @@ require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/auth.php';
 
-require_login();
+require_admin();
 
 $appName = app_config()['app']['name'];
 $customCss = setting('custom_css', '');

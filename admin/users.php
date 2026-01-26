@@ -4,7 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
-require_login();
+require_admin();
 $me = current_user();
 if (($me['role'] ?? '') !== 'superadmin') {
   http_response_code(403);
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   try {
     if ($name === '' || $username === '') throw new Exception('Nama dan username wajib diisi.');
     if ($p1 === '' || $p1 !== $p2) throw new Exception('Password tidak cocok.');
-    if (!in_array($role, ['admin','user','superadmin'], true)) $role = 'user';
+    if (!in_array($role, ['admin','user','superadmin','pegawai'], true)) $role = 'user';
 
     $hash = password_hash($p1, PASSWORD_DEFAULT);
     $stmt = db()->prepare("INSERT INTO users (username,name,role,password_hash) VALUES (?,?,?,?)");
@@ -72,6 +72,7 @@ $customCss = setting('custom_css','');
                 <option value="admin">admin</option>
                 <option value="user">user</option>
                 <option value="superadmin">superadmin</option>
+                <option value="pegawai">pegawai</option>
               </select>
             </div>
             <div class="row"><label>Password</label><input type="password" name="pass1" required></div>

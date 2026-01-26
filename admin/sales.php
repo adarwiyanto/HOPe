@@ -4,7 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
-require_login();
+require_admin();
 
 $err = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -4,7 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
-require_login();
+require_admin();
 
 $id = (int)($_GET['id'] ?? 0);
 $product = ['name'=>'','price'=>'0','image_path'=>null];
