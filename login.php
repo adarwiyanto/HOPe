@@ -14,6 +14,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $u = trim($_POST['username'] ?? '');
   $p = (string)($_POST['password'] ?? '');
   if (login_attempt($u, $p)) {
+    $me = current_user();
+    if (($me['role'] ?? '') === 'pegawai') {
+      redirect(base_url('pos/index.php'));
+    }
     redirect(base_url('admin/dashboard.php'));
   }
   $err = 'Username atau password salah.';
