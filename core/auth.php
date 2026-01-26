@@ -17,6 +17,18 @@ function require_login(): void {
   }
 }
 
+function require_admin(): void {
+  require_login();
+  $u = current_user();
+  if (($u['role'] ?? '') === 'pegawai') {
+    redirect(base_url('pos/index.php'));
+  }
+  if (!in_array($u['role'] ?? '', ['admin', 'superadmin'], true)) {
+    http_response_code(403);
+    exit('Forbidden');
+  }
+}
+
 function current_user(): ?array {
   start_session();
   return $_SESSION['user'] ?? null;
