@@ -7,6 +7,8 @@ require_once __DIR__ . '/../core/csrf.php';
 require_login();
 
 $appName = app_config()['app']['name'];
+$storeName = setting('store_name', $appName);
+$storeSubtitle = setting('store_subtitle', '');
 $me = current_user();
 $products = db()->query("SELECT id, name, price, image_path FROM products ORDER BY name ASC")->fetchAll();
 $hasProducts = !empty($products);
@@ -52,6 +54,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $db = db();
       $db->beginTransaction();
       $stmt = $db->prepare("INSERT INTO sales (product_id, qty, price_each, total) VALUES (?,?,?,?)");
+      $receiptItems = [];
+      $receiptTotal = 0.0;
       foreach ($cart as $pid => $qty) {
         if (empty($productsById[$pid])) {
           throw new Exception('Produk tidak ditemukan saat checkout.');
@@ -63,8 +67,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $price = (float)$productsById[$pid]['price'];
         $total = $price * $qty;
         $stmt->execute([(int)$pid, $qty, $price, $total]);
+        $receiptItems[] = [
+          'name' => $productsById[$pid]['name'],
+          'qty' => $qty,
+          'price' => $price,
+          'subtotal' => $total,
+        ];
+        $receiptTotal += $total;
       }
       $db->commit();
+      $_SESSION['pos_receipt'] = [
+        'id' => 'TRX-' . date('YmdHis'),
+        'time' => date('d/m/Y H:i'),
+        'cashier' => $me['name'] ?? 'Kasir',
+        'items' => $receiptItems,
+        'total' => $receiptTotal,
+      ];
       $cart = [];
       $_SESSION['pos_notice'] = 'Transaksi berhasil disimpan.';
     }
@@ -81,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $notice = $_SESSION['pos_notice'] ?? '';
 $err = $_SESSION['pos_err'] ?? '';
+$receipt = $_SESSION['pos_receipt'] ?? null;
 unset($_SESSION['pos_notice'], $_SESSION['pos_err']);
 
 $cartItems = [];
@@ -129,6 +148,43 @@ foreach ($cart as $pid => $qty) {
       <?php endif; ?>
       <?php if ($err): ?>
         <div class="pos-panel pos-alert pos-alert-error"><?php echo e($err); ?></div>
+      <?php endif; ?>
+      <?php if (!empty($receipt)): ?>
+        <div class="pos-panel pos-receipt pos-print-area">
+          <div class="pos-receipt-header">
+            <div>
+              <div class="pos-receipt-title"><?php echo e($storeName); ?></div>
+              <?php if (!empty($storeSubtitle)): ?>
+                <div class="pos-receipt-subtitle"><?php echo e($storeSubtitle); ?></div>
+              <?php endif; ?>
+            </div>
+            <div class="pos-receipt-meta">
+              <div><?php echo e($receipt['id']); ?></div>
+              <div><?php echo e($receipt['time']); ?></div>
+              <div>Kasir: <?php echo e($receipt['cashier']); ?></div>
+            </div>
+          </div>
+
+          <div class="pos-receipt-items">
+            <?php foreach ($receipt['items'] as $item): ?>
+              <div class="pos-receipt-row">
+                <div>
+                  <div class="pos-receipt-item-name"><?php echo e($item['name']); ?></div>
+                  <div class="pos-receipt-item-meta"><?php echo e((string)$item['qty']); ?> x Rp <?php echo e(number_format((float)$item['price'], 0, '.', ',')); ?></div>
+                </div>
+                <div class="pos-receipt-item-subtotal">Rp <?php echo e(number_format((float)$item['subtotal'], 0, '.', ',')); ?></div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+
+          <div class="pos-receipt-total">
+            <span>Total</span>
+            <strong>Rp <?php echo e(number_format((float)$receipt['total'], 0, '.', ',')); ?></strong>
+          </div>
+          <div class="pos-receipt-actions no-print">
+            <button class="btn pos-print-btn" type="button" data-print-receipt>Cetak Struk</button>
+          </div>
+        </div>
       <?php endif; ?>
 
       <div class="pos-layout">

@@ -6,6 +6,8 @@ require_once __DIR__ . '/../core/auth.php';
 require_admin();
 
 $appName = app_config()['app']['name'];
+$storeName = setting('store_name', $appName);
+$storeLogo = setting('store_logo', '');
 $customCss = setting('custom_css', '');
 $u = current_user();
 
@@ -28,19 +30,17 @@ $stats = [
   <div class="container">
     <?php include __DIR__ . '/partials_sidebar.php'; ?>
     <div class="main">
-        <div class="topbar">
+      <div class="topbar">
+        <a class="brand-logo" href="<?php echo e(base_url('admin/dashboard.php')); ?>">
+          <?php if (!empty($storeLogo)): ?>
+            <img src="<?php echo e(base_url($storeLogo)); ?>" alt="<?php echo e($storeName); ?>">
+          <?php else: ?>
+            <span><?php echo e($storeName); ?></span>
+          <?php endif; ?>
+        </a>
         <button class="burger" data-toggle-sidebar type="button">☰</button>
         <div class="title">Dasbor</div>
-
         <div class="spacer"></div>
-
-        <div class="top-actions">
-            <div class="chip">🔎 <span>Pencari Pintar</span></div>
-            <button class="iconbtn" type="button" title="Notif">
-            🔔 <span class="dot"></span>
-            </button>
-            <div class="chip">🏷️ <span>Adena Belitung</span> ▾</div>
-        </div>
         </div>
 
       <div class="content">
