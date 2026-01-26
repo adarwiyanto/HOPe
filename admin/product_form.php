@@ -7,7 +7,8 @@ require_once __DIR__ . '/../core/csrf.php';
 require_admin();
 
 $id = (int)($_GET['id'] ?? 0);
-$product = ['name'=>'','price'=>'0','image_path'=>null];
+ensure_products_favorite_column();
+$product = ['name'=>'','price'=>'0','image_path'=>null,'is_favorite'=>0];
 
 if ($id) {
   $stmt = db()->prepare("SELECT * FROM products WHERE id=?");
@@ -22,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   $name = trim($_POST['name'] ?? '');
   $price = normalize_money($_POST['price'] ?? '0');
+  $isFavorite = isset($_POST['is_favorite']) ? 1 : 0;
 
   try {
     if ($name === '') throw new Exception('Nama produk wajib diisi.');
@@ -54,11 +56,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($id) {
-      $stmt = db()->prepare("UPDATE products SET name=?, price=?, image_path=? WHERE id=?");
-      $stmt->execute([$name, $price, $imagePath, $id]);
+      $stmt = db()->prepare("UPDATE products SET name=?, price=?, image_path=?, is_favorite=? WHERE id=?");
+      $stmt->execute([$name, $price, $imagePath, $isFavorite, $id]);
     } else {
-      $stmt = db()->prepare("INSERT INTO products (name, price, image_path) VALUES (?,?,?)");
-      $stmt->execute([$name, $price, $imagePath]);
+      $stmt = db()->prepare("INSERT INTO products (name, price, image_path, is_favorite) VALUES (?,?,?,?)");
+      $stmt->execute([$name, $price, $imagePath, $isFavorite]);
     }
 
     redirect(base_url('admin/products.php'));
@@ -113,6 +115,12 @@ $customCss = setting('custom_css', '');
                 <img class="thumb" src="<?php echo e(base_url($product['image_path'])); ?>">
               </div>
             <?php endif; ?>
+          </div>
+          <div class="row">
+            <label>
+              <input type="checkbox" name="is_favorite" value="1" <?php echo !empty($_POST) ? (isset($_POST['is_favorite']) ? 'checked' : '') : ((int)$product['is_favorite'] === 1 ? 'checked' : ''); ?>>
+              Tandai sebagai favorit (tampil di landing page)
+            </label>
           </div>
           <button class="btn" type="submit">Simpan</button>
         </form>

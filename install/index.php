@@ -12,7 +12,7 @@ $err = '';
 $ok = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $app_name = trim($_POST['app_name'] ?? 'Toko Online');
+  $app_name = trim($_POST['app_name'] ?? 'Hope Noodles Belitung');
   $base_url = trim($_POST['base_url'] ?? '');
   $db_host = trim($_POST['db_host'] ?? '127.0.0.1');
   $db_port = trim($_POST['db_port'] ?? '3306');
@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         name VARCHAR(180) NOT NULL,
         price DECIMAL(15,2) NOT NULL DEFAULT 0,
         image_path VARCHAR(255) NULL,
+        is_favorite TINYINT(1) NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
@@ -87,6 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $pdo->prepare("INSERT INTO settings (`key`,`value`) VALUES ('custom_css','') 
       ON DUPLICATE KEY UPDATE `value`=`value`");
     $stmt->execute();
+
+    $stmt = $pdo->prepare("INSERT INTO settings (`key`,`value`) VALUES (?,?)
+      ON DUPLICATE KEY UPDATE `value`=`value`");
+    $stmt->execute(['store_name', $app_name]);
+    $stmt->execute(['store_subtitle', 'Katalog produk sederhana']);
 
     // Tulis config.php
     $config = [
@@ -138,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="grid cols">
           <div>
             <label>Nama Aplikasi</label>
-            <input name="app_name" value="<?php echo h($_POST['app_name'] ?? 'Toko Online'); ?>">
+            <input name="app_name" value="<?php echo h($_POST['app_name'] ?? 'Hope Noodles Belitung'); ?>">
             <small>Contoh: Toko Adena</small>
           </div>
           <div>

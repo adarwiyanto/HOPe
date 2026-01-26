@@ -5,6 +5,7 @@ require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
 require_admin();
+ensure_products_favorite_column();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
   csrf_check();
@@ -52,7 +53,7 @@ $customCss = setting('custom_css', '');
         <table class="table">
           <thead>
             <tr>
-              <th>Foto</th><th>Nama</th><th>Harga</th><th>Aksi</th>
+              <th>Foto</th><th>Nama</th><th>Harga</th><th>Favorit</th><th>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -67,6 +68,7 @@ $customCss = setting('custom_css', '');
                 </td>
                 <td><?php echo e($p['name']); ?></td>
                 <td>Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></td>
+                <td><?php echo !empty($p['is_favorite']) ? '⭐' : '-'; ?></td>
                 <td style="display:flex;gap:8px;align-items:center">
                   <a class="btn" href="<?php echo e(base_url('admin/product_form.php?id=' . (int)$p['id'])); ?>">Edit</a>
                   <form method="post" onsubmit="return confirm('Hapus produk ini?')">
