@@ -7,12 +7,39 @@ require_once __DIR__ . '/../core/csrf.php';
 require_admin();
 
 $err = '';
+$me = current_user();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
-  $product_id = (int)($_POST['product_id'] ?? 0);
-  $qty = (int)($_POST['qty'] ?? 1);
+  $action = $_POST['action'] ?? 'create';
 
   try {
+    if ($action === 'delete') {
+      if (($me['role'] ?? '') !== 'superadmin') {
+        throw new Exception('Hanya superadmin yang bisa menghapus transaksi.');
+      }
+      $saleId = (int)($_POST['sale_id'] ?? 0);
+      if ($saleId <= 0) throw new Exception('Transaksi tidak ditemukan.');
+      $stmt = db()->prepare("DELETE FROM sales WHERE id=?");
+      $stmt->execute([$saleId]);
+      redirect(base_url('admin/sales.php'));
+    }
+
+    if ($action === 'return') {
+      if (!in_array($me['role'] ?? '', ['admin', 'superadmin'], true)) {
+        throw new Exception('Anda tidak diizinkan meretur transaksi.');
+      }
+      $saleId = (int)($_POST['sale_id'] ?? 0);
+      $reason = trim($_POST['return_reason'] ?? '');
+      if ($saleId <= 0) throw new Exception('Transaksi tidak ditemukan.');
+      if ($reason === '') throw new Exception('Alasan retur wajib diisi.');
+      $stmt = db()->prepare("UPDATE sales SET return_reason=?, returned_at=NOW() WHERE id=?");
+      $stmt->execute([$reason, $saleId]);
+      redirect(base_url('admin/sales.php'));
+    }
+
+    $product_id = (int)($_POST['product_id'] ?? 0);
+    $qty = (int)($_POST['qty'] ?? 1);
+
     if ($product_id <= 0) throw new Exception('Produk wajib dipilih.');
     if ($qty <= 0) throw new Exception('Qty minimal 1.');
 
@@ -69,6 +96,7 @@ $customCss = setting('custom_css', '');
           <?php endif; ?>
           <form method="post">
             <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+            <input type="hidden" name="action" value="create">
             <div class="row">
               <label>Produk</label>
               <select name="product_id" required>
@@ -91,7 +119,7 @@ $customCss = setting('custom_css', '');
           <h3 style="margin-top:0">Riwayat (100 terakhir)</h3>
           <table class="table">
             <thead>
-              <tr><th>Waktu</th><th>Produk</th><th>Qty</th><th>Total</th></tr>
+              <tr><th>Waktu</th><th>Produk</th><th>Qty</th><th>Total</th><th>Pembayaran</th><th>Status</th><th>Aksi</th></tr>
             </thead>
             <tbody>
               <?php foreach ($sales as $s): ?>
@@ -100,6 +128,33 @@ $customCss = setting('custom_css', '');
                   <td><?php echo e($s['product_name']); ?></td>
                   <td><?php echo e((string)$s['qty']); ?></td>
                   <td>Rp <?php echo e(number_format((float)$s['total'], 0, '.', ',')); ?></td>
+                  <td><?php echo e($s['payment_method'] ?? '-'); ?></td>
+                  <td>
+                    <?php if (!empty($s['return_reason'])): ?>
+                      Retur: <?php echo e($s['return_reason']); ?>
+                    <?php else: ?>
+                      Sukses
+                    <?php endif; ?>
+                  </td>
+                  <td>
+                    <?php if (empty($s['return_reason']) && in_array($me['role'] ?? '', ['admin', 'superadmin'], true)): ?>
+                      <form method="post" style="display:flex;gap:6px;align-items:center">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="return">
+                        <input type="hidden" name="sale_id" value="<?php echo e((string)$s['id']); ?>">
+                        <input type="text" name="return_reason" placeholder="Alasan retur" required>
+                        <button class="btn" type="submit">Retur</button>
+                      </form>
+                    <?php endif; ?>
+                    <?php if (($me['role'] ?? '') === 'superadmin'): ?>
+                      <form method="post" onsubmit="return confirm('Hapus transaksi ini?');" style="margin-top:6px">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="sale_id" value="<?php echo e((string)$s['id']); ?>">
+                        <button class="btn" type="submit">Hapus</button>
+                      </form>
+                    <?php endif; ?>
+                  </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
