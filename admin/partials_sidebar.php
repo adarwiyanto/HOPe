@@ -54,16 +54,18 @@ $u = current_user();
       </a>
     </div>
 
-    <div class="item">
-      <button type="button" data-toggle-submenu="#m-admin">
-        <div class="mi">⚙️</div><div class="label">Admin</div>
-        <div class="chev">▾</div>
-      </button>
-      <div class="submenu" id="m-admin">
-        <a href="<?php echo e(base_url('admin/users.php')); ?>">User</a>
-        <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a></a>
+    <?php if (in_array($u['role'] ?? '', ['admin', 'superadmin'], true)): ?>
+      <div class="item">
+        <button type="button" data-toggle-submenu="#m-admin">
+          <div class="mi">⚙️</div><div class="label">Admin</div>
+          <div class="chev">▾</div>
+        </button>
+        <div class="submenu" id="m-admin">
+          <a href="<?php echo e(base_url('admin/users.php')); ?>">User</a>
+          <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a></a>
+        </div>
       </div>
-    </div>
+    <?php endif; ?>
 
     <div class="item">
       <a href="<?php echo e(base_url('admin/logout.php')); ?>">
