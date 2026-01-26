@@ -49,6 +49,12 @@ $u = current_user();
     </div>
 
     <div class="item">
+      <a href="<?php echo e(base_url('pos/index.php')); ?>" target="_blank" rel="noopener">
+        <div class="mi">🧾</div><div class="label">POS Kasir</div>
+      </a>
+    </div>
+
+    <div class="item">
       <button type="button" data-toggle-submenu="#m-admin">
         <div class="mi">⚙️</div><div class="label">Admin</div>
         <div class="chev">▾</div>
