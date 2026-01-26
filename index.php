@@ -3,12 +3,16 @@ require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
 
 try {
-  $products = db()->query("SELECT * FROM products ORDER BY id DESC LIMIT 30")->fetchAll();
+  ensure_products_favorite_column();
+  $products = db()->query("SELECT * FROM products WHERE is_favorite = 1 ORDER BY id DESC LIMIT 30")->fetchAll();
 } catch (Throwable $e) {
   header('Location: install/index.php');
   exit;
 }
 $appName = app_config()['app']['name'];
+$storeName = setting('store_name', $appName);
+$storeSubtitle = setting('store_subtitle', 'Katalog produk sederhana');
+$storeLogo = setting('store_logo', '');
 $customCss = setting('custom_css', '');
 ?>
 <!doctype html>
@@ -16,7 +20,7 @@ $customCss = setting('custom_css', '');
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title><?php echo e($appName); ?></title>
+  <title><?php echo e($storeName); ?></title>
   <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
 </head>
@@ -24,11 +28,16 @@ $customCss = setting('custom_css', '');
   <div class="content">
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <div>
-          <h2 style="margin:0"><?php echo e($appName); ?></h2>
-          <p style="margin:6px 0 0"><small>Katalog produk sederhana</small></p>
+        <div style="display:flex;align-items:center;gap:12px">
+          <?php if (!empty($storeLogo)): ?>
+            <img src="<?php echo e(base_url($storeLogo)); ?>" alt="<?php echo e($storeName); ?>" style="width:56px;height:56px;object-fit:cover;border-radius:12px;border:1px solid var(--border)">
+          <?php endif; ?>
+          <div>
+            <h2 style="margin:0"><?php echo e($storeName); ?></h2>
+            <p style="margin:6px 0 0"><small><?php echo e($storeSubtitle); ?></small></p>
+          </div>
         </div>
-        <a class="btn" href="<?php echo e(base_url('login.php')); ?>">Admin Login</a>
+        <a class="btn" href="<?php echo e(base_url('login.php')); ?>">Login</a>
       </div>
     </div>
 
