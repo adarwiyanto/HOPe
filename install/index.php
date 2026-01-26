@@ -68,6 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         qty INT NOT NULL DEFAULT 1,
         price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
         total DECIMAL(15,2) NOT NULL DEFAULT 0,
+        payment_method ENUM('cash','qris') NOT NULL DEFAULT 'cash',
+        payment_proof VARCHAR(255) NULL,
+        returned_at TIMESTAMP NULL DEFAULT NULL,
+        return_reason TEXT NULL,
         sold_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
       ) ENGINE=InnoDB
