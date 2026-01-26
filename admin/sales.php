@@ -77,6 +77,13 @@ $customCss = setting('custom_css', '');
   <title>Penjualan</title>
   <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
+  <style>
+    .return-reason {
+      flex: 1;
+      min-width: 280px;
+      max-width: 420px;
+    }
+  </style>
 </head>
 <body>
 <div class="container">
@@ -142,7 +149,7 @@ $customCss = setting('custom_css', '');
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                         <input type="hidden" name="action" value="return">
                         <input type="hidden" name="sale_id" value="<?php echo e((string)$s['id']); ?>">
-                        <input type="text" name="return_reason" placeholder="Alasan retur" required>
+                        <input class="return-reason" type="text" name="return_reason" placeholder="Alasan retur" required>
                         <button class="btn" type="submit">Retur</button>
                       </form>
                     <?php endif; ?>
