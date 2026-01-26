@@ -51,9 +51,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $_SESSION['pos_notice'] = 'Produk dihapus dari keranjang.';
     } elseif ($action === 'checkout') {
       if (empty($cart)) throw new Exception('Keranjang masih kosong.');
+      $paymentMethod = $_POST['payment_method'] ?? '';
+      if (!in_array($paymentMethod, ['cash', 'qris'], true)) {
+        throw new Exception('Pilih metode pembayaran.');
+      }
+      $paymentProofPath = null;
+      if ($paymentMethod === 'qris') {
+        if (empty($_FILES['payment_proof']['name'] ?? '')) {
+          throw new Exception('Bukti pembayaran QRIS wajib diunggah.');
+        }
+        if (!empty($_FILES['payment_proof']['error'])) {
+          throw new Exception('Gagal mengunggah bukti pembayaran.');
+        }
+        $uploadDir = __DIR__ . '/../uploads/qris';
+        if (!is_dir($uploadDir)) {
+          mkdir($uploadDir, 0777, true);
+        }
+        $ext = pathinfo($_FILES['payment_proof']['name'], PATHINFO_EXTENSION);
+        $safeExt = $ext ? strtolower($ext) : 'jpg';
+        $filename = 'qris_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $safeExt;
+        $dest = $uploadDir . '/' . $filename;
+        if (!move_uploaded_file($_FILES['payment_proof']['tmp_name'], $dest)) {
+          throw new Exception('Bukti pembayaran gagal disimpan.');
+        }
+        $paymentProofPath = 'uploads/qris/' . $filename;
+      }
       $db = db();
       $db->beginTransaction();
-      $stmt = $db->prepare("INSERT INTO sales (product_id, qty, price_each, total) VALUES (?,?,?,?)");
+      $stmt = $db->prepare("INSERT INTO sales (product_id, qty, price_each, total, payment_method, payment_proof_path) VALUES (?,?,?,?,?,?)");
       $receiptItems = [];
       $receiptTotal = 0.0;
       foreach ($cart as $pid => $qty) {
@@ -66,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $price = (float)$productsById[$pid]['price'];
         $total = $price * $qty;
-        $stmt->execute([(int)$pid, $qty, $price, $total]);
+        $stmt->execute([(int)$pid, $qty, $price, $total, $paymentMethod, $paymentProofPath]);
         $receiptItems[] = [
           'name' => $productsById[$pid]['name'],
           'qty' => $qty,
@@ -80,6 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'id' => 'TRX-' . date('YmdHis'),
         'time' => date('d/m/Y H:i'),
         'cashier' => $me['name'] ?? 'Kasir',
+        'payment' => $paymentMethod,
         'items' => $receiptItems,
         'total' => $receiptTotal,
       ];
@@ -180,6 +206,9 @@ foreach ($cart as $pid => $qty) {
           <div class="pos-receipt-total">
             <span>Total</span>
             <strong>Rp <?php echo e(number_format((float)$receipt['total'], 0, '.', ',')); ?></strong>
+          </div>
+          <div class="pos-receipt-meta">
+            <div>Pembayaran: <?php echo e(strtoupper($receipt['payment'] ?? '-')); ?></div>
           </div>
           <div class="pos-receipt-actions no-print">
             <button class="btn pos-print-btn" type="button" data-print-receipt>Cetak Struk</button>
@@ -283,9 +312,31 @@ foreach ($cart as $pid => $qty) {
                 <span>Total</span>
                 <strong>Rp <?php echo e(number_format($total, 0, '.', ',')); ?></strong>
               </div>
-              <form method="post">
+              <form method="post" enctype="multipart/form-data">
                 <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                 <input type="hidden" name="action" value="checkout">
+                <div class="pos-payment">
+                  <label>Metode Pembayaran</label>
+                  <div class="pos-payment-options">
+                    <label class="pos-payment-option">
+                      <input type="radio" name="payment_method" value="cash" checked>
+                      <span>Tunai</span>
+                    </label>
+                    <label class="pos-payment-option">
+                      <input type="radio" name="payment_method" value="qris">
+                      <span>QRIS</span>
+                    </label>
+                  </div>
+                </div>
+                <div class="pos-qris" data-qris-field hidden>
+                  <label for="payment_proof">Foto Bukti QRIS</label>
+                  <input type="file" id="payment_proof" name="payment_proof" accept="image/*" capture="environment">
+                  <div class="pos-qris-preview" data-qris-preview hidden>
+                    <img alt="Preview bukti QRIS">
+                    <button type="button" class="btn pos-qris-retake" data-qris-retake>Ulangi Foto</button>
+                  </div>
+                  <small>Pastikan foto bukti pembayaran jelas sebelum checkout.</small>
+                </div>
                 <button class="btn pos-checkout" type="submit">Checkout</button>
               </form>
             </div>
