@@ -29,13 +29,6 @@ $u = current_user();
     </div>
 
     <div class="item">
-      <a href="<?php echo e(base_url('admin/theme.php')); ?>">
-        <div class="mi">✨</div><div class="label">Insight</div>
-        <span class="badge" style="margin-left:auto;">Beta</span>
-      </a>
-    </div>
-
-    <div class="item">
       <button type="button" data-toggle-submenu="#m-produk">
         <div class="mi">📦</div><div class="label">Produk & Inventori</div>
         <div class="chev">▾</div>
@@ -62,7 +55,7 @@ $u = current_user();
       </button>
       <div class="submenu" id="m-admin">
         <a href="<?php echo e(base_url('admin/users.php')); ?>">User</a>
-        <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema</a>
+        <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a></a>
       </div>
     </div>
 
