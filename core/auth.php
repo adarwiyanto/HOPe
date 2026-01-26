@@ -23,6 +23,10 @@ function require_admin(): void {
   if (($u['role'] ?? '') === 'pegawai') {
     redirect(base_url('pos/index.php'));
   }
+  if (!in_array($u['role'] ?? '', ['admin', 'superadmin'], true)) {
+    http_response_code(403);
+    exit('Forbidden');
+  }
 }
 
 function current_user(): ?array {
