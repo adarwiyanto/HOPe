@@ -340,6 +340,68 @@
   gap:12px;
 }
 
+.pos-payment{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.pos-payment-label{
+  font-weight:700;
+  font-size:14px;
+}
+
+.pos-payment-options{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  font-size:14px;
+}
+
+.pos-payment-options label{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.pos-qris-panel{
+  border:1px dashed var(--border);
+  border-radius:12px;
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.pos-qris-video-wrap{
+  position:relative;
+  width:100%;
+  aspect-ratio:4 / 3;
+  background:#0f172a;
+  border-radius:10px;
+  overflow:hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+
+.pos-qris-video-wrap video,
+.pos-qris-video-wrap img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.pos-qris-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.pos-qris-error{
+  color:#b91c1c;
+}
+
 .pos-summary-row{
   display:flex;
   justify-content:space-between;
@@ -352,6 +414,11 @@
   min-height:48px;
   font-size:16px;
   font-weight:800;
+}
+
+.pos-receipt-proof{
+  text-align:center;
+  padding-top:6px;
 }
 
 @media (min-width: 900px){

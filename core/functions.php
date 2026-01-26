@@ -49,6 +49,32 @@ function ensure_products_favorite_column(): void {
   }
 }
 
+function ensure_sales_columns(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $columns = [
+      'payment_method' => "ALTER TABLE sales ADD COLUMN payment_method ENUM('cash','qris') NOT NULL DEFAULT 'cash'",
+      'payment_proof' => "ALTER TABLE sales ADD COLUMN payment_proof VARCHAR(255) NULL",
+      'returned_at' => "ALTER TABLE sales ADD COLUMN returned_at TIMESTAMP NULL DEFAULT NULL",
+      'return_reason' => "ALTER TABLE sales ADD COLUMN return_reason TEXT NULL",
+    ];
+
+    foreach ($columns as $name => $statement) {
+      $stmt = db()->prepare("SHOW COLUMNS FROM sales LIKE ?");
+      $stmt->execute([$name]);
+      $exists = (bool)$stmt->fetch();
+      if (!$exists) {
+        db()->exec($statement);
+      }
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_upload_dir(string $dir): void {
   if (!is_dir($dir)) mkdir($dir, 0755, true);
 }
