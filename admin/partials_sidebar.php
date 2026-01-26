@@ -13,14 +13,16 @@ $u = current_user();
         <div class="p-title"><?php echo e($u['name'] ?? 'User'); ?></div>
         <div class="p-sub"><?php echo e(ucfirst($u['role'] ?? 'admin')); ?></div>
       </div>
-      <div class="p-right">
-        <span class="badge-pill">75</span>
-        <span class="badge-pill">▾</span>
-      </div>
     </div>
   </div>
 
   <div class="nav">
+    <div class="item">
+      <a href="<?php echo e(base_url('index.php')); ?>" target="_blank" rel="noopener">
+        <div class="mi">🌐</div><div class="label">Landing Page</div>
+      </a>
+    </div>
+
     <div class="item">
       <a class="<?php echo (basename($_SERVER['PHP_SELF'])==='dashboard.php')?'active':''; ?>"
          href="<?php echo e(base_url('admin/dashboard.php')); ?>">

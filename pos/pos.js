@@ -2,6 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const input = document.querySelector('#pos-search');
   const cards = Array.from(document.querySelectorAll('.pos-product-card'));
   const empty = document.querySelector('#pos-empty');
+  const printBtn = document.querySelector('[data-print-receipt]');
+  if (printBtn) {
+    printBtn.addEventListener('click', () => {
+      window.print();
+    });
+  }
+
   if (!input || !cards.length) return;
 
   const normalize = (value) => value.toLowerCase().trim();
