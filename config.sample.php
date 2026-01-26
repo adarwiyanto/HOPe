@@ -3,7 +3,7 @@
 
 return [
   'app' => [
-    'name' => 'Toko Online',
+    'name' => 'Hope Noodles Belitung',
     'base_url' => 'http://localhost/toko_online', // diset saat instalasi
   ],
   'db' => [

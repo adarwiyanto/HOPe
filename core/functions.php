@@ -33,6 +33,22 @@ function set_setting(string $key, string $value): void {
   $stmt->execute([$key, $value]);
 }
 
+function ensure_products_favorite_column(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM products LIKE 'is_favorite'");
+    $hasColumn = (bool)$stmt->fetch();
+    if (!$hasColumn) {
+      db()->exec("ALTER TABLE products ADD COLUMN is_favorite TINYINT(1) NOT NULL DEFAULT 0");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_upload_dir(string $dir): void {
   if (!is_dir($dir)) mkdir($dir, 0755, true);
 }

@@ -62,7 +62,8 @@ $u = current_user();
         </button>
         <div class="submenu" id="m-admin">
           <a href="<?php echo e(base_url('admin/users.php')); ?>">User</a>
-          <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a></a>
+          <a href="<?php echo e(base_url('admin/store.php')); ?>">Profil Toko</a>
+          <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a>
         </div>
       </div>
     <?php endif; ?>
