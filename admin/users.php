@@ -108,10 +108,20 @@ $customCss = setting('custom_css','');
             <thead><tr><th>Username</th><th>Nama</th><th>Role</th><th>Dibuat</th><th></th></tr></thead>
             <tbody>
               <?php foreach ($users as $u): ?>
+                <?php
+                  $roleLabels = [
+                    'superadmin' => 'superadmin',
+                    'admin' => 'admin',
+                    'user' => 'user',
+                    'pegawai' => 'pegawai',
+                  ];
+                  $roleValue = (string)($u['role'] ?? '');
+                  $roleLabel = $roleLabels[$roleValue] ?? ($roleValue !== '' ? $roleValue : 'pegawai');
+                ?>
                 <tr>
                   <td><?php echo e($u['username']); ?></td>
                   <td><?php echo e($u['name']); ?></td>
-                  <td><span class="badge"><?php echo e($u['role']); ?></span></td>
+                  <td><span class="badge"><?php echo e($roleLabel); ?></span></td>
                   <td><?php echo e($u['created_at']); ?></td>
                   <td>
                     <?php if (in_array($me['role'] ?? '', ['admin', 'superadmin'], true) && (int)$u['id'] !== (int)($me['id'] ?? 0)): ?>
