@@ -330,6 +330,13 @@ function format_rupiah($amount)
   <title>Admin</title>
   <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
+  <style>
+    .kpi-subtitle {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: #6b7280;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -396,25 +403,31 @@ function format_rupiah($amount)
         <?php if ($role === 'superadmin'): ?>
           <div class="card" style="margin-top:16px">
             <h3 style="margin-top:0">KPI Owner</h3>
+            <p class="kpi-subtitle">Ringkasan performa penjualan toko.</p>
             <div class="grid cols-3">
               <div class="card">
                 <h4 style="margin-top:0">Sales Hari Ini</h4>
+                <div class="kpi-subtitle">Total omzet penjualan hari ini.</div>
                 <div style="font-size:20px;font-weight:600"><?php echo e(format_rupiah($superStats['sales_today'])); ?></div>
               </div>
               <div class="card">
                 <h4 style="margin-top:0">Sales Bulan Ini</h4>
+                <div class="kpi-subtitle">Total omzet penjualan bulan berjalan.</div>
                 <div style="font-size:20px;font-weight:600"><?php echo e(format_rupiah($superStats['sales_month'])); ?></div>
               </div>
               <div class="card">
                 <h4 style="margin-top:0">Transaksi Hari Ini</h4>
+                <div class="kpi-subtitle">Jumlah transaksi selesai hari ini.</div>
                 <div style="font-size:20px;font-weight:600"><?php echo e((string)$superStats['tx_today']); ?></div>
               </div>
               <div class="card">
                 <h4 style="margin-top:0">Transaksi Bulan Ini</h4>
+                <div class="kpi-subtitle">Jumlah transaksi selesai bulan ini.</div>
                 <div style="font-size:20px;font-weight:600"><?php echo e((string)$superStats['tx_month']); ?></div>
               </div>
               <div class="card">
                 <h4 style="margin-top:0">AOV Bulan Ini</h4>
+                <div class="kpi-subtitle">Rata-rata nilai transaksi bulan ini.</div>
                 <div style="font-size:20px;font-weight:600">
                   <?php
                   $aov = $superStats['tx_month'] > 0 ? $superStats['sales_month'] / $superStats['tx_month'] : 0;
@@ -424,6 +437,7 @@ function format_rupiah($amount)
               </div>
               <div class="card">
                 <h4 style="margin-top:0">Growth vs Bulan Lalu</h4>
+                <div class="kpi-subtitle">Perbandingan omzet bulan ini vs bulan lalu.</div>
                 <div style="font-size:20px;font-weight:600">
                   <?php
                   if ($superStats['sales_last_month'] > 0) {

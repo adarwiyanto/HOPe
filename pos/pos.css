@@ -347,9 +347,9 @@
 }
 
 .pos-payment-options{
-  display:flex;
+  display:grid;
   gap:12px;
-  flex-wrap:wrap;
+  grid-template-columns:repeat(auto-fit, minmax(120px, 1fr));
 }
 
 .pos-payment-option{
@@ -362,11 +362,20 @@
   background:#fff;
   cursor:pointer;
 }
+.pos-payment-option span{
+  line-height:1.2;
+}
 
 .pos-qris{
   display:flex;
   flex-direction:column;
   gap:8px;
+}
+.pos-qris-input{
+  display:none;
+}
+.pos-qris-upload{
+  width:fit-content;
 }
 
 .pos-qris-preview{
@@ -392,6 +401,16 @@
   justify-content:space-between;
   align-items:center;
   font-size:18px;
+}
+
+.pos-new-transaction-form{
+  margin:0;
+}
+
+.pos-reset-btn{
+  background:#f1f5f9;
+  color:#0f172a;
+  border:1px solid var(--border);
 }
 
 .pos-checkout{
