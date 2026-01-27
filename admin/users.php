@@ -78,10 +78,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       $smtpHost = trim($_POST['smtp_host'] ?? '');
       $smtpPort = trim($_POST['smtp_port'] ?? '');
+      $smtpSecure = strtolower(trim($_POST['smtp_secure'] ?? 'ssl'));
       $smtpUser = trim($_POST['smtp_user'] ?? '');
       $smtpPass = (string)($_POST['smtp_pass'] ?? '');
       $fromEmail = trim($_POST['smtp_from_email'] ?? '');
       $fromName = trim($_POST['smtp_from_name'] ?? '');
+      if (!in_array($smtpSecure, ['ssl', 'tls', 'none'], true)) {
+        $smtpSecure = 'ssl';
+      }
 
       if ($smtpHost === '' || $smtpPort === '' || $smtpUser === '' || $smtpPass === '') {
         throw new Exception('Host, port, user, dan password SMTP wajib diisi.');
@@ -92,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       set_setting('smtp_host', $smtpHost);
       set_setting('smtp_port', $smtpPort);
+      set_setting('smtp_secure', $smtpSecure);
       set_setting('smtp_user', $smtpUser);
       set_setting('smtp_pass', $smtpPass);
       set_setting('smtp_from_email', $fromEmail);
@@ -225,6 +230,14 @@ $mailCfg = mail_settings();
               <input type="hidden" name="action" value="save_email_settings">
               <div class="row"><label>SMTP Host</label><input name="smtp_host" value="<?php echo e($mailCfg['host']); ?>" required></div>
               <div class="row"><label>SMTP Port</label><input name="smtp_port" value="<?php echo e($mailCfg['port']); ?>" required></div>
+              <div class="row">
+                <label>SMTP Security</label>
+                <select name="smtp_secure">
+                  <option value="ssl" <?php echo ($mailCfg['secure'] ?? '') === 'ssl' ? 'selected' : ''; ?>>SSL (465)</option>
+                  <option value="tls" <?php echo ($mailCfg['secure'] ?? '') === 'tls' ? 'selected' : ''; ?>>TLS (STARTTLS)</option>
+                  <option value="none" <?php echo ($mailCfg['secure'] ?? '') === 'none' ? 'selected' : ''; ?>>None</option>
+                </select>
+              </div>
               <div class="row"><label>SMTP User</label><input name="smtp_user" value="<?php echo e($mailCfg['user']); ?>" required></div>
               <div class="row"><label>SMTP Password</label><input type="password" name="smtp_pass" value="<?php echo e($mailCfg['pass']); ?>" required></div>
               <div class="row"><label>Email Pengirim</label><input name="smtp_from_email" value="<?php echo e($mailCfg['from_email']); ?>" required></div>
