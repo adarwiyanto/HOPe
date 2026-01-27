@@ -19,7 +19,7 @@ if ($role === 'user' || $role === 'pegawai' || $role === '' || $role === null) {
   exit;
 }
 
-if ($role !== 'admin' && $role !== 'superadmin') {
+if ($role !== 'admin' && $role !== 'owner') {
   http_response_code(403);
   exit('Forbidden');
 }
@@ -187,7 +187,7 @@ if ($role === 'admin') {
   $recentReturns = $stmt->fetchAll();
 }
 
-if ($role === 'superadmin') {
+if ($role === 'owner') {
   $monthStart = $today->modify('first day of this month');
   $monthEnd = $monthStart->modify('+1 month');
   $lastMonthStart = $today->modify('first day of last month');
@@ -401,7 +401,7 @@ function format_rupiah($amount)
           </div>
         </div>
 
-        <?php if ($role === 'superadmin'): ?>
+        <?php if ($role === 'owner'): ?>
           <div class="card" style="margin-top:16px">
             <h3 style="margin-top:0">KPI Owner</h3>
             <p class="kpi-subtitle">Ringkasan performa penjualan toko.</p>

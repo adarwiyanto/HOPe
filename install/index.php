@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
         name VARCHAR(120) NOT NULL,
-        role ENUM('superadmin','admin','user','pegawai') NOT NULL DEFAULT 'admin',
+        role ENUM('owner','admin','user','pegawai') NOT NULL DEFAULT 'admin',
         password_hash VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
@@ -81,8 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ");
 
     $hash = password_hash($admin_pass1, PASSWORD_DEFAULT);
-    $stmt = $pdo->prepare("INSERT INTO users (username,name,role,password_hash) VALUES (?,?, 'superadmin', ?)
-      ON DUPLICATE KEY UPDATE name=VALUES(name), role='superadmin', password_hash=VALUES(password_hash)");
+    $stmt = $pdo->prepare("INSERT INTO users (username,name,role,password_hash) VALUES (?,?, 'owner', ?)
+      ON DUPLICATE KEY UPDATE name=VALUES(name), role='owner', password_hash=VALUES(password_hash)");
     $stmt->execute([$admin_username, $admin_name, $hash]);
 
     $stmt = $pdo->prepare("INSERT INTO settings (`key`,`value`) VALUES ('custom_css','') 

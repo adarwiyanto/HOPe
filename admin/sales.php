@@ -14,8 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   try {
     if ($action === 'delete') {
-      if (($me['role'] ?? '') !== 'superadmin') {
-        throw new Exception('Hanya superadmin yang bisa menghapus transaksi.');
+      if (($me['role'] ?? '') !== 'owner') {
+        throw new Exception('Hanya owner yang bisa menghapus transaksi.');
       }
       $saleId = (int)($_POST['sale_id'] ?? 0);
       if ($saleId <= 0) throw new Exception('Transaksi tidak ditemukan.');
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'return') {
-      if (!in_array($me['role'] ?? '', ['admin', 'superadmin'], true)) {
+      if (!in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
         throw new Exception('Anda tidak diizinkan meretur transaksi.');
       }
       $saleId = (int)($_POST['sale_id'] ?? 0);
@@ -177,7 +177,7 @@ $customCss = setting('custom_css', '');
                     <?php endif; ?>
                   </td>
                   <td>
-                    <?php if (empty($s['return_reason']) && in_array($me['role'] ?? '', ['admin', 'superadmin'], true)): ?>
+                    <?php if (empty($s['return_reason']) && in_array($me['role'] ?? '', ['admin', 'owner'], true)): ?>
                       <form method="post" class="return-form" data-return-form>
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                         <input type="hidden" name="action" value="return">
@@ -188,7 +188,7 @@ $customCss = setting('custom_css', '');
                         <button class="btn" type="submit" data-return-submit>Retur</button>
                       </form>
                     <?php endif; ?>
-                    <?php if (($me['role'] ?? '') === 'superadmin'): ?>
+                    <?php if (($me['role'] ?? '') === 'owner'): ?>
                       <form method="post" onsubmit="return confirm('Hapus transaksi ini?');" style="margin-top:6px">
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                         <input type="hidden" name="action" value="delete">

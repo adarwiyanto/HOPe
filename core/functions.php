@@ -71,6 +71,49 @@ function ensure_products_favorite_column(): void {
   }
 }
 
+function ensure_user_invites_table(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("
+      CREATE TABLE IF NOT EXISTS user_invites (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(190) NOT NULL,
+        role VARCHAR(30) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
+        used_at TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_token_hash (token_hash),
+        KEY idx_email (email)
+      ) ENGINE=InnoDB
+    ");
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function ensure_owner_role(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM users LIKE 'role'");
+    $column = $stmt->fetch();
+    if (!$column) return;
+    $type = (string)($column['Type'] ?? '');
+    if (strpos($type, "'owner'") === false || strpos($type, "'superadmin'") !== false) {
+      db()->exec("UPDATE users SET role='owner' WHERE role='superadmin'");
+      db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai') NOT NULL DEFAULT 'admin'");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_upload_dir(string $dir): void {
   if (!is_dir($dir)) mkdir($dir, 0755, true);
 }
