@@ -35,6 +35,7 @@ $customCss = setting('custom_css', '');
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Produk</title>
+  <link rel="icon" href="<?php echo e(favicon_url()); ?>">
   <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
 </head>
