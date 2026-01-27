@@ -19,6 +19,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       $saleId = (int)($_POST['sale_id'] ?? 0);
       if ($saleId <= 0) throw new Exception('Transaksi tidak ditemukan.');
+      $stmt = db()->prepare("SELECT payment_proof_path FROM sales WHERE id=?");
+      $stmt->execute([$saleId]);
+      $sale = $stmt->fetch();
+      if (!empty($sale['payment_proof_path'])) {
+        $fullPath = realpath(__DIR__ . '/../' . $sale['payment_proof_path']);
+        $uploadsDir = realpath(__DIR__ . '/../uploads/qris');
+        if ($fullPath && $uploadsDir && strpos($fullPath, $uploadsDir . DIRECTORY_SEPARATOR) === 0 && is_file($fullPath)) {
+          unlink($fullPath);
+        }
+      }
       $stmt = db()->prepare("DELETE FROM sales WHERE id=?");
       $stmt->execute([$saleId]);
       redirect(base_url('admin/sales.php'));
@@ -140,7 +150,7 @@ $customCss = setting('custom_css', '');
           <h3 style="margin-top:0">Riwayat (100 terakhir)</h3>
           <table class="table">
             <thead>
-              <tr><th>Waktu</th><th>Produk</th><th>Qty</th><th>Total</th><th>Pembayaran</th><th>Status</th><th>Aksi</th></tr>
+              <tr><th>Waktu</th><th>Produk</th><th>Qty</th><th>Total</th><th>Pembayaran</th><th>Bukti QRIS</th><th>Status</th><th>Aksi</th></tr>
             </thead>
             <tbody>
               <?php foreach ($sales as $s): ?>
@@ -150,6 +160,15 @@ $customCss = setting('custom_css', '');
                   <td><?php echo e((string)$s['qty']); ?></td>
                   <td>Rp <?php echo e(number_format((float)$s['total'], 0, '.', ',')); ?></td>
                   <td><?php echo e($s['payment_method'] ?? '-'); ?></td>
+                  <td>
+                    <?php if (!empty($s['payment_proof_path'])): ?>
+                      <button type="button" class="qris-thumb-btn" data-qris-full="<?php echo e(base_url($s['payment_proof_path'])); ?>">
+                        <img class="qris-thumb" src="<?php echo e(base_url($s['payment_proof_path'])); ?>" alt="Bukti QRIS">
+                      </button>
+                    <?php else: ?>
+                      -
+                    <?php endif; ?>
+                  </td>
                   <td>
                     <?php if (!empty($s['return_reason'])): ?>
                       Retur: <?php echo e($s['return_reason']); ?>
@@ -187,6 +206,12 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
 </div>
+<div class="qris-preview-modal" data-qris-modal hidden>
+  <div class="qris-preview-stage">
+    <img alt="Preview bukti QRIS" data-qris-modal-img>
+  </div>
+  <button class="qris-preview-exit" type="button" data-qris-close>← Kembali</button>
+</div>
 <script>
   document.querySelectorAll('[data-return-form]').forEach((form) => {
     const reasonWrap = form.querySelector('[data-return-reason]');
@@ -202,6 +227,93 @@ $customCss = setting('custom_css', '');
       }
     });
   });
+
+  const modal = document.querySelector('[data-qris-modal]');
+  const modalImg = modal ? modal.querySelector('[data-qris-modal-img]') : null;
+  const closeButtons = modal ? modal.querySelectorAll('[data-qris-close]') : [];
+  const openButtons = document.querySelectorAll('[data-qris-full]');
+  let scale = 1;
+  let translateX = 0;
+  let translateY = 0;
+  let isPanning = false;
+  let startX = 0;
+  let startY = 0;
+
+  const applyTransform = () => {
+    if (!modalImg) return;
+    modalImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+  };
+
+  const resetTransform = () => {
+    scale = 1;
+    translateX = 0;
+    translateY = 0;
+    applyTransform();
+  };
+
+  openButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!modal || !modalImg) return;
+      const src = btn.getAttribute('data-qris-full');
+      if (!src) return;
+      modalImg.src = src;
+      resetTransform();
+      modal.hidden = false;
+      modal.classList.add('is-open');
+    });
+  });
+
+  closeButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!modal) return;
+      modal.classList.remove('is-open');
+      modal.hidden = true;
+      if (modalImg) modalImg.src = '';
+    });
+  });
+
+  if (modalImg) {
+    modalImg.addEventListener('pointerdown', (event) => {
+      isPanning = true;
+      startX = event.clientX - translateX;
+      startY = event.clientY - translateY;
+      modalImg.setPointerCapture(event.pointerId);
+      modalImg.style.cursor = 'grabbing';
+    });
+    modalImg.addEventListener('pointermove', (event) => {
+      if (!isPanning) return;
+      translateX = event.clientX - startX;
+      translateY = event.clientY - startY;
+      applyTransform();
+    });
+    modalImg.addEventListener('pointerup', (event) => {
+      isPanning = false;
+      modalImg.releasePointerCapture(event.pointerId);
+      modalImg.style.cursor = 'grab';
+    });
+    modalImg.addEventListener('pointercancel', () => {
+      isPanning = false;
+      modalImg.style.cursor = 'grab';
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('wheel', (event) => {
+      if (!modalImg) return;
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? 0.1 : -0.1;
+      scale = Math.max(1, Math.min(4, scale + delta));
+      applyTransform();
+    }, { passive: false });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (!modal.classList.contains('is-open')) return;
+      modal.classList.remove('is-open');
+      modal.hidden = true;
+      if (modalImg) modalImg.src = '';
+    });
+  }
 </script>
 <script src="<?php echo e(base_url('assets/app.js')); ?>"></script>
 </body>
