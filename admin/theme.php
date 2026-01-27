@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Tema</title>
   <link rel="icon" href="<?php echo e(favicon_url()); ?>">
-  <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
+  <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
 </head>
 <body>
@@ -54,6 +54,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 </div>
-<script src="<?php echo e(base_url('assets/app.js')); ?>"></script>
+<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

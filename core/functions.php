@@ -10,6 +10,20 @@ function base_url(string $path = ''): string {
   return $path ? "{$base}/{$path}" : $base;
 }
 
+function app_cache_bust(): string {
+  static $version = null;
+  if ($version !== null) return $version;
+  $version = (string)($_SERVER['REQUEST_TIME'] ?? time());
+  return $version;
+}
+
+function asset_url(string $path = ''): string {
+  $url = base_url($path);
+  if ($path === '') return $url;
+  $version = app_cache_bust();
+  return "{$url}?v={$version}";
+}
+
 function redirect(string $to): void {
   header("Location: {$to}");
   exit;
