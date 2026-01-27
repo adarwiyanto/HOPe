@@ -5,6 +5,7 @@ function mail_settings(): array {
   return [
     'host' => setting('smtp_host', 'mail.hopenoodles.my.id'),
     'port' => (int)setting('smtp_port', '465'),
+    'secure' => setting('smtp_secure', 'ssl'),
     'user' => setting('smtp_user', 'admin@hopenoodles.my.id'),
     'pass' => setting('smtp_pass', 'AdminHope'),
     'from_email' => setting('smtp_from_email', 'admin@hopenoodles.my.id'),
@@ -16,7 +17,9 @@ function send_email_smtp(string $to, string $subject, string $body): bool {
   $cfg = mail_settings();
   $host = $cfg['host'];
   $port = (int)$cfg['port'];
-  $remote = "ssl://{$host}:{$port}";
+  $secure = strtolower(trim((string)$cfg['secure']));
+  $remoteHost = ($secure === 'ssl') ? "ssl://{$host}" : $host;
+  $remote = "{$remoteHost}:{$port}";
 
   $fp = @stream_socket_client($remote, $errno, $errstr, 15, STREAM_CLIENT_CONNECT);
   if (!$fp) return false;
@@ -26,7 +29,7 @@ function send_email_smtp(string $to, string $subject, string $body): bool {
   $read = function() use ($fp): string {
     $data = '';
     while (!feof($fp)) {
-      $line = fgets($fp, 515);
+      $line = @fgets($fp, 515);
       if ($line === false) break;
       $data .= $line;
       if (preg_match('/^\d{3} /', $line)) break;
@@ -35,12 +38,21 @@ function send_email_smtp(string $to, string $subject, string $body): bool {
   };
 
   $send = function(string $command) use ($fp, $read): string {
-    fwrite($fp, $command . "\r\n");
+    $written = @fwrite($fp, $command . "\r\n");
+    if ($written === false) return '';
     return $read();
   };
 
   $read();
   $send('EHLO localhost');
+  if ($secure === 'tls') {
+    $send('STARTTLS');
+    if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+      fclose($fp);
+      return false;
+    }
+    $send('EHLO localhost');
+  }
   $send('AUTH LOGIN');
   $send(base64_encode($cfg['user']));
   $send(base64_encode($cfg['pass']));
@@ -58,7 +70,7 @@ function send_email_smtp(string $to, string $subject, string $body): bool {
   $send("MAIL FROM:<{$fromEmail}>");
   $send("RCPT TO:<{$to}>");
   $send('DATA');
-  fwrite($fp, $headersStr . "\r\n\r\n" . $body . "\r\n.\r\n");
+  @fwrite($fp, $headersStr . "\r\n\r\n" . $body . "\r\n.\r\n");
   $read();
   $send('QUIT');
   fclose($fp);
@@ -76,4 +88,3 @@ function send_invite_email(string $email, string $token, string $role): bool {
 
   return send_email_smtp($email, $subject, $body);
 }
-
