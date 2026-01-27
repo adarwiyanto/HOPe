@@ -66,6 +66,9 @@ $u = current_user();
           <a href="<?php echo e(base_url('admin/users.php')); ?>">User</a>
           <a href="<?php echo e(base_url('admin/store.php')); ?>">Profil Toko</a>
           <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a>
+          <?php if (($u['role'] ?? '') === 'superadmin'): ?>
+            <a href="<?php echo e(base_url('admin/backup.php')); ?>">Backup Database</a>
+          <?php endif; ?>
         </div>
       </div>
     <?php endif; ?>
