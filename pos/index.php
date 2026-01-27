@@ -216,143 +216,150 @@ foreach ($cart as $pid => $qty) {
           </div>
           <div class="pos-receipt-actions no-print">
             <button class="btn pos-print-btn" type="button" data-print-receipt>Cetak Struk</button>
+            <form method="post" class="pos-new-transaction-form">
+              <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+              <input type="hidden" name="action" value="new_transaction">
+              <button class="btn pos-reset-btn" type="submit">Transaksi Baru</button>
+            </form>
           </div>
         </div>
       <?php endif; ?>
 
-      <div class="pos-layout">
-        <section class="pos-panel pos-products">
-          <div class="pos-products-header">
-            <div>
-              <h3>Produk</h3>
-              <small>Pilih produk untuk ditambahkan ke keranjang.</small>
-            </div>
-            <div class="pos-search">
-              <input id="pos-search" type="search" placeholder="Cari produk..." autocomplete="off">
-            </div>
-          </div>
-          <div class="pos-products-grid">
-            <?php foreach ($products as $p): ?>
-              <div class="pos-product-card" data-name="<?php echo e(strtolower($p['name'])); ?>">
-                <div class="pos-product-thumb">
-                  <?php if (!empty($p['image_path'])): ?>
-                    <img src="<?php echo e(base_url($p['image_path'])); ?>" alt="<?php echo e($p['name']); ?>">
-                  <?php else: ?>
-                    <div class="pos-product-placeholder">No Image</div>
-                  <?php endif; ?>
-                </div>
-                <div class="pos-product-info">
-                  <div class="pos-product-name"><?php echo e($p['name']); ?></div>
-                  <div class="pos-product-price">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></div>
-                </div>
-                <form method="post" class="pos-product-action">
-                  <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                  <input type="hidden" name="action" value="add">
-                  <input type="hidden" name="product_id" value="<?php echo e((string)$p['id']); ?>">
-                  <button class="btn pos-btn pos-add-btn" type="submit">Tambah</button>
-                </form>
+      <?php if (empty($receipt)): ?>
+        <div class="pos-layout">
+          <section class="pos-panel pos-products">
+            <div class="pos-products-header">
+              <div>
+                <h3>Produk</h3>
+                <small>Pilih produk untuk ditambahkan ke keranjang.</small>
               </div>
-            <?php endforeach; ?>
-            <?php if ($hasProducts): ?>
-              <div class="pos-empty" id="pos-empty">Produk tidak ditemukan.</div>
-            <?php else: ?>
-              <div class="pos-empty" style="display:block">Belum ada produk.</div>
-            <?php endif; ?>
-          </div>
-        </section>
-
-        <aside class="pos-panel pos-cart">
-          <div class="pos-cart-header">
-            <div>
-              <h3>Keranjang</h3>
-              <small>Ringkasan transaksi.</small>
+              <div class="pos-search">
+                <input id="pos-search" type="search" placeholder="Cari produk..." autocomplete="off">
+              </div>
             </div>
-            <div class="pos-cart-count"><?php echo e((string)$cartCount); ?> item</div>
-          </div>
-
-          <?php if (empty($cartItems)): ?>
-            <div class="pos-empty-cart">
-              <p><strong>Keranjang masih kosong.</strong></p>
-              <small>Tambahkan produk dari daftar di kiri.</small>
-            </div>
-          <?php else: ?>
-            <div class="pos-cart-items">
-              <?php foreach ($cartItems as $item): ?>
-                <div class="pos-cart-item">
-                  <div class="pos-cart-item-head">
-                    <div class="pos-cart-item-name"><?php echo e($item['name']); ?></div>
-                    <div class="pos-cart-item-price">Rp <?php echo e(number_format($item['price'], 0, '.', ',')); ?></div>
+            <div class="pos-products-grid">
+              <?php foreach ($products as $p): ?>
+                <div class="pos-product-card" data-name="<?php echo e(strtolower($p['name'])); ?>">
+                  <div class="pos-product-thumb">
+                    <?php if (!empty($p['image_path'])): ?>
+                      <img src="<?php echo e(base_url($p['image_path'])); ?>" alt="<?php echo e($p['name']); ?>">
+                    <?php else: ?>
+                      <div class="pos-product-placeholder">No Image</div>
+                    <?php endif; ?>
                   </div>
-                  <div class="pos-cart-row">
-                    <div class="pos-qty">
-                      <form method="post">
-                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                        <input type="hidden" name="action" value="dec">
-                        <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
-                        <button class="btn pos-qty-btn" type="submit">−</button>
-                      </form>
-                      <div class="pos-qty-value"><?php echo e((string)$item['qty']); ?></div>
-                      <form method="post">
-                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                        <input type="hidden" name="action" value="inc">
-                        <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
-                        <button class="btn pos-qty-btn" type="submit">+</button>
-                      </form>
-                    </div>
-                    <div class="pos-cart-subtotal">Rp <?php echo e(number_format($item['subtotal'], 0, '.', ',')); ?></div>
+                  <div class="pos-product-info">
+                    <div class="pos-product-name"><?php echo e($p['name']); ?></div>
+                    <div class="pos-product-price">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></div>
                   </div>
-                  <form method="post" class="pos-remove-form">
+                  <form method="post" class="pos-product-action">
                     <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                    <input type="hidden" name="action" value="remove">
-                    <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
-                    <button class="btn pos-remove-btn" type="submit">Hapus</button>
+                    <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="product_id" value="<?php echo e((string)$p['id']); ?>">
+                    <button class="btn pos-btn pos-add-btn" type="submit">Tambah</button>
                   </form>
                 </div>
               <?php endforeach; ?>
+              <?php if ($hasProducts): ?>
+                <div class="pos-empty" id="pos-empty">Produk tidak ditemukan.</div>
+              <?php else: ?>
+                <div class="pos-empty" style="display:block">Belum ada produk.</div>
+              <?php endif; ?>
+            </div>
+          </section>
+
+          <aside class="pos-panel pos-cart">
+            <div class="pos-cart-header">
+              <div>
+                <h3>Keranjang</h3>
+                <small>Ringkasan transaksi.</small>
+              </div>
+              <div class="pos-cart-count"><?php echo e((string)$cartCount); ?> item</div>
             </div>
 
-            <div class="pos-summary">
-              <div class="pos-summary-row">
-                <span>Total</span>
-                <strong>Rp <?php echo e(number_format($total, 0, '.', ',')); ?></strong>
+            <?php if (empty($cartItems)): ?>
+              <div class="pos-empty-cart">
+                <p><strong>Keranjang masih kosong.</strong></p>
+                <small>Tambahkan produk dari daftar di kiri.</small>
               </div>
-              <form method="post" class="pos-new-transaction-form">
-                <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                <input type="hidden" name="action" value="new_transaction">
-                <button class="btn pos-reset-btn" type="submit">Transaksi Baru</button>
-              </form>
-              <form method="post" enctype="multipart/form-data">
-                <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                <input type="hidden" name="action" value="checkout">
-                <div class="pos-payment">
-                  <label>Metode Pembayaran</label>
-                  <div class="pos-payment-options">
-                    <label class="pos-payment-option">
-                      <input type="radio" name="payment_method" value="cash" checked>
-                      <span>Tunai</span>
-                    </label>
-                    <label class="pos-payment-option">
-                      <input type="radio" name="payment_method" value="qris">
-                      <span>QRIS</span>
-                    </label>
+            <?php else: ?>
+              <div class="pos-cart-items">
+                <?php foreach ($cartItems as $item): ?>
+                  <div class="pos-cart-item">
+                    <div class="pos-cart-item-head">
+                      <div class="pos-cart-item-name"><?php echo e($item['name']); ?></div>
+                      <div class="pos-cart-item-price">Rp <?php echo e(number_format($item['price'], 0, '.', ',')); ?></div>
+                    </div>
+                    <div class="pos-cart-row">
+                      <div class="pos-qty">
+                        <form method="post">
+                          <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                          <input type="hidden" name="action" value="dec">
+                          <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
+                          <button class="btn pos-qty-btn" type="submit">−</button>
+                        </form>
+                        <div class="pos-qty-value"><?php echo e((string)$item['qty']); ?></div>
+                        <form method="post">
+                          <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                          <input type="hidden" name="action" value="inc">
+                          <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
+                          <button class="btn pos-qty-btn" type="submit">+</button>
+                        </form>
+                      </div>
+                      <div class="pos-cart-subtotal">Rp <?php echo e(number_format($item['subtotal'], 0, '.', ',')); ?></div>
+                    </div>
+                    <form method="post" class="pos-remove-form">
+                      <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                      <input type="hidden" name="action" value="remove">
+                      <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
+                      <button class="btn pos-remove-btn" type="submit">Hapus</button>
+                    </form>
                   </div>
+                <?php endforeach; ?>
+              </div>
+
+              <div class="pos-summary">
+                <div class="pos-summary-row">
+                  <span>Total</span>
+                  <strong>Rp <?php echo e(number_format($total, 0, '.', ',')); ?></strong>
                 </div>
-                <div class="pos-qris" data-qris-field hidden>
-                  <label for="payment_proof">Foto Bukti QRIS</label>
-                  <input class="pos-qris-input" type="file" id="payment_proof" name="payment_proof" accept="image/*" capture="environment">
-                  <label class="btn pos-qris-upload" for="payment_proof">Ambil Foto QRIS</label>
-                  <div class="pos-qris-preview" data-qris-preview hidden>
-                    <img alt="Preview bukti QRIS">
-                    <button type="button" class="btn pos-qris-retake" data-qris-retake>Ulangi Foto</button>
+                <form method="post" class="pos-new-transaction-form">
+                  <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                  <input type="hidden" name="action" value="new_transaction">
+                  <button class="btn pos-reset-btn" type="submit">Transaksi Baru</button>
+                </form>
+                <form method="post" enctype="multipart/form-data">
+                  <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                  <input type="hidden" name="action" value="checkout">
+                  <div class="pos-payment">
+                    <label>Metode Pembayaran</label>
+                    <div class="pos-payment-options">
+                      <label class="pos-payment-option">
+                        <input type="radio" name="payment_method" value="cash" checked>
+                        <span>Tunai</span>
+                      </label>
+                      <label class="pos-payment-option">
+                        <input type="radio" name="payment_method" value="qris">
+                        <span>QRIS</span>
+                      </label>
+                    </div>
                   </div>
-                  <small>Pastikan foto bukti pembayaran jelas sebelum checkout.</small>
-                </div>
-                <button class="btn pos-checkout" type="submit">Checkout</button>
-              </form>
-            </div>
-          <?php endif; ?>
-        </aside>
-      </div>
+                  <div class="pos-qris" data-qris-field hidden>
+                    <label for="payment_proof">Foto Bukti QRIS</label>
+                    <input class="pos-qris-input" type="file" id="payment_proof" name="payment_proof" accept="image/*" capture="environment">
+                    <label class="btn pos-qris-upload" for="payment_proof">Ambil Foto QRIS</label>
+                    <div class="pos-qris-preview" data-qris-preview hidden>
+                      <img alt="Preview bukti QRIS">
+                      <button type="button" class="btn pos-qris-retake" data-qris-retake>Ulangi Foto</button>
+                    </div>
+                    <small>Pastikan foto bukti pembayaran jelas sebelum checkout.</small>
+                  </div>
+                  <button class="btn pos-checkout" type="submit">Checkout</button>
+                </form>
+              </div>
+            <?php endif; ?>
+          </aside>
+        </div>
+      <?php endif; ?>
     </div>
   </div>
   <script src="<?php echo e(base_url('pos/pos.js')); ?>"></script>
