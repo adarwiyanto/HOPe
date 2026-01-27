@@ -19,11 +19,12 @@ function require_login(): void {
 
 function require_admin(): void {
   require_login();
+  ensure_owner_role();
   $u = current_user();
   if (($u['role'] ?? '') === 'pegawai') {
     redirect(base_url('pos/index.php'));
   }
-  if (!in_array($u['role'] ?? '', ['admin', 'superadmin'], true)) {
+  if (!in_array($u['role'] ?? '', ['admin', 'owner', 'superadmin'], true)) {
     http_response_code(403);
     exit('Forbidden');
   }
@@ -43,6 +44,9 @@ function login_attempt(string $username, string $password): bool {
 
   start_session();
   unset($u['password_hash']);
+  if (($u['role'] ?? '') === 'superadmin') {
+    $u['role'] = 'owner';
+  }
   $_SESSION['user'] = $u;
   return true;
 }

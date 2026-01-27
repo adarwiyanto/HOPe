@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $p = (string)($_POST['password'] ?? '');
   if (login_attempt($u, $p)) {
     $me = current_user();
-    if (!in_array($me['role'] ?? '', ['admin', 'superadmin'], true)) {
+    if (!in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
       redirect(base_url('pos/index.php'));
     }
     redirect(base_url('admin/dashboard.php'));

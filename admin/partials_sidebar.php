@@ -56,7 +56,7 @@ $u = current_user();
       </a>
     </div>
 
-    <?php if (in_array($u['role'] ?? '', ['admin', 'superadmin'], true)): ?>
+    <?php if (in_array($u['role'] ?? '', ['admin', 'owner'], true)): ?>
       <div class="item">
         <button type="button" data-toggle-submenu="#m-admin">
           <div class="mi">⚙️</div><div class="label">Admin</div>
@@ -66,7 +66,7 @@ $u = current_user();
           <a href="<?php echo e(base_url('admin/users.php')); ?>">User</a>
           <a href="<?php echo e(base_url('admin/store.php')); ?>">Profil Toko</a>
           <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a>
-          <?php if (($u['role'] ?? '') === 'superadmin'): ?>
+          <?php if (($u['role'] ?? '') === 'owner'): ?>
             <a href="<?php echo e(base_url('admin/backup.php')); ?>">Backup Database</a>
           <?php endif; ?>
         </div>
