@@ -32,7 +32,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
-    if ($action === 'add') {
+    if ($action === 'new_transaction') {
+      $cart = [];
+      unset($_SESSION['pos_receipt']);
+      $_SESSION['pos_notice'] = 'Transaksi baru siap dibuat.';
+    } elseif ($action === 'add') {
       $cart[$productId] = ($cart[$productId] ?? 0) + 1;
       $_SESSION['pos_notice'] = 'Produk ditambahkan ke keranjang.';
     } elseif ($action === 'inc') {
@@ -312,6 +316,11 @@ foreach ($cart as $pid => $qty) {
                 <span>Total</span>
                 <strong>Rp <?php echo e(number_format($total, 0, '.', ',')); ?></strong>
               </div>
+              <form method="post" class="pos-new-transaction-form">
+                <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                <input type="hidden" name="action" value="new_transaction">
+                <button class="btn pos-reset-btn" type="submit">Transaksi Baru</button>
+              </form>
               <form method="post" enctype="multipart/form-data">
                 <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                 <input type="hidden" name="action" value="checkout">
@@ -330,7 +339,8 @@ foreach ($cart as $pid => $qty) {
                 </div>
                 <div class="pos-qris" data-qris-field hidden>
                   <label for="payment_proof">Foto Bukti QRIS</label>
-                  <input type="file" id="payment_proof" name="payment_proof" accept="image/*" capture="environment">
+                  <input class="pos-qris-input" type="file" id="payment_proof" name="payment_proof" accept="image/*" capture="environment">
+                  <label class="btn pos-qris-upload" for="payment_proof">Ambil Foto QRIS</label>
                   <div class="pos-qris-preview" data-qris-preview hidden>
                     <img alt="Preview bukti QRIS">
                     <button type="button" class="btn pos-qris-retake" data-qris-retake>Ulangi Foto</button>

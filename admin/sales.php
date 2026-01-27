@@ -79,9 +79,22 @@ $customCss = setting('custom_css', '');
   <style><?php echo $customCss; ?></style>
   <style>
     .return-reason {
-      flex: 1;
-      min-width: 280px;
+      width: 100%;
+      min-width: 0;
       max-width: 420px;
+    }
+    .return-form {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .return-reason-wrapper {
+      width: 100%;
+      display: none;
+    }
+    .return-form.is-open .return-reason-wrapper {
+      display: block;
     }
   </style>
 </head>
@@ -145,12 +158,14 @@ $customCss = setting('custom_css', '');
                   </td>
                   <td>
                     <?php if (empty($s['return_reason']) && in_array($me['role'] ?? '', ['admin', 'superadmin'], true)): ?>
-                      <form method="post" style="display:flex;gap:6px;align-items:center">
+                      <form method="post" class="return-form" data-return-form>
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                         <input type="hidden" name="action" value="return">
                         <input type="hidden" name="sale_id" value="<?php echo e((string)$s['id']); ?>">
-                        <input class="return-reason" type="text" name="return_reason" placeholder="Alasan retur" required>
-                        <button class="btn" type="submit">Retur</button>
+                        <div class="return-reason-wrapper" data-return-reason>
+                          <input class="return-reason" type="text" name="return_reason" placeholder="Alasan retur">
+                        </div>
+                        <button class="btn" type="submit" data-return-submit>Retur</button>
                       </form>
                     <?php endif; ?>
                     <?php if (($me['role'] ?? '') === 'superadmin'): ?>
@@ -171,6 +186,22 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
 </div>
+<script>
+  document.querySelectorAll('[data-return-form]').forEach((form) => {
+    const reasonWrap = form.querySelector('[data-return-reason]');
+    const reasonInput = reasonWrap ? reasonWrap.querySelector('input[name="return_reason"]') : null;
+    form.addEventListener('submit', (event) => {
+      if (!form.classList.contains('is-open')) {
+        event.preventDefault();
+        form.classList.add('is-open');
+        if (reasonInput) {
+          reasonInput.required = true;
+          reasonInput.focus();
+        }
+      }
+    });
+  });
+</script>
 <script src="<?php echo e(base_url('assets/app.js')); ?>"></script>
 </body>
 </html>
