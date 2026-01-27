@@ -362,6 +362,11 @@
   background:#fff;
   cursor:pointer;
 }
+.pos-payment-option input[type="radio"]{
+  width:auto;
+  margin:0;
+  flex:0 0 auto;
+}
 .pos-payment-option span{
   line-height:1.2;
 }

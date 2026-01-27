@@ -3,49 +3,107 @@ require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../core/email.php';
 
 require_admin();
+ensure_owner_role();
+ensure_user_invites_table();
 $me = current_user();
 
 $err = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
+$ok = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
-  $id = (int)($_POST['id'] ?? 0);
-  if ($id > 0) {
-    $stmt = db()->prepare("SELECT id, role FROM users WHERE id=? LIMIT 1");
-    $stmt->execute([$id]);
-    $target = $stmt->fetch();
-    if ($target && (int)$target['id'] !== (int)($me['id'] ?? 0)) {
-      if (($me['role'] ?? '') === 'admin' && ($target['role'] ?? '') === 'superadmin') {
-        $err = 'Admin tidak bisa menghapus superadmin.';
-      } else {
-        $del = db()->prepare("DELETE FROM users WHERE id=?");
-        $del->execute([$id]);
+  $action = $_POST['action'] ?? '';
+
+  try {
+    if ($action === 'delete') {
+      $id = (int)($_POST['id'] ?? 0);
+      if ($id > 0) {
+        $stmt = db()->prepare("SELECT id, role FROM users WHERE id=? LIMIT 1");
+        $stmt->execute([$id]);
+        $target = $stmt->fetch();
+        if ($target && (int)$target['id'] !== (int)($me['id'] ?? 0)) {
+          if (($me['role'] ?? '') === 'admin' && in_array(($target['role'] ?? ''), ['owner', 'superadmin'], true)) {
+            throw new Exception('Admin tidak bisa menghapus owner.');
+          }
+          $del = db()->prepare("DELETE FROM users WHERE id=?");
+          $del->execute([$id]);
+          redirect(base_url('admin/users.php'));
+        }
+      }
+    }
+
+    if ($action === 'update_role') {
+      if (($me['role'] ?? '') !== 'owner') {
+        throw new Exception('Hanya owner yang bisa mengubah role user.');
+      }
+      $id = (int)($_POST['id'] ?? 0);
+      $role = $_POST['role'] ?? 'user';
+      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai'], true)) $role = 'user';
+      if ($id > 0 && $id !== (int)($me['id'] ?? 0)) {
+        $stmt = db()->prepare("UPDATE users SET role=? WHERE id=?");
+        $stmt->execute([$role, $id]);
         redirect(base_url('admin/users.php'));
       }
     }
-  }
-}
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'delete') {
-  csrf_check();
-  $name = trim($_POST['name'] ?? '');
-  $username = trim($_POST['username'] ?? '');
-  $role = $_POST['role'] ?? 'user';
-  $p1 = (string)($_POST['pass1'] ?? '');
-  $p2 = (string)($_POST['pass2'] ?? '');
 
-  try {
-    if (($me['role'] ?? '') !== 'superadmin') {
-      throw new Exception('Hanya superadmin yang bisa menambah user.');
+    if ($action === 'invite') {
+      if (($me['role'] ?? '') !== 'owner') {
+        throw new Exception('Hanya owner yang bisa mengundang user.');
+      }
+      $email = trim($_POST['email'] ?? '');
+      $role = $_POST['role'] ?? 'user';
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new Exception('Email tidak valid.');
+      }
+      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai'], true)) $role = 'user';
+
+      $token = bin2hex(random_bytes(16));
+      $tokenHash = hash('sha256', $token);
+      $expiresAt = date('Y-m-d H:i:s', strtotime('+2 days'));
+      $stmt = db()->prepare("INSERT INTO user_invites (email, role, token_hash, expires_at) VALUES (?,?,?,?)");
+      $stmt->execute([$email, $role, $tokenHash, $expiresAt]);
+
+      if (!send_invite_email($email, $token, $role)) {
+        throw new Exception('Gagal mengirim email undangan.');
+      }
+
+      $ok = 'Undangan berhasil dikirim.';
     }
-    if ($name === '' || $username === '') throw new Exception('Nama dan username wajib diisi.');
-    if ($p1 === '' || $p1 !== $p2) throw new Exception('Password tidak cocok.');
-    if (!in_array($role, ['admin','user','superadmin','pegawai'], true)) $role = 'user';
 
-    $hash = password_hash($p1, PASSWORD_DEFAULT);
-    $stmt = db()->prepare("INSERT INTO users (username,name,role,password_hash) VALUES (?,?,?,?)");
-    $stmt->execute([$username,$name,$role,$hash]);
-    redirect(base_url('admin/users.php'));
+    if ($action === 'save_email_settings') {
+      if (($me['role'] ?? '') !== 'owner') {
+        throw new Exception('Hanya owner yang bisa mengubah pengaturan email.');
+      }
+      $smtpHost = trim($_POST['smtp_host'] ?? '');
+      $smtpPort = trim($_POST['smtp_port'] ?? '');
+      $smtpSecure = strtolower(trim($_POST['smtp_secure'] ?? 'ssl'));
+      $smtpUser = trim($_POST['smtp_user'] ?? '');
+      $smtpPass = (string)($_POST['smtp_pass'] ?? '');
+      $fromEmail = trim($_POST['smtp_from_email'] ?? '');
+      $fromName = trim($_POST['smtp_from_name'] ?? '');
+      if (!in_array($smtpSecure, ['ssl', 'tls', 'none'], true)) {
+        $smtpSecure = 'ssl';
+      }
+
+      if ($smtpHost === '' || $smtpPort === '' || $smtpUser === '' || $smtpPass === '') {
+        throw new Exception('Host, port, user, dan password SMTP wajib diisi.');
+      }
+      if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+        throw new Exception('Email pengirim tidak valid.');
+      }
+
+      set_setting('smtp_host', $smtpHost);
+      set_setting('smtp_port', $smtpPort);
+      set_setting('smtp_secure', $smtpSecure);
+      set_setting('smtp_user', $smtpUser);
+      set_setting('smtp_pass', $smtpPass);
+      set_setting('smtp_from_email', $fromEmail);
+      set_setting('smtp_from_name', $fromName);
+
+      $ok = 'Pengaturan email berhasil disimpan.';
+    }
   } catch (Throwable $e) {
     $err = $e->getMessage();
   }
@@ -53,6 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') !== 'delet
 
 $users = db()->query("SELECT id, username, name, role, created_at FROM users ORDER BY id DESC")->fetchAll();
 $customCss = setting('custom_css','');
+$mailCfg = mail_settings();
 ?>
 <!doctype html>
 <html>
@@ -76,30 +135,32 @@ $customCss = setting('custom_css','');
     <div class="content">
       <div class="grid cols-2">
         <div class="card">
-          <h3 style="margin-top:0">Tambah User</h3>
+          <h3 style="margin-top:0">Undang User</h3>
           <?php if ($err): ?>
             <div class="card" style="border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)"><?php echo e($err); ?></div>
           <?php endif; ?>
-          <?php if (($me['role'] ?? '') === 'superadmin'): ?>
+          <?php if ($ok): ?>
+            <div class="card" style="border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10)"><?php echo e($ok); ?></div>
+          <?php endif; ?>
+          <?php if (($me['role'] ?? '') === 'owner'): ?>
             <form method="post">
               <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-              <div class="row"><label>Nama</label><input name="name" required></div>
-              <div class="row"><label>Username</label><input name="username" required></div>
+              <input type="hidden" name="action" value="invite">
+              <div class="row"><label>Email</label><input name="email" type="email" required></div>
               <div class="row">
                 <label>Role</label>
                 <select name="role">
                   <option value="admin">admin</option>
-                  <option value="user">user</option>
-                  <option value="superadmin">superadmin</option>
+                  <option value="user" selected>user</option>
+                  <option value="owner">owner</option>
                   <option value="pegawai">pegawai</option>
                 </select>
               </div>
-              <div class="row"><label>Password</label><input type="password" name="pass1" required></div>
-              <div class="row"><label>Ulangi Password</label><input type="password" name="pass2" required></div>
-              <button class="btn" type="submit">Simpan</button>
+              <button class="btn" type="submit">Kirim Undangan</button>
+              <p><small>Link undangan berlaku 2 hari.</small></p>
             </form>
           <?php else: ?>
-            <p><small>Hanya superadmin yang bisa menambah user.</small></p>
+            <p><small>Hanya owner yang bisa mengundang user.</small></p>
           <?php endif; ?>
         </div>
 
@@ -111,12 +172,14 @@ $customCss = setting('custom_css','');
               <?php foreach ($users as $u): ?>
                 <?php
                   $roleLabels = [
-                    'superadmin' => 'superadmin',
+                    'owner' => 'owner',
+                    'superadmin' => 'owner',
                     'admin' => 'admin',
                     'user' => 'user',
                     'pegawai' => 'pegawai',
                   ];
                   $roleValue = (string)($u['role'] ?? '');
+                  $roleValueNormalized = $roleValue === 'superadmin' ? 'owner' : $roleValue;
                   $roleLabel = $roleLabels[$roleValue] ?? ($roleValue !== '' ? $roleValue : 'pegawai');
                 ?>
                 <tr>
@@ -125,21 +188,66 @@ $customCss = setting('custom_css','');
                   <td><span class="badge"><?php echo e($roleLabel); ?></span></td>
                   <td><?php echo e($u['created_at']); ?></td>
                   <td>
-                    <?php if (in_array($me['role'] ?? '', ['admin', 'superadmin'], true) && (int)$u['id'] !== (int)($me['id'] ?? 0)): ?>
-                      <?php if (($me['role'] ?? '') !== 'admin' || ($u['role'] ?? '') !== 'superadmin'): ?>
-                        <form method="post" onsubmit="return confirm('Hapus user ini?');" style="display:inline">
-                          <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                          <input type="hidden" name="action" value="delete">
-                          <input type="hidden" name="id" value="<?php echo e($u['id']); ?>">
-                          <button class="btn" type="submit">Hapus</button>
-                        </form>
-                      <?php endif; ?>
+                    <?php if (($me['role'] ?? '') === 'owner' && (int)$u['id'] !== (int)($me['id'] ?? 0)): ?>
+                      <form method="post" style="display:inline">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="update_role">
+                        <input type="hidden" name="id" value="<?php echo e($u['id']); ?>">
+                        <select name="role">
+                          <option value="owner" <?php echo ($roleValueNormalized === 'owner') ? 'selected' : ''; ?>>owner</option>
+                          <option value="admin" <?php echo ($roleValueNormalized === 'admin') ? 'selected' : ''; ?>>admin</option>
+                          <option value="user" <?php echo ($roleValueNormalized === 'user') ? 'selected' : ''; ?>>user</option>
+                          <option value="pegawai" <?php echo ($roleValueNormalized === 'pegawai') ? 'selected' : ''; ?>>pegawai</option>
+                        </select>
+                        <button class="btn" type="submit">Simpan</button>
+                      </form>
+                      <form method="post" onsubmit="return confirm('Hapus user ini?');" style="display:inline">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="id" value="<?php echo e($u['id']); ?>">
+                        <button class="btn" type="submit">Hapus</button>
+                      </form>
+                    <?php elseif (($me['role'] ?? '') === 'admin' && (int)$u['id'] !== (int)($me['id'] ?? 0) && !in_array(($u['role'] ?? ''), ['owner', 'superadmin'], true)): ?>
+                      <form method="post" onsubmit="return confirm('Hapus user ini?');" style="display:inline">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="id" value="<?php echo e($u['id']); ?>">
+                        <button class="btn" type="submit">Hapus</button>
+                      </form>
                     <?php endif; ?>
                   </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0">Pengaturan Email</h3>
+          <?php if (($me['role'] ?? '') === 'owner'): ?>
+            <form method="post">
+              <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+              <input type="hidden" name="action" value="save_email_settings">
+              <div class="row"><label>SMTP Host</label><input name="smtp_host" value="<?php echo e($mailCfg['host']); ?>" required></div>
+              <div class="row"><label>SMTP Port</label><input name="smtp_port" value="<?php echo e($mailCfg['port']); ?>" required></div>
+              <div class="row">
+                <label>SMTP Security</label>
+                <select name="smtp_secure">
+                  <option value="ssl" <?php echo ($mailCfg['secure'] ?? '') === 'ssl' ? 'selected' : ''; ?>>SSL (465)</option>
+                  <option value="tls" <?php echo ($mailCfg['secure'] ?? '') === 'tls' ? 'selected' : ''; ?>>TLS (STARTTLS)</option>
+                  <option value="none" <?php echo ($mailCfg['secure'] ?? '') === 'none' ? 'selected' : ''; ?>>None</option>
+                </select>
+              </div>
+              <div class="row"><label>SMTP User</label><input name="smtp_user" value="<?php echo e($mailCfg['user']); ?>" required></div>
+              <div class="row"><label>SMTP Password</label><input type="password" name="smtp_pass" value="<?php echo e($mailCfg['pass']); ?>" required></div>
+              <div class="row"><label>Email Pengirim</label><input name="smtp_from_email" value="<?php echo e($mailCfg['from_email']); ?>" required></div>
+              <div class="row"><label>Nama Pengirim</label><input name="smtp_from_name" value="<?php echo e($mailCfg['from_name']); ?>" required></div>
+              <button class="btn" type="submit">Simpan</button>
+              <p><small>Default: admin@hopenoodles.my.id (SMTP 465).</small></p>
+            </form>
+          <?php else: ?>
+            <p><small>Pengaturan email hanya tersedia untuk owner.</small></p>
+          <?php endif; ?>
         </div>
 
       </div>

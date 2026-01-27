@@ -7,7 +7,7 @@ require_once __DIR__ . '/../core/csrf.php';
 require_admin();
 
 $me = current_user();
-if (($me['role'] ?? '') !== 'superadmin') {
+if (($me['role'] ?? '') !== 'owner') {
   http_response_code(403);
   exit('Forbidden');
 }
@@ -87,7 +87,7 @@ $customCss = setting('custom_css', '');
           <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
           <button class="btn" type="submit">Unduh Backup</button>
         </form>
-        <p><small>Disarankan hanya untuk superadmin. Simpan file .sql di tempat aman.</small></p>
+        <p><small>Disarankan hanya untuk owner. Simpan file .sql di tempat aman.</small></p>
       </div>
     </div>
   </div>
