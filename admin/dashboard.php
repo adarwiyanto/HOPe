@@ -329,7 +329,7 @@ function format_rupiah($amount)
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Admin</title>
   <link rel="icon" href="<?php echo e(favicon_url()); ?>">
-  <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
+  <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
   <style>
     .kpi-subtitle {
@@ -717,7 +717,7 @@ function format_rupiah($amount)
       </div>
     </div>
   </div>
-  <script src="<?php echo e(base_url('assets/app.js')); ?>"></script>
+  <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
   <script>
     const rangeSelect = document.querySelector('#sales-range');
     const customRange = document.querySelector('#custom-range');

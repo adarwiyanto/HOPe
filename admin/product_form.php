@@ -78,7 +78,7 @@ $customCss = setting('custom_css', '');
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title><?php echo $id ? 'Edit Produk' : 'Tambah Produk'; ?></title>
   <link rel="icon" href="<?php echo e(favicon_url()); ?>">
-  <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
+  <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
 </head>
 <body>
@@ -129,6 +129,6 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
 </div>
-<script src="<?php echo e(base_url('assets/app.js')); ?>"></script>
+<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

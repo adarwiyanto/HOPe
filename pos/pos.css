@@ -372,7 +372,15 @@
   gap:8px;
 }
 .pos-qris-input{
-  display:none;
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0 0 0 0);
+  clip-path: inset(50%);
+  border:0;
 }
 .pos-qris-upload{
   width:fit-content;
@@ -439,6 +447,12 @@
     position:sticky;
     top:calc(var(--topbar-h) + 16px);
     height:fit-content;
+  }
+}
+
+@media (max-width: 640px){
+  .pos-payment-options{
+    grid-template-columns:1fr;
   }
 }
 
