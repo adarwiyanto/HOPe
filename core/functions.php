@@ -27,6 +27,14 @@ function setting(string $key, $default = null) {
   }
 }
 
+function favicon_url(): string {
+  $storeLogo = setting('store_logo', '');
+  if (!empty($storeLogo)) {
+    return base_url($storeLogo);
+  }
+  return base_url('assets/favicon.svg');
+}
+
 function set_setting(string $key, string $value): void {
   $stmt = db()->prepare("INSERT INTO settings (`key`,`value`) VALUES (?,?)
     ON DUPLICATE KEY UPDATE `value`=VALUES(`value`)");

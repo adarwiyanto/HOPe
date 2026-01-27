@@ -157,6 +157,7 @@ foreach ($cart as $pid => $qty) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>POS</title>
+  <link rel="icon" href="<?php echo e(favicon_url()); ?>">
   <link rel="stylesheet" href="<?php echo e(base_url('assets/app.css')); ?>">
   <link rel="stylesheet" href="<?php echo e(base_url('pos/pos.css')); ?>">
 </head>
@@ -215,6 +216,7 @@ foreach ($cart as $pid => $qty) {
             <div>Pembayaran: <?php echo e(strtoupper($receipt['payment'] ?? '-')); ?></div>
           </div>
           <div class="pos-receipt-actions no-print">
+            <a class="btn pos-print-btn" href="<?php echo e(base_url('pos/receipt.php?id=' . urlencode($receipt['id']))); ?>" target="_blank" rel="noopener">Print Struk 58mm</a>
             <button class="btn pos-print-btn" type="button" data-print-receipt>Cetak Struk</button>
             <form method="post" class="pos-new-transaction-form">
               <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
