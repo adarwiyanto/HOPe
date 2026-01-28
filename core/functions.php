@@ -95,6 +95,56 @@ function ensure_user_invites_table(): void {
   }
 }
 
+function ensure_user_profile_columns(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM users LIKE 'avatar_path'");
+    $hasAvatar = (bool)$stmt->fetch();
+    if (!$hasAvatar) {
+      db()->exec("ALTER TABLE users ADD COLUMN avatar_path VARCHAR(255) NULL AFTER role");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM users LIKE 'email'");
+    $hasEmail = (bool)$stmt->fetch();
+    if (!$hasEmail) {
+      db()->exec("ALTER TABLE users ADD COLUMN email VARCHAR(190) NULL AFTER username");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function ensure_password_resets_table(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
+        used_at TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_token_hash (token_hash),
+        KEY idx_user_id (user_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_owner_role(): void {
   static $ensured = false;
   if ($ensured) return;

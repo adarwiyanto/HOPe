@@ -21,3 +21,19 @@ CREATE TABLE IF NOT EXISTS user_invites (
   KEY idx_token_hash (token_hash),
   KEY idx_email (email)
 ) ENGINE=InnoDB;
+
+ALTER TABLE users
+  ADD COLUMN email VARCHAR(190) NULL AFTER username,
+  ADD COLUMN avatar_path VARCHAR(255) NULL AFTER role;
+
+CREATE TABLE IF NOT EXISTS password_resets (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
+  used_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_token_hash (token_hash),
+  KEY idx_user_id (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

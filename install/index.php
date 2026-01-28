@@ -42,8 +42,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) NOT NULL UNIQUE,
+        email VARCHAR(190) NULL,
         name VARCHAR(120) NOT NULL,
         role ENUM('owner','admin','user','pegawai') NOT NULL DEFAULT 'admin',
+        avatar_path VARCHAR(255) NULL,
         password_hash VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB

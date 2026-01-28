@@ -58,6 +58,9 @@ $appName = app_config()['app']['name'];
         </div>
         <button class="btn" type="submit" style="width:100%">Masuk</button>
       </form>
+      <div class="center" style="margin-top:12px">
+        <a href="<?php echo e(base_url('recovery.php')); ?>">Recovery Password</a>
+      </div>
     </div>
   </div>
 </body>
