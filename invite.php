@@ -9,6 +9,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
 ensure_owner_role();
 ensure_user_invites_table();
+ensure_user_profile_columns();
 
 $err = '';
 $ok = '';
@@ -61,8 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $role = (string)($invite['role'] ?? 'user');
     if (!in_array($role, ['admin', 'user', 'owner', 'pegawai'], true)) $role = 'user';
     $hash = password_hash($p1, PASSWORD_DEFAULT);
-    $stmt = db()->prepare("INSERT INTO users (username,name,role,password_hash) VALUES (?,?,?,?)");
-    $stmt->execute([$username, $name, $role, $hash]);
+    $email = (string)($invite['email'] ?? '');
+    $stmt = db()->prepare("INSERT INTO users (username,email,name,role,password_hash) VALUES (?,?,?,?,?)");
+    $stmt->execute([$username, $email, $name, $role, $hash]);
 
     $stmt = db()->prepare("UPDATE user_invites SET used_at=NOW() WHERE id=?");
     $stmt->execute([(int)$invite['id']]);

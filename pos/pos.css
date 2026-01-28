@@ -125,18 +125,74 @@
   padding:8px 16px;
 }
 
+.pos-user-menu{
+  position:relative;
+  margin-right:10px;
+}
+
+.pos-user-button{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.22);
+  color:#fff;
+  border-radius:12px;
+  padding:6px 10px;
+  cursor:pointer;
+}
+
 .pos-user{
   display:flex;
   flex-direction:column;
   align-items:flex-end;
   gap:2px;
-  margin-right:10px;
   font-size:12px;
   font-weight:600;
 }
 
 .pos-user-name{font-size:13px}
 .pos-user-role{opacity:.85}
+
+.pos-user-chevron{opacity:.75}
+
+.pos-user-dropdown{
+  position:absolute;
+  right:0;
+  top:calc(100% + 6px);
+  min-width:180px;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:6px;
+  box-shadow:var(--shadow);
+  z-index:30;
+  display:none;
+}
+
+.pos-user-dropdown.submenu{
+  margin:0;
+}
+
+.pos-user-dropdown.open{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.pos-user-dropdown a{
+  display:flex;
+  padding:8px 10px;
+  border-radius:10px;
+  color:var(--text);
+  font-size:14px;
+  border:1px solid transparent;
+}
+
+.pos-user-dropdown a:hover{
+  background:#f2f7ff;
+  border-color:#dbeafe;
+}
 
 .pos-logout{
   min-height:44px;

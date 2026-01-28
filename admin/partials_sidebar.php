@@ -4,15 +4,35 @@ require_once __DIR__ . '/../core/auth.php';
 
 $appName = app_config()['app']['name'];
 $u = current_user();
+$avatarUrl = '';
+if (!empty($u['avatar_path'])) {
+  $avatarUrl = base_url($u['avatar_path']);
+}
+$initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
 ?>
 <div class="sidebar">
   <div class="sb-top">
     <div class="profile-card">
-      <div class="avatar">A</div>
-      <div class="p-text">
-        <div class="p-title"><?php echo e($u['name'] ?? 'User'); ?></div>
-        <div class="p-sub"><?php echo e(ucfirst($u['role'] ?? 'admin')); ?></div>
-      </div>
+      <button class="profile-trigger" type="button" data-toggle-submenu="#profile-menu">
+        <div class="avatar">
+          <?php if ($avatarUrl): ?>
+            <img src="<?php echo e($avatarUrl); ?>" alt="<?php echo e($u['name'] ?? 'User'); ?>">
+          <?php else: ?>
+            <?php echo e($initial); ?>
+          <?php endif; ?>
+        </div>
+        <div class="p-text">
+          <div class="p-title"><?php echo e($u['name'] ?? 'User'); ?></div>
+          <div class="p-sub"><?php echo e(ucfirst($u['role'] ?? 'admin')); ?></div>
+        </div>
+        <div class="p-right">
+          <span class="chev">▾</span>
+        </div>
+      </button>
+    </div>
+    <div class="submenu profile-submenu" id="profile-menu">
+      <a href="<?php echo e(base_url('profile.php')); ?>">Edit Profil</a>
+      <a href="<?php echo e(base_url('password.php')); ?>">Ubah Password</a>
     </div>
   </div>
 
