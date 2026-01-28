@@ -1,5 +1,8 @@
 <?php
+require_once __DIR__ . '/auth.php';
+
 function csrf_token(): string {
+  start_session();
   if (empty($_SESSION['_csrf'])) {
     $_SESSION['_csrf'] = bin2hex(random_bytes(16));
   }
@@ -7,6 +10,7 @@ function csrf_token(): string {
 }
 
 function csrf_check(): void {
+  start_session();
   $t = $_POST['_csrf'] ?? '';
   if (!$t || empty($_SESSION['_csrf']) || !hash_equals($_SESSION['_csrf'], $t)) {
     http_response_code(403);
