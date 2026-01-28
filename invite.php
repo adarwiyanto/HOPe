@@ -1,7 +1,11 @@
 <?php
+if (!ob_get_level()) ob_start();
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
 require_once __DIR__ . '/core/csrf.php';
+if (session_status() !== PHP_SESSION_ACTIVE) {
+  start_session();
+}
 
 ensure_owner_role();
 ensure_user_invites_table();
@@ -9,6 +13,21 @@ ensure_user_invites_table();
 $err = '';
 $ok = '';
 $token = trim($_GET['token'] ?? ($_POST['token'] ?? ''));
+$cfg = app_config();
+$csrfDebugEnabled = (($_GET['debug_csrf'] ?? '') === '1')
+  && (($cfg['security']['csrf_debug'] ?? false) === true);
+if ($csrfDebugEnabled) {
+  $mask = function (?string $value): string {
+    if (!$value) return '';
+    return substr($value, 0, 8) . '...';
+  };
+  header('Content-Type: text/plain; charset=UTF-8');
+  echo "session_id: " . session_id() . "\n";
+  echo "http_host: " . ($_SERVER['HTTP_HOST'] ?? '') . "\n";
+  echo "csrf_session: " . $mask($_SESSION['_csrf'] ?? '') . "\n";
+  echo "csrf_post: " . $mask($_POST['_csrf'] ?? '') . "\n";
+  exit;
+}
 
 function find_invite(string $token): ?array {
   if ($token === '') return null;
@@ -55,6 +74,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $appName = app_config()['app']['name'];
 $customCss = setting('custom_css','');
+$csrf = '';
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  $csrf = csrf_token();
+} elseif ($invite && !$ok) {
+  $csrf = csrf_token();
+}
 ?>
 <!doctype html>
 <html>
@@ -86,7 +111,7 @@ $customCss = setting('custom_css','');
       <?php if ($invite && !$ok): ?>
         <p>Undangan untuk: <strong><?php echo e($invite['email'] ?? ''); ?></strong></p>
         <form method="post">
-          <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+          <input type="hidden" name="_csrf" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
           <input type="hidden" name="token" value="<?php echo e($token); ?>">
           <div class="row">
             <label>Nama</label>
@@ -113,4 +138,3 @@ $customCss = setting('custom_css','');
   </div>
 </body>
 </html>
-
