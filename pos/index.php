@@ -168,9 +168,18 @@ foreach ($cart as $pid => $qty) {
     <div class="topbar pos-topbar">
       <div class="title"><?php echo e($appName); ?> POS</div>
       <div class="spacer"></div>
-      <div class="pos-user">
-        <div class="pos-user-name"><?php echo e($me['name'] ?? 'User'); ?></div>
-        <div class="pos-user-role"><?php echo e(ucfirst($me['role'] ?? '')); ?></div>
+      <div class="pos-user-menu">
+        <button class="pos-user-button" type="button" data-toggle-submenu="#pos-user-menu">
+          <div class="pos-user">
+            <div class="pos-user-name"><?php echo e($me['name'] ?? 'User'); ?></div>
+            <div class="pos-user-role"><?php echo e(ucfirst($me['role'] ?? '')); ?></div>
+          </div>
+          <div class="pos-user-chevron">▾</div>
+        </button>
+        <div class="pos-user-dropdown submenu" id="pos-user-menu">
+          <a href="<?php echo e(base_url('profile.php')); ?>">Edit Profil</a>
+          <a href="<?php echo e(base_url('password.php')); ?>">Ubah Password</a>
+        </div>
       </div>
       <a class="btn pos-logout" href="<?php echo e(base_url('pos/logout.php')); ?>">Logout</a>
     </div>
@@ -366,6 +375,7 @@ foreach ($cart as $pid => $qty) {
       <?php endif; ?>
     </div>
   </div>
+  <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
   <script src="<?php echo e(asset_url('pos/pos.js')); ?>"></script>
 </body>
 </html>

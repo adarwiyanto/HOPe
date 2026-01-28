@@ -36,7 +36,8 @@ function current_user(): ?array {
 }
 
 function login_attempt(string $username, string $password): bool {
-  $stmt = db()->prepare("SELECT id, username, name, role, password_hash FROM users WHERE username=? LIMIT 1");
+  ensure_user_profile_columns();
+  $stmt = db()->prepare("SELECT id, username, name, role, email, avatar_path, password_hash FROM users WHERE username=? LIMIT 1");
   $stmt->execute([$username]);
   $u = $stmt->fetch();
   if (!$u) return false;
