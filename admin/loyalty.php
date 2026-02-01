@@ -106,12 +106,12 @@ $customCss = setting('custom_css', '');
           </div>
           <div class="row">
             <label>Sisa pembayaran untuk poin</label>
-            <div class="row" style="gap:12px">
-              <label style="display:flex;gap:8px;align-items:center">
+            <div class="radio-group">
+              <label class="radio-option">
                 <input type="radio" name="remainder_mode" value="discard" <?php echo $remainderMode === 'discard' ? 'checked' : ''; ?>>
                 <span>Hanguskan sisa</span>
               </label>
-              <label style="display:flex;gap:8px;align-items:center">
+              <label class="radio-option">
                 <input type="radio" name="remainder_mode" value="carry" <?php echo $remainderMode === 'carry' ? 'checked' : ''; ?>>
                 <span>Akumulasi ke transaksi berikutnya</span>
               </label>

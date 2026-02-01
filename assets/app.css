@@ -287,6 +287,24 @@ input:focus, select:focus, textarea:focus{
 }
 .row{display:grid; gap:8px; margin:10px 0}
 
+.radio-group{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  align-items:flex-start;
+}
+.radio-option{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.radio-group input[type="radio"]{
+  width:auto;
+  padding:0;
+  border:none;
+  box-shadow:none;
+}
+
 .btn{
   display:inline-flex; align-items:center; justify-content:center;
   gap:8px;
