@@ -67,6 +67,7 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
       </button>
       <div class="submenu" id="m-transaksi">
         <a href="<?php echo e(base_url('admin/sales.php')); ?>">Penjualan</a>
+        <a href="<?php echo e(base_url('admin/customers.php')); ?>">Pelanggan</a>
       </div>
     </div>
 
