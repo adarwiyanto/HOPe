@@ -14,6 +14,7 @@ $storeIntro = setting('store_intro', 'Kami adalah usaha yang menghadirkan produk
 $storeLogo = setting('store_logo', '');
 $recaptchaSiteKey = setting('recaptcha_site_key', '');
 $recaptchaSecretKey = setting('recaptcha_secret_key', '');
+$landingOrderEnabled = setting('landing_order_enabled', '1') === '1';
 $err = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $intro = trim($_POST['store_intro'] ?? '');
   $recaptchaSiteKeyInput = trim($_POST['recaptcha_site_key'] ?? '');
   $recaptchaSecretKeyInput = trim($_POST['recaptcha_secret_key'] ?? '');
+  $landingOrderEnabledInput = isset($_POST['landing_order_enabled']) ? '1' : '0';
   $removeLogo = isset($_POST['remove_logo']);
 
   try {
@@ -75,6 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'recaptcha') {
       set_setting('recaptcha_site_key', $recaptchaSiteKeyInput);
       set_setting('recaptcha_secret_key', $recaptchaSecretKeyInput);
+    }
+
+    if ($action === 'landing_order') {
+      set_setting('landing_order_enabled', $landingOrderEnabledInput);
     }
 
     redirect(base_url('admin/store.php'));
@@ -158,6 +164,22 @@ $customCss = setting('custom_css', '');
           <button class="btn" type="submit">Simpan reCAPTCHA</button>
         </form>
         <p><small>Gunakan kunci reCAPTCHA v3 (score-based) terbaru dari Google.</small></p>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3 style="margin-top:0">Pesanan Online Landing Page</h3>
+        <form method="post">
+          <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+          <input type="hidden" name="action" value="landing_order">
+          <div class="row">
+            <label class="checkbox-row">
+              <input type="checkbox" name="landing_order_enabled" value="1" <?php echo $landingOrderEnabled ? 'checked' : ''; ?>>
+              Aktifkan pesanan online di landing page
+            </label>
+          </div>
+          <button class="btn" type="submit">Simpan</button>
+        </form>
+        <p><small>Jika dimatikan, keranjang dan checkout tidak tampil di landing page.</small></p>
       </div>
     </div>
   </div>

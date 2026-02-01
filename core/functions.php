@@ -71,6 +71,38 @@ function ensure_products_favorite_column(): void {
   }
 }
 
+function ensure_products_category_column(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM products LIKE 'category'");
+    $hasColumn = (bool)$stmt->fetch();
+    if (!$hasColumn) {
+      db()->exec("ALTER TABLE products ADD COLUMN category VARCHAR(120) NULL AFTER name");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function ensure_products_best_seller_column(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM products LIKE 'is_best_seller'");
+    $hasColumn = (bool)$stmt->fetch();
+    if (!$hasColumn) {
+      db()->exec("ALTER TABLE products ADD COLUMN is_best_seller TINYINT(1) NOT NULL DEFAULT 0 AFTER category");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_sales_transaction_code_column(): void {
   static $ensured = false;
   if ($ensured) return;
@@ -212,6 +244,7 @@ function ensure_landing_order_tables(): void {
     $stmt->execute(['recaptcha_secret_key', '']);
     $stmt->execute(['loyalty_point_value', '0']);
     $stmt->execute(['loyalty_remainder_mode', 'discard']);
+    $stmt->execute(['landing_order_enabled', '1']);
 
     $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'phone'");
     $hasPhone = (bool)$stmt->fetch();
