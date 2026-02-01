@@ -410,6 +410,27 @@ input:focus, select:focus, textarea:focus{
   border-color:#bfdbfe;
   box-shadow:0 12px 24px rgba(15,23,42,.08);
 }
+.landing-product-body{
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+.landing-product-info{
+  flex:1;
+  text-align:left;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+}
+.landing-product-name{
+  font-weight:700;
+}
+.landing-product-thumb-fallback{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+}
 .landing-product-cta{
   margin-top:6px;
   font-size:12px;

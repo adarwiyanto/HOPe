@@ -196,18 +196,18 @@ $loginButton = $currentUser
           <input type="hidden" name="action" value="add">
           <input type="hidden" name="product_id" value="<?php echo e((string)$p['id']); ?>">
           <button class="card landing-product-card" type="submit">
-            <div style="display:flex;gap:12px;align-items:center">
+            <span class="landing-product-body">
               <?php if (!empty($p['image_path'])): ?>
                 <img class="thumb" src="<?php echo e(base_url($p['image_path'])); ?>" alt="">
               <?php else: ?>
-                <div class="thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted)">No Img</div>
+                <span class="thumb landing-product-thumb-fallback">No Img</span>
               <?php endif; ?>
-              <div style="flex:1;text-align:left">
-                <div style="font-weight:700"><?php echo e($p['name']); ?></div>
-                <div class="badge">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></div>
-                <div class="landing-product-cta">Klik untuk tambah ke keranjang</div>
-              </div>
-            </div>
+              <span class="landing-product-info">
+                <span class="landing-product-name"><?php echo e($p['name']); ?></span>
+                <span class="badge">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></span>
+                <span class="landing-product-cta">Klik untuk tambah ke keranjang</span>
+              </span>
+            </span>
           </button>
         </form>
       <?php endforeach; ?>
