@@ -82,6 +82,7 @@ $stats = [
   'sales' => 0,
   'revenue' => 0.0,
   'returns' => 0,
+  'avg_transaction' => 0.0,
 ];
 
 $stmt = db()->prepare("
@@ -93,6 +94,17 @@ $stmt->execute([$rangeStartStr, $rangeEndStr]);
 $statsRange = $stmt->fetch();
 $stats['sales'] = (int)($statsRange['c'] ?? 0);
 $stats['revenue'] = (float)($statsRange['s'] ?? 0);
+
+$stmt = db()->prepare("
+  SELECT COUNT(DISTINCT COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))) c,
+         COALESCE(SUM(total),0) s
+  FROM sales
+  WHERE sold_at >= ? AND sold_at < ? AND return_reason IS NULL
+");
+$stmt->execute([$rangeStartStr, $rangeEndStr]);
+$avgRow = $stmt->fetch();
+$txCount = (int)($avgRow['c'] ?? 0);
+$stats['avg_transaction'] = $txCount > 0 ? ((float)$avgRow['s'] / $txCount) : 0.0;
 
 $stmt = db()->prepare("
   SELECT COUNT(*) c
@@ -136,6 +148,97 @@ $todayStart = $today;
 $todayEnd = $today->modify('+1 day');
 $todayStartStr = $todayStart->format('Y-m-d H:i:s');
 $todayEndStr = $todayEnd->format('Y-m-d H:i:s');
+
+$peakRange = $_GET['peak_range'] ?? 'all_time';
+$peakStartInput = $_GET['peak_start'] ?? '';
+$peakEndInput = $_GET['peak_end'] ?? '';
+$peakStart = null;
+$peakEnd = null;
+$peakLabel = '';
+
+switch ($peakRange) {
+  case 'this_week':
+    $peakStart = $today->modify('monday this week');
+    $peakEnd = $peakStart->modify('+1 week');
+    $peakLabel = 'Minggu Ini';
+    break;
+  case 'this_month':
+    $peakStart = $today->modify('first day of this month');
+    $peakEnd = $peakStart->modify('+1 month');
+    $peakLabel = 'Bulan Ini';
+    break;
+  case 'custom':
+    $parsedStart = DateTimeImmutable::createFromFormat('Y-m-d', $peakStartInput);
+    $parsedEnd = DateTimeImmutable::createFromFormat('Y-m-d', $peakEndInput);
+    if ($parsedStart && $parsedEnd) {
+      if ($parsedStart > $parsedEnd) {
+        $tmp = $parsedStart;
+        $parsedStart = $parsedEnd;
+        $parsedEnd = $tmp;
+      }
+      $peakStart = $parsedStart;
+      $peakEnd = $parsedEnd->modify('+1 day');
+      $peakLabel = 'Custom';
+    } else {
+      $peakRange = 'all_time';
+      $peakLabel = 'Semua Waktu';
+    }
+    break;
+  case 'all_time':
+  default:
+    $peakRange = 'all_time';
+    $peakLabel = 'Semua Waktu';
+    break;
+}
+
+$peakDays = 1;
+$peakParams = [];
+$peakWhere = '';
+if ($peakRange === 'all_time') {
+  $row = db()->query("SELECT MIN(sold_at) AS min_date, MAX(sold_at) AS max_date FROM sales WHERE return_reason IS NULL")->fetch();
+  if (!empty($row['min_date']) && !empty($row['max_date'])) {
+    $peakStart = new DateTimeImmutable($row['min_date']);
+    $peakEnd = (new DateTimeImmutable($row['max_date']))->modify('+1 day');
+  }
+}
+if ($peakStart && $peakEnd) {
+  $peakWhere = "AND sold_at >= ? AND sold_at < ?";
+  $peakParams[] = $peakStart->format('Y-m-d H:i:s');
+  $peakParams[] = $peakEnd->format('Y-m-d H:i:s');
+  $peakDays = max(1, (int)$peakEnd->diff($peakStart)->days);
+}
+
+$hourlyCounts = array_fill(0, 24, 0);
+$stmt = db()->prepare("
+  SELECT HOUR(tx_time) h, COUNT(*) c
+  FROM (
+    SELECT COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id)) AS tx_code,
+           MIN(sold_at) AS tx_time
+    FROM sales
+    WHERE return_reason IS NULL
+    {$peakWhere}
+    GROUP BY COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))
+  ) t
+  GROUP BY HOUR(tx_time)
+  ORDER BY h ASC
+");
+$stmt->execute($peakParams);
+foreach ($stmt->fetchAll() as $row) {
+  $hour = (int)($row['h'] ?? 0);
+  if ($hour >= 0 && $hour <= 23) {
+    $hourlyCounts[$hour] = (int)$row['c'];
+  }
+}
+
+$hourlyAverages = [];
+$maxHourly = 0.0;
+foreach ($hourlyCounts as $hour => $count) {
+  $avg = $peakDays > 0 ? $count / $peakDays : 0;
+  $hourlyAverages[$hour] = $avg;
+  if ($avg > $maxHourly) {
+    $maxHourly = $avg;
+  }
+}
 
 if ($role === 'admin') {
   $stmt = db()->prepare("
@@ -337,6 +440,53 @@ function format_rupiah($amount)
       font-size: 12px;
       color: #6b7280;
     }
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .grid.cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    @media (max-width: 980px) {
+      .grid.cols-3,
+      .grid.cols-4 {
+        grid-template-columns: 1fr;
+      }
+    }
+    .hourly-chart {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+      align-items: end;
+      margin-top: 12px;
+    }
+    .hourly-bar {
+      display: grid;
+      gap: 6px;
+      justify-items: center;
+    }
+    .hourly-bar-value {
+      font-size: 12px;
+      color: #334155;
+    }
+    .hourly-bar-fill {
+      width: 100%;
+      border-radius: 10px 10px 4px 4px;
+      background: linear-gradient(180deg, rgba(59,130,246,.9), rgba(59,130,246,.35));
+      min-height: 12px;
+    }
+    .hourly-bar-label {
+      font-size: 11px;
+      color: #64748b;
+    }
+    .hourly-filter {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .hourly-filter .row {
+      margin: 0;
+    }
   </style>
 </head>
 <body>
@@ -398,6 +548,56 @@ function format_rupiah($amount)
           <div class="card">
             <h4 style="margin-top:0">Retur</h4>
             <div style="font-size:24px;font-weight:600"><?php echo e((string)$stats['returns']); ?></div>
+          </div>
+          <div class="card">
+            <h4 style="margin-top:0">Rata-rata Belanja</h4>
+            <div style="font-size:24px;font-weight:600"><?php echo e(format_rupiah($stats['avg_transaction'])); ?></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3 style="margin-top:0">Grafik Rata-rata Jam Kunjungan</h3>
+          <p style="margin:4px 0 12px;color:var(--muted)">Rata-rata jumlah transaksi per jam berdasarkan periode yang dipilih.</p>
+          <form method="get" class="hourly-filter">
+            <input type="hidden" name="range" value="<?php echo e($range); ?>">
+            <?php if (!empty($_GET['start'])): ?>
+              <input type="hidden" name="start" value="<?php echo e($_GET['start']); ?>">
+            <?php endif; ?>
+            <?php if (!empty($_GET['end'])): ?>
+              <input type="hidden" name="end" value="<?php echo e($_GET['end']); ?>">
+            <?php endif; ?>
+            <div class="row" style="min-width:160px">
+              <label>Periode</label>
+              <select name="peak_range" id="peak-range">
+                <option value="all_time" <?php echo $peakRange === 'all_time' ? 'selected' : ''; ?>>All time</option>
+                <option value="this_week" <?php echo $peakRange === 'this_week' ? 'selected' : ''; ?>>Minggu ini</option>
+                <option value="this_month" <?php echo $peakRange === 'this_month' ? 'selected' : ''; ?>>Bulan ini</option>
+                <option value="custom" <?php echo $peakRange === 'custom' ? 'selected' : ''; ?>>Custom</option>
+              </select>
+            </div>
+            <div class="row" id="peak-custom-start" style="min-width:160px;display:<?php echo $peakRange === 'custom' ? 'grid' : 'none'; ?>">
+              <label>Mulai</label>
+              <input type="date" name="peak_start" value="<?php echo e($peakStartInput ?: $today->format('Y-m-d')); ?>">
+            </div>
+            <div class="row" id="peak-custom-end" style="min-width:160px;display:<?php echo $peakRange === 'custom' ? 'grid' : 'none'; ?>">
+              <label>Sampai</label>
+              <input type="date" name="peak_end" value="<?php echo e($peakEndInput ?: $today->format('Y-m-d')); ?>">
+            </div>
+            <button class="btn" type="submit">Terapkan</button>
+          </form>
+          <p style="margin:10px 0 0"><small>Periode grafik: <?php echo e($peakLabel); ?> · <?php echo e((string)$peakDays); ?> hari</small></p>
+          <div class="hourly-chart">
+            <?php foreach ($hourlyAverages as $hour => $avg): ?>
+              <?php
+                $height = $maxHourly > 0 ? ($avg / $maxHourly) * 120 : 0;
+                $label = str_pad((string)$hour, 2, '0', STR_PAD_LEFT) . ':00';
+              ?>
+              <div class="hourly-bar">
+                <div class="hourly-bar-value"><?php echo e(number_format($avg, 1)); ?></div>
+                <div class="hourly-bar-fill" style="height:<?php echo e(number_format($height, 2)); ?>px"></div>
+                <div class="hourly-bar-label"><?php echo e($label); ?></div>
+              </div>
+            <?php endforeach; ?>
           </div>
         </div>
 
@@ -725,6 +925,19 @@ function format_rupiah($amount)
       rangeSelect.addEventListener('change', () => {
         customRange.style.display = rangeSelect.value === 'custom' ? 'grid' : 'none';
       });
+    }
+
+    const peakSelect = document.querySelector('#peak-range');
+    const peakStart = document.querySelector('#peak-custom-start');
+    const peakEnd = document.querySelector('#peak-custom-end');
+    if (peakSelect && peakStart && peakEnd) {
+      const togglePeakCustom = () => {
+        const show = peakSelect.value === 'custom';
+        peakStart.style.display = show ? 'grid' : 'none';
+        peakEnd.style.display = show ? 'grid' : 'none';
+      };
+      peakSelect.addEventListener('change', togglePeakCustom);
+      togglePeakCustom();
     }
   </script>
 </body>

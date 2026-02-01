@@ -119,6 +119,22 @@ function ensure_sales_transaction_code_column(): void {
   }
 }
 
+function ensure_sales_user_column(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM sales LIKE 'created_by'");
+    $hasColumn = (bool)$stmt->fetch();
+    if (!$hasColumn) {
+      db()->exec("ALTER TABLE sales ADD COLUMN created_by INT NULL AFTER payment_proof_path");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_user_invites_table(): void {
   static $ensured = false;
   if ($ensured) return;
@@ -204,8 +220,11 @@ function ensure_landing_order_tables(): void {
       CREATE TABLE IF NOT EXISTS customers (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(160) NOT NULL,
-        email VARCHAR(190) NOT NULL UNIQUE,
+        email VARCHAR(190) NULL,
         phone VARCHAR(30) NULL,
+        password_hash VARCHAR(255) NULL,
+        gender VARCHAR(20) NULL,
+        birth_date DATE NULL,
         loyalty_points INT NOT NULL DEFAULT 0,
         loyalty_remainder INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -239,6 +258,20 @@ function ensure_landing_order_tables(): void {
       ) ENGINE=InnoDB
     ");
 
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS customer_sessions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id INT NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used_at TIMESTAMP NULL DEFAULT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
+        KEY idx_token_hash (token_hash),
+        KEY idx_customer_id (customer_id),
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
     $stmt = $db->prepare("INSERT INTO settings (`key`,`value`) VALUES (?,?) ON DUPLICATE KEY UPDATE `value`=`value`");
     $stmt->execute(['recaptcha_site_key', '']);
     $stmt->execute(['recaptcha_secret_key', '']);
@@ -250,6 +283,21 @@ function ensure_landing_order_tables(): void {
     $hasPhone = (bool)$stmt->fetch();
     if (!$hasPhone) {
       $db->exec("ALTER TABLE customers ADD COLUMN phone VARCHAR(30) NULL AFTER name");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'password_hash'");
+    $hasPassword = (bool)$stmt->fetch();
+    if (!$hasPassword) {
+      $db->exec("ALTER TABLE customers ADD COLUMN password_hash VARCHAR(255) NULL AFTER phone");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'gender'");
+    $hasGender = (bool)$stmt->fetch();
+    if (!$hasGender) {
+      $db->exec("ALTER TABLE customers ADD COLUMN gender VARCHAR(20) NULL AFTER password_hash");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'birth_date'");
+    $hasBirth = (bool)$stmt->fetch();
+    if (!$hasBirth) {
+      $db->exec("ALTER TABLE customers ADD COLUMN birth_date DATE NULL AFTER gender");
     }
     $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'loyalty_points'");
     $hasPoints = (bool)$stmt->fetch();
@@ -265,6 +313,11 @@ function ensure_landing_order_tables(): void {
       $db->exec("ALTER TABLE customers ADD UNIQUE KEY uniq_phone (phone)");
     } catch (Throwable $e) {
       // abaikan jika indeks sudah ada
+    }
+    try {
+      $db->exec("ALTER TABLE customers MODIFY email VARCHAR(190) NULL");
+    } catch (Throwable $e) {
+      // abaikan jika tidak bisa mengubah kolom.
     }
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.

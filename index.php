@@ -3,6 +3,7 @@ require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/csrf.php';
+require_once __DIR__ . '/core/customer_auth.php';
 
 try {
   ensure_products_category_column();
@@ -28,6 +29,7 @@ $recaptchaAction = 'checkout';
 $recaptchaMinScore = 0.5;
 
 start_session();
+customer_bootstrap_from_cookie();
 $cart = $_SESSION['landing_cart'] ?? [];
 $notice = $_SESSION['landing_notice'] ?? '';
 $err = $_SESSION['landing_err'] ?? '';
@@ -42,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
   $action = $_POST['action'] ?? '';
   $productId = (int)($_POST['product_id'] ?? 0);
+  $customer = customer_current();
 
   try {
     if (!$landingOrderEnabled && in_array($action, ['add', 'inc', 'dec', 'remove', 'checkout'], true)) {
@@ -74,16 +77,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (empty($cart)) {
         throw new Exception('Keranjang masih kosong.');
       }
-      $customerName = trim($_POST['customer_name'] ?? '');
-      $customerPhone = trim($_POST['customer_phone'] ?? '');
-      if ($customerName === '') {
-        throw new Exception('Nama wajib diisi.');
+      if (!$customer) {
+        throw new Exception('Silakan login atau daftar terlebih dahulu.');
       }
-      if ($customerPhone === '') {
-        throw new Exception('Nomor telepon/WA wajib diisi.');
-      }
-      if (!preg_match('/^[0-9+][0-9\\s\\-]{6,20}$/', $customerPhone)) {
-        throw new Exception('Nomor telepon/WA tidak valid.');
+      $customerName = trim((string)($customer['name'] ?? ''));
+      $customerPhone = trim((string)($customer['phone'] ?? ''));
+      if ($customerName === '' || $customerPhone === '') {
+        throw new Exception('Profil pelanggan belum lengkap.');
       }
       if ($recaptchaSecretKey === '') {
         throw new Exception('reCAPTCHA belum diatur oleh admin.');
@@ -102,17 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $db = db();
       $db->beginTransaction();
 
-      $stmt = $db->prepare("SELECT id FROM customers WHERE phone=? LIMIT 1");
-      $stmt->execute([$customerPhone]);
-      $customer = $stmt->fetch();
-      if ($customer) {
-        $customerId = (int)$customer['id'];
-        $stmt = $db->prepare("UPDATE customers SET name=? WHERE id=?");
-        $stmt->execute([$customerName, $customerId]);
-      } else {
-        $stmt = $db->prepare("INSERT INTO customers (name, email, phone) VALUES (?, ?, ?)");
-        $stmt->execute([$customerName, $customerPhone, $customerPhone]);
-        $customerId = (int)$db->lastInsertId();
+      $customerId = (int)($customer['id'] ?? 0);
+      if ($customerId <= 0) {
+        throw new Exception('Pelanggan tidak ditemukan.');
       }
 
       $orderCode = 'ORD-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(2)));
@@ -173,9 +165,19 @@ foreach ($cart as $pid => $qty) {
 }
 
 $currentUser = current_user();
-$loginButton = $currentUser
-  ? '<a class="btn" href="' . e(base_url('admin/dashboard.php')) . '">Admin</a>'
-  : '<a class="btn" href="' . e(base_url('login.php')) . '">Login</a>';
+$customer = customer_current();
+$customerButton = $customer
+  ? '<a class="btn" href="' . e(base_url('customer.php')) . '">Akun Saya</a>'
+  : '<a class="btn" href="' . e(base_url('customer.php')) . '">Masuk / Daftar</a>';
+$adminButton = '';
+if ($currentUser && in_array($currentUser['role'] ?? '', ['admin', 'owner'], true)) {
+  $adminButton = '<a class="btn btn-light" href="' . e(base_url('admin/dashboard.php')) . '">Admin</a>';
+}
+$loginButtons = [$customerButton];
+if ($adminButton !== '') {
+  $loginButtons[] = $adminButton;
+}
+$loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('', $loginButtons) . '</div>';
 ?>
 <!doctype html>
 <html>
@@ -304,26 +306,31 @@ $loginButton = $currentUser
             <div>Total (<?php echo e((string)$cartCount); ?> item)</div>
             <strong>Rp <?php echo e(number_format((float)$cartTotal, 0, '.', ',')); ?></strong>
           </div>
-          <form method="post" class="landing-checkout">
-            <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-            <input type="hidden" name="action" value="checkout">
-            <div class="row">
-              <label>Nama</label>
-              <input name="customer_name" required>
+          <?php if (!$customer): ?>
+            <div class="card landing-alert" style="margin-top:12px">
+              Silakan <a href="<?php echo e(base_url('customer.php')); ?>">masuk atau daftar</a> terlebih dahulu untuk checkout.
             </div>
-            <div class="row">
-              <label>Nomor Telepon / WhatsApp</label>
-              <input name="customer_phone" type="tel" inputmode="tel" placeholder="Contoh: 08xxxxxxxxxx" required>
-            </div>
-            <?php if (!empty($recaptchaSiteKey)): ?>
-              <input type="hidden" name="g-recaptcha-response" id="recaptcha-token">
-            <?php else: ?>
-              <div class="card landing-alert landing-alert-error" style="margin-top:12px">
-                reCAPTCHA belum disetting. Hubungi admin.
+          <?php else: ?>
+            <form method="post" class="landing-checkout">
+              <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+              <input type="hidden" name="action" value="checkout">
+              <div class="row">
+                <label>Pelanggan</label>
+                <div>
+                  <strong><?php echo e($customer['name']); ?></strong>
+                  <div style="color:var(--muted)"><?php echo e($customer['phone']); ?></div>
+                </div>
               </div>
-            <?php endif; ?>
-            <button class="btn landing-checkout-btn" type="submit" <?php echo $recaptchaSiteKey === '' ? 'disabled' : ''; ?>>Kirim Pesanan</button>
-          </form>
+              <?php if (!empty($recaptchaSiteKey)): ?>
+                <input type="hidden" name="g-recaptcha-response" id="recaptcha-token">
+              <?php else: ?>
+                <div class="card landing-alert landing-alert-error" style="margin-top:12px">
+                  reCAPTCHA belum disetting. Hubungi admin.
+                </div>
+              <?php endif; ?>
+              <button class="btn landing-checkout-btn" type="submit" <?php echo $recaptchaSiteKey === '' ? 'disabled' : ''; ?>>Kirim Pesanan</button>
+            </form>
+          <?php endif; ?>
         <?php endif; ?>
       </div>
     <?php endif; ?>
