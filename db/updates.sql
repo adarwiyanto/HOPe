@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS customers (
 
 ALTER TABLE customers
   ADD COLUMN phone VARCHAR(30) NULL AFTER name,
-  ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone;
+  ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone,
+  ADD COLUMN loyalty_remainder INT NOT NULL DEFAULT 0 AFTER loyalty_points;
 ALTER TABLE customers
   ADD UNIQUE KEY uniq_phone (phone);
 
@@ -80,3 +81,17 @@ INSERT INTO settings (`key`,`value`) VALUES ('recaptcha_secret_key','')
   ON DUPLICATE KEY UPDATE `value`=`value`;
 INSERT INTO settings (`key`,`value`) VALUES ('loyalty_points_per_order','0')
   ON DUPLICATE KEY UPDATE `value`=`value`;
+INSERT INTO settings (`key`,`value`) VALUES ('loyalty_point_value','0')
+  ON DUPLICATE KEY UPDATE `value`=`value`;
+INSERT INTO settings (`key`,`value`) VALUES ('loyalty_remainder_mode','discard')
+  ON DUPLICATE KEY UPDATE `value`=`value`;
+
+CREATE TABLE IF NOT EXISTS loyalty_rewards (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  points_required INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_product (product_id),
+  KEY idx_points (points_required),
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
