@@ -22,6 +22,8 @@ $landingCss = setting('landing_css', '');
 $landingHtml = setting('landing_html', '');
 $recaptchaSiteKey = setting('recaptcha_site_key', '');
 $recaptchaSecretKey = setting('recaptcha_secret_key', '');
+$recaptchaAction = 'checkout';
+$recaptchaMinScore = 0.5;
 
 start_session();
 $cart = $_SESSION['landing_cart'] ?? [];
@@ -79,7 +81,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('reCAPTCHA belum diatur oleh admin.');
       }
       $recaptchaToken = (string)($_POST['g-recaptcha-response'] ?? '');
-      if (!verify_recaptcha_response($recaptchaToken, $recaptchaSecretKey, $_SERVER['REMOTE_ADDR'] ?? '')) {
+      if (!verify_recaptcha_response(
+        $recaptchaToken,
+        $recaptchaSecretKey,
+        $_SERVER['REMOTE_ADDR'] ?? '',
+        $recaptchaAction,
+        $recaptchaMinScore
+      )) {
         throw new Exception('Verifikasi reCAPTCHA gagal.');
       }
 
@@ -263,9 +271,7 @@ $loginButton = $currentUser
             <input name="customer_email" type="email" required>
           </div>
           <?php if (!empty($recaptchaSiteKey)): ?>
-            <div class="row">
-              <div class="g-recaptcha" data-sitekey="<?php echo e($recaptchaSiteKey); ?>"></div>
-            </div>
+            <input type="hidden" name="g-recaptcha-response" id="recaptcha-token">
           <?php else: ?>
             <div class="card landing-alert landing-alert-error" style="margin-top:12px">
               reCAPTCHA belum disetting. Hubungi admin.
@@ -298,7 +304,31 @@ $loginButton = $currentUser
     ]);
   ?>
   <?php if (!empty($recaptchaSiteKey)): ?>
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
+    <script>
+      (function () {
+        const form = document.querySelector('.landing-checkout');
+        if (!form) return;
+        const tokenInput = document.getElementById('recaptcha-token');
+        if (!tokenInput) return;
+        form.addEventListener('submit', function (event) {
+          if (form.dataset.recaptchaReady === '1') return;
+          event.preventDefault();
+          grecaptcha.ready(function () {
+            grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
+              .then(function (token) {
+                tokenInput.value = token;
+                form.dataset.recaptchaReady = '1';
+                form.submit();
+              })
+              .catch(function () {
+                form.dataset.recaptchaReady = '';
+                form.submit();
+              });
+          });
+        });
+      })();
+    </script>
   <?php endif; ?>
 </body>
 </html>
