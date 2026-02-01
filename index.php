@@ -70,12 +70,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Keranjang masih kosong.');
       }
       $customerName = trim($_POST['customer_name'] ?? '');
-      $customerEmail = trim($_POST['customer_email'] ?? '');
+      $customerPhone = trim($_POST['customer_phone'] ?? '');
       if ($customerName === '') {
         throw new Exception('Nama wajib diisi.');
       }
-      if ($customerEmail === '' || !filter_var($customerEmail, FILTER_VALIDATE_EMAIL)) {
-        throw new Exception('Email tidak valid.');
+      if ($customerPhone === '') {
+        throw new Exception('Nomor telepon/WA wajib diisi.');
+      }
+      if (!preg_match('/^[0-9+][0-9\\s\\-]{6,20}$/', $customerPhone)) {
+        throw new Exception('Nomor telepon/WA tidak valid.');
       }
       if ($recaptchaSecretKey === '') {
         throw new Exception('reCAPTCHA belum diatur oleh admin.');
@@ -94,16 +97,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $db = db();
       $db->beginTransaction();
 
-      $stmt = $db->prepare("SELECT id FROM customers WHERE email=? LIMIT 1");
-      $stmt->execute([$customerEmail]);
+      $stmt = $db->prepare("SELECT id FROM customers WHERE phone=? LIMIT 1");
+      $stmt->execute([$customerPhone]);
       $customer = $stmt->fetch();
       if ($customer) {
         $customerId = (int)$customer['id'];
         $stmt = $db->prepare("UPDATE customers SET name=? WHERE id=?");
         $stmt->execute([$customerName, $customerId]);
       } else {
-        $stmt = $db->prepare("INSERT INTO customers (name, email) VALUES (?, ?)");
-        $stmt->execute([$customerName, $customerEmail]);
+        $stmt = $db->prepare("INSERT INTO customers (name, email, phone) VALUES (?, ?, ?)");
+        $stmt->execute([$customerName, $customerPhone, $customerPhone]);
         $customerId = (int)$db->lastInsertId();
       }
 
@@ -124,6 +127,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $price = (float)$productsById[$pid]['price'];
         $subtotal = $price * $qty;
         $stmt->execute([$orderId, (int)$pid, $qty, $price, $subtotal]);
+      }
+
+      $pointsPerOrder = (int)setting('loyalty_points_per_order', '0');
+      if ($pointsPerOrder > 0) {
+        $stmt = $db->prepare("UPDATE customers SET loyalty_points = loyalty_points + ? WHERE id = ?");
+        $stmt->execute([$pointsPerOrder, $customerId]);
       }
 
       $db->commit();
@@ -267,8 +276,8 @@ $loginButton = $currentUser
             <input name="customer_name" required>
           </div>
           <div class="row">
-            <label>Email</label>
-            <input name="customer_email" type="email" required>
+            <label>Nomor Telepon / WhatsApp</label>
+            <input name="customer_phone" type="tel" inputmode="tel" placeholder="Contoh: 08xxxxxxxxxx" required>
           </div>
           <?php if (!empty($recaptchaSiteKey)): ?>
             <input type="hidden" name="g-recaptcha-response" id="recaptcha-token">

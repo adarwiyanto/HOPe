@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS customers (
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+ALTER TABLE customers
+  ADD COLUMN phone VARCHAR(30) NULL AFTER name,
+  ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone;
+ALTER TABLE customers
+  ADD UNIQUE KEY uniq_phone (phone);
+
 CREATE TABLE IF NOT EXISTS orders (
   id INT AUTO_INCREMENT PRIMARY KEY,
   order_code VARCHAR(40) NOT NULL,
@@ -71,4 +77,6 @@ CREATE TABLE IF NOT EXISTS order_items (
 INSERT INTO settings (`key`,`value`) VALUES ('recaptcha_site_key','')
   ON DUPLICATE KEY UPDATE `value`=`value`;
 INSERT INTO settings (`key`,`value`) VALUES ('recaptcha_secret_key','')
+  ON DUPLICATE KEY UPDATE `value`=`value`;
+INSERT INTO settings (`key`,`value`) VALUES ('loyalty_points_per_order','0')
   ON DUPLICATE KEY UPDATE `value`=`value`;

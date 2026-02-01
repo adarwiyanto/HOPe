@@ -71,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       $db = db();
       $stmt = $db->prepare("
-        SELECT o.id, o.order_code, o.status, c.name, c.email
+        SELECT o.id, o.order_code, o.status, c.name, COALESCE(c.phone, c.email) AS contact
         FROM orders o
         JOIN customers c ON c.id = o.customer_id
         WHERE o.id = ? AND o.status = 'pending'
@@ -191,7 +191,7 @@ unset($_SESSION['pos_notice'], $_SESSION['pos_err']);
 $activeOrder = null;
 if (!empty($activeOrderId)) {
   $stmt = db()->prepare("
-    SELECT o.order_code, c.name, c.email
+    SELECT o.order_code, c.name, COALESCE(c.phone, c.email) AS contact
     FROM orders o
     JOIN customers c ON c.id = o.customer_id
     WHERE o.id = ?
@@ -202,7 +202,7 @@ if (!empty($activeOrderId)) {
 }
 
 $pendingOrders = db()->query("
-  SELECT o.id, o.order_code, o.created_at, c.name, c.email
+  SELECT o.id, o.order_code, o.created_at, c.name, COALESCE(c.phone, c.email) AS contact
   FROM orders o
   JOIN customers c ON c.id = o.customer_id
   WHERE o.status = 'pending'
@@ -303,7 +303,7 @@ foreach ($cart as $pid => $qty) {
               <div class="pos-order-card">
                 <div class="pos-order-main">
                   <div class="pos-order-code"><?php echo e($order['order_code']); ?></div>
-                  <div class="pos-order-customer"><?php echo e($order['name']); ?> · <?php echo e($order['email']); ?></div>
+                  <div class="pos-order-customer"><?php echo e($order['name']); ?> · <?php echo e($order['contact']); ?></div>
                   <div class="pos-order-time"><?php echo e($order['created_at']); ?></div>
                 </div>
                 <div class="pos-order-items">
@@ -422,7 +422,7 @@ foreach ($cart as $pid => $qty) {
             <?php if (!empty($activeOrder)): ?>
               <div class="pos-order-banner">
                 Pesanan: <strong><?php echo e($activeOrder['order_code']); ?></strong><br>
-                <?php echo e($activeOrder['name']); ?> · <?php echo e($activeOrder['email']); ?>
+                <?php echo e($activeOrder['name']); ?> · <?php echo e($activeOrder['contact']); ?>
               </div>
             <?php endif; ?>
 
