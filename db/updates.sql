@@ -96,3 +96,10 @@ CREATE TABLE IF NOT EXISTS loyalty_rewards (
   KEY idx_points (points_required),
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+ALTER TABLE products
+  ADD COLUMN category VARCHAR(120) NULL AFTER name,
+  ADD COLUMN is_best_seller TINYINT(1) NOT NULL DEFAULT 0 AFTER category;
+
+INSERT INTO settings (`key`,`value`) VALUES ('landing_orders_enabled','1')
+  ON DUPLICATE KEY UPDATE `value`=`value`;
