@@ -5,6 +5,7 @@ require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
 require_login();
+ensure_landing_order_tables();
 
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
@@ -19,6 +20,7 @@ foreach ($products as $p) {
 
 start_session();
 $cart = $_SESSION['pos_cart'] ?? [];
+$activeOrderId = $_SESSION['pos_order_id'] ?? null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
@@ -35,6 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'new_transaction') {
       $cart = [];
       unset($_SESSION['pos_receipt']);
+      if (!empty($_SESSION['pos_order_id'])) {
+        $orderId = (int)$_SESSION['pos_order_id'];
+        $stmt = db()->prepare("UPDATE orders SET status='pending' WHERE id=?");
+        $stmt->execute([$orderId]);
+        unset($_SESSION['pos_order_id']);
+      }
       $_SESSION['pos_notice'] = 'Transaksi baru siap dibuat.';
     } elseif ($action === 'add') {
       $cart[$productId] = ($cart[$productId] ?? 0) + 1;
@@ -53,6 +61,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'remove') {
       unset($cart[$productId]);
       $_SESSION['pos_notice'] = 'Produk dihapus dari keranjang.';
+    } elseif ($action === 'load_order') {
+      $orderId = (int)($_POST['order_id'] ?? 0);
+      if ($orderId <= 0) {
+        throw new Exception('Pesanan tidak ditemukan.');
+      }
+      if (!empty($cart)) {
+        throw new Exception('Kosongkan keranjang terlebih dahulu.');
+      }
+      $db = db();
+      $stmt = $db->prepare("
+        SELECT o.id, o.order_code, o.status, c.name, c.email
+        FROM orders o
+        JOIN customers c ON c.id = o.customer_id
+        WHERE o.id = ? AND o.status = 'pending'
+        LIMIT 1
+      ");
+      $stmt->execute([$orderId]);
+      $order = $stmt->fetch();
+      if (!$order) {
+        throw new Exception('Pesanan tidak tersedia.');
+      }
+      $stmt = $db->prepare("
+        SELECT oi.product_id, oi.qty
+        FROM order_items oi
+        WHERE oi.order_id = ?
+      ");
+      $stmt->execute([$orderId]);
+      $items = $stmt->fetchAll();
+      if (empty($items)) {
+        throw new Exception('Item pesanan kosong.');
+      }
+      foreach ($items as $item) {
+        $pid = (int)$item['product_id'];
+        $qty = (int)$item['qty'];
+        if ($pid > 0 && $qty > 0) {
+          $cart[$pid] = $qty;
+        }
+      }
+      $stmt = $db->prepare("UPDATE orders SET status='processing' WHERE id=?");
+      $stmt->execute([$orderId]);
+      $_SESSION['pos_order_id'] = $orderId;
+      $_SESSION['pos_notice'] = 'Pesanan ' . $order['order_code'] . ' dimuat ke keranjang.';
     } elseif ($action === 'checkout') {
       if (empty($cart)) throw new Exception('Keranjang masih kosong.');
       $paymentMethod = $_POST['payment_method'] ?? '';
@@ -105,6 +155,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $receiptTotal += $total;
       }
       $db->commit();
+      if (!empty($_SESSION['pos_order_id'])) {
+        $orderId = (int)$_SESSION['pos_order_id'];
+        $stmt = $db->prepare("UPDATE orders SET status='completed', completed_at=NOW() WHERE id=?");
+        $stmt->execute([$orderId]);
+        unset($_SESSION['pos_order_id']);
+      }
       $_SESSION['pos_receipt'] = [
         'id' => 'TRX-' . date('YmdHis'),
         'time' => date('d/m/Y H:i'),
@@ -131,6 +187,49 @@ $notice = $_SESSION['pos_notice'] ?? '';
 $err = $_SESSION['pos_err'] ?? '';
 $receipt = $_SESSION['pos_receipt'] ?? null;
 unset($_SESSION['pos_notice'], $_SESSION['pos_err']);
+
+$activeOrder = null;
+if (!empty($activeOrderId)) {
+  $stmt = db()->prepare("
+    SELECT o.order_code, c.name, c.email
+    FROM orders o
+    JOIN customers c ON c.id = o.customer_id
+    WHERE o.id = ?
+    LIMIT 1
+  ");
+  $stmt->execute([(int)$activeOrderId]);
+  $activeOrder = $stmt->fetch();
+}
+
+$pendingOrders = db()->query("
+  SELECT o.id, o.order_code, o.created_at, c.name, c.email
+  FROM orders o
+  JOIN customers c ON c.id = o.customer_id
+  WHERE o.status = 'pending'
+  ORDER BY o.created_at DESC
+  LIMIT 20
+")->fetchAll();
+
+$pendingOrderItems = [];
+if (!empty($pendingOrders)) {
+  $orderIds = array_map(fn($row) => (int)$row['id'], $pendingOrders);
+  $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+  $stmt = db()->prepare("
+    SELECT oi.order_id, oi.qty, p.name
+    FROM order_items oi
+    JOIN products p ON p.id = oi.product_id
+    WHERE oi.order_id IN ($placeholders)
+    ORDER BY oi.id ASC
+  ");
+  $stmt->execute($orderIds);
+  foreach ($stmt->fetchAll() as $item) {
+    $orderId = (int)$item['order_id'];
+    $pendingOrderItems[$orderId][] = [
+      'name' => $item['name'],
+      'qty' => (int)$item['qty'],
+    ];
+  }
+}
 
 $cartItems = [];
 $total = 0.0;
@@ -191,6 +290,38 @@ foreach ($cart as $pid => $qty) {
       <?php if ($err): ?>
         <div class="pos-panel pos-alert pos-alert-error"><?php echo e($err); ?></div>
       <?php endif; ?>
+      <div class="pos-panel pos-orders">
+        <div class="pos-orders-header">
+          <h3>Pesanan Online</h3>
+          <span class="pos-orders-count"><?php echo e((string)count($pendingOrders)); ?> pending</span>
+        </div>
+        <?php if (empty($pendingOrders)): ?>
+          <div class="pos-empty">Belum ada pesanan dari landing page.</div>
+        <?php else: ?>
+          <div class="pos-orders-list">
+            <?php foreach ($pendingOrders as $order): ?>
+              <div class="pos-order-card">
+                <div class="pos-order-main">
+                  <div class="pos-order-code"><?php echo e($order['order_code']); ?></div>
+                  <div class="pos-order-customer"><?php echo e($order['name']); ?> · <?php echo e($order['email']); ?></div>
+                  <div class="pos-order-time"><?php echo e($order['created_at']); ?></div>
+                </div>
+                <div class="pos-order-items">
+                  <?php foreach (($pendingOrderItems[(int)$order['id']] ?? []) as $item): ?>
+                    <div><?php echo e($item['qty']); ?>x <?php echo e($item['name']); ?></div>
+                  <?php endforeach; ?>
+                </div>
+                <form method="post">
+                  <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                  <input type="hidden" name="action" value="load_order">
+                  <input type="hidden" name="order_id" value="<?php echo e((string)$order['id']); ?>">
+                  <button class="btn pos-btn pos-load-btn" type="submit">Ambil ke Keranjang</button>
+                </form>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </div>
       <?php if (!empty($receipt)): ?>
         <div class="pos-panel pos-receipt pos-print-area">
           <div class="pos-receipt-header">
@@ -288,6 +419,12 @@ foreach ($cart as $pid => $qty) {
               </div>
               <div class="pos-cart-count"><?php echo e((string)$cartCount); ?> item</div>
             </div>
+            <?php if (!empty($activeOrder)): ?>
+              <div class="pos-order-banner">
+                Pesanan: <strong><?php echo e($activeOrder['order_code']); ?></strong><br>
+                <?php echo e($activeOrder['name']); ?> · <?php echo e($activeOrder['email']); ?>
+              </div>
+            <?php endif; ?>
 
             <?php if (empty($cartItems)): ?>
               <div class="pos-empty-cart">

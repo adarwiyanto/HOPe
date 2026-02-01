@@ -145,6 +145,57 @@ function ensure_password_resets_table(): void {
   }
 }
 
+function ensure_landing_order_tables(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $db = db();
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS customers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(160) NOT NULL,
+        email VARCHAR(190) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    ");
+
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_code VARCHAR(40) NOT NULL,
+        customer_id INT NOT NULL,
+        status ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL DEFAULT NULL,
+        KEY idx_status (status),
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS order_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id INT NOT NULL,
+        product_id INT NOT NULL,
+        qty INT NOT NULL DEFAULT 1,
+        price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
+        subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $stmt = $db->prepare("INSERT INTO settings (`key`,`value`) VALUES (?,?) ON DUPLICATE KEY UPDATE `value`=`value`");
+    $stmt->execute(['recaptcha_site_key', '']);
+    $stmt->execute(['recaptcha_secret_key', '']);
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_owner_role(): void {
   static $ensured = false;
   if ($ensured) return;
@@ -175,6 +226,36 @@ function normalize_money(string $s): float {
   return (float)$s;
 }
 
+function verify_recaptcha_response(string $token, string $secret, string $remoteIp = ''): bool {
+  if ($token === '' || $secret === '') {
+    return false;
+  }
+
+  $payload = [
+    'secret' => $secret,
+    'response' => $token,
+  ];
+  if ($remoteIp !== '') {
+    $payload['remoteip'] = $remoteIp;
+  }
+
+  $opts = [
+    'http' => [
+      'method' => 'POST',
+      'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+      'content' => http_build_query($payload),
+      'timeout' => 8,
+    ],
+  ];
+  $context = stream_context_create($opts);
+  $result = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $context);
+  if ($result === false) {
+    return false;
+  }
+  $data = json_decode($result, true);
+  return !empty($data['success']);
+}
+
 function landing_default_html(): string {
   return <<<'HTML'
 <div class="content landing">
@@ -187,9 +268,11 @@ function landing_default_html(): string {
           <p style="margin:6px 0 0"><small>{{store_subtitle}}</small></p>
         </div>
       </div>
-      <a class="btn" href="{{login_url}}">Login</a>
+      {{login_button}}
     </div>
   </div>
+
+  {{notice}}
 
   <div class="card" style="margin-top:16px">
     <h3 style="margin:0 0 8px">Tentang Kami</h3>
@@ -197,6 +280,8 @@ function landing_default_html(): string {
   </div>
 
   {{products}}
+
+  {{cart}}
 </div>
 HTML;
 }
