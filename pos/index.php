@@ -160,6 +160,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderId = (int)$_SESSION['pos_order_id'];
         $stmt = $db->prepare("UPDATE orders SET status='completed', completed_at=NOW() WHERE id=?");
         $stmt->execute([$orderId]);
+        $stmt = $db->prepare("
+          SELECT c.id, c.loyalty_remainder
+          FROM orders o
+          JOIN customers c ON c.id = o.customer_id
+          WHERE o.id = ?
+          LIMIT 1
+        ");
+        $stmt->execute([$orderId]);
+        $customer = $stmt->fetch();
+        if ($customer) {
+          $pointValue = (int)setting('loyalty_point_value', '0');
+          if ($pointValue > 0) {
+            $remainderMode = (string)setting('loyalty_remainder_mode', 'discard');
+            $carryRemainder = $remainderMode === 'carry';
+            $customerRemainder = (int)($customer['loyalty_remainder'] ?? 0);
+            $totalForPoints = (int)round($receiptTotal) + ($carryRemainder ? $customerRemainder : 0);
+            $pointsEarned = intdiv($totalForPoints, $pointValue);
+            $newRemainder = $carryRemainder ? ($totalForPoints % $pointValue) : 0;
+            $stmt = $db->prepare("
+              UPDATE customers
+              SET loyalty_points = loyalty_points + ?, loyalty_remainder = ?
+              WHERE id = ?
+            ");
+            $stmt->execute([$pointsEarned, $newRemainder, (int)$customer['id']]);
+          }
+        }
         unset($_SESSION['pos_order_id']);
       }
       $_SESSION['pos_receipt'] = [

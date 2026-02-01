@@ -119,7 +119,7 @@ $customCss = setting('custom_css', '');
           </div>
           <button class="btn" type="submit">Simpan</button>
         </form>
-        <p><small>Poin dihitung dari total belanja saat checkout dilakukan dari landing page.</small></p>
+        <p><small>Poin dihitung dari total belanja setelah pembayaran diselesaikan di POS.</small></p>
       </div>
 
       <div class="card">

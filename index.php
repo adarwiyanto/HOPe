@@ -97,13 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $db = db();
       $db->beginTransaction();
 
-      $stmt = $db->prepare("SELECT id, loyalty_remainder FROM customers WHERE phone=? LIMIT 1");
+      $stmt = $db->prepare("SELECT id FROM customers WHERE phone=? LIMIT 1");
       $stmt->execute([$customerPhone]);
       $customer = $stmt->fetch();
-      $customerRemainder = 0;
       if ($customer) {
         $customerId = (int)$customer['id'];
-        $customerRemainder = (int)($customer['loyalty_remainder'] ?? 0);
         $stmt = $db->prepare("UPDATE customers SET name=? WHERE id=?");
         $stmt->execute([$customerName, $customerId]);
       } else {
@@ -131,17 +129,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $subtotal = $price * $qty;
         $stmt->execute([$orderId, (int)$pid, $qty, $price, $subtotal]);
         $orderTotal += $subtotal;
-      }
-
-      $pointValue = (int)setting('loyalty_point_value', '0');
-      if ($pointValue > 0) {
-        $remainderMode = (string)setting('loyalty_remainder_mode', 'discard');
-        $carryRemainder = $remainderMode === 'carry';
-        $totalForPoints = (int)round($orderTotal) + ($carryRemainder ? $customerRemainder : 0);
-        $pointsEarned = intdiv($totalForPoints, $pointValue);
-        $newRemainder = $carryRemainder ? ($totalForPoints % $pointValue) : 0;
-        $stmt = $db->prepare("UPDATE customers SET loyalty_points = loyalty_points + ?, loyalty_remainder = ? WHERE id = ?");
-        $stmt->execute([$pointsEarned, $newRemainder, $customerId]);
       }
 
       $db->commit();
