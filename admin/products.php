@@ -5,7 +5,7 @@ require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
 require_admin();
-ensure_products_favorite_column();
+ensure_products_catalog_columns();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
   csrf_check();
@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
   redirect(base_url('admin/products.php'));
 }
 
-$products = db()->query("SELECT * FROM products ORDER BY id DESC")->fetchAll();
+$products = db()->query("SELECT * FROM products ORDER BY is_best_seller DESC, id DESC")->fetchAll();
 $customCss = setting('custom_css', '');
 ?>
 <!doctype html>
@@ -54,7 +54,7 @@ $customCss = setting('custom_css', '');
         <table class="table">
           <thead>
             <tr>
-              <th>Foto</th><th>Nama</th><th>Harga</th><th>Favorit</th><th>Aksi</th>
+              <th>Foto</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Best Seller</th><th>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -68,8 +68,9 @@ $customCss = setting('custom_css', '');
                   <?php endif; ?>
                 </td>
                 <td><?php echo e($p['name']); ?></td>
+                <td><?php echo e($p['category'] ?? '-'); ?></td>
                 <td>Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></td>
-                <td><?php echo !empty($p['is_favorite']) ? '⭐' : '-'; ?></td>
+                <td><?php echo !empty($p['is_best_seller']) ? '⭐' : '-'; ?></td>
                 <td style="display:flex;gap:8px;align-items:center">
                   <a class="btn" href="<?php echo e(base_url('admin/product_form.php?id=' . (int)$p['id'])); ?>">Edit</a>
                   <form method="post" onsubmit="return confirm('Hapus produk ini?')">

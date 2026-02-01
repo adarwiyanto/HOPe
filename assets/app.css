@@ -405,6 +405,15 @@ input:focus, select:focus, textarea:focus{
   background:var(--surface);
   transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
 }
+.landing-product-card.is-disabled{
+  cursor:default;
+  opacity:.75;
+}
+.landing-product-card.is-disabled:hover{
+  transform:none;
+  border-color:var(--border);
+  box-shadow:none;
+}
 .landing-product-card:hover{
   transform:translateY(-2px);
   border-color:#bfdbfe;
@@ -427,6 +436,11 @@ input:focus, select:focus, textarea:focus{
   font-weight:700;
   line-height:1.35;
   white-space:normal;
+}
+.landing-product-category{
+  margin-top:4px;
+  font-size:12px;
+  color:var(--muted);
 }
 .landing-product-thumb-fallback{
   display:flex;
