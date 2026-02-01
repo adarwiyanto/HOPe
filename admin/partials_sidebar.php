@@ -67,6 +67,7 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
       </button>
       <div class="submenu" id="m-transaksi">
         <a href="<?php echo e(base_url('admin/sales.php')); ?>">Penjualan</a>
+        <a href="<?php echo e(base_url('admin/customers.php')); ?>">Pelanggan</a>
       </div>
     </div>
 
@@ -86,6 +87,7 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
           <a href="<?php echo e(base_url('admin/users.php')); ?>">User</a>
           <a href="<?php echo e(base_url('admin/store.php')); ?>">Profil Toko</a>
           <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a>
+          <a href="<?php echo e(base_url('admin/loyalty.php')); ?>">Loyalti Point</a>
           <?php if (($u['role'] ?? '') === 'owner'): ?>
             <a href="<?php echo e(base_url('admin/backup.php')); ?>">Backup Database</a>
           <?php endif; ?>

@@ -4,6 +4,7 @@ require_once __DIR__ . '/core/functions.php';
 require_once __DIR__ . '/core/csrf.php';
 require_once __DIR__ . '/core/email.php';
 
+start_session();
 ensure_user_profile_columns();
 ensure_password_resets_table();
 

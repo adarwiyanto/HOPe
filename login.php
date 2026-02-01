@@ -10,6 +10,10 @@ if (file_exists(__DIR__ . '/install/install.lock') === false && !file_exists(__D
 }
 
 $err = '';
+if (login_should_recover()) {
+  redirect(base_url('recovery.php'));
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $u = trim($_POST['username'] ?? '');
   $p = (string)($_POST['password'] ?? '');
@@ -19,6 +23,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       redirect(base_url('pos/index.php'));
     }
     redirect(base_url('admin/dashboard.php'));
+  }
+  $failedAttempts = login_record_failed_attempt();
+  if ($failedAttempts >= 3) {
+    redirect(base_url('recovery.php'));
   }
   $err = 'Username atau password salah.';
 }

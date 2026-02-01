@@ -12,7 +12,7 @@ $err = '';
 $ok = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $app_name = trim($_POST['app_name'] ?? 'Hope Noodles Belitung');
+  $app_name = trim($_POST['app_name'] ?? '');
   $base_url = trim($_POST['base_url'] ?? '');
   $db_host = trim($_POST['db_host'] ?? '127.0.0.1');
   $db_port = trim($_POST['db_port'] ?? '3306');
@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $admin_pass2 = (string)($_POST['admin_pass2'] ?? '');
 
   try {
+    if (!$app_name) throw new Exception('Nama aplikasi wajib diisi.');
     if (!$base_url) throw new Exception('Base URL wajib diisi (contoh: http://localhost/toko_online).');
     if (!$db_name) throw new Exception('Nama database wajib diisi.');
     if ($admin_pass1 === '' || $admin_pass1 !== $admin_pass2) throw new Exception('Password admin tidak cocok.');
@@ -66,11 +67,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS sales (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        transaction_code VARCHAR(40) NULL,
         product_id INT NOT NULL,
         qty INT NOT NULL DEFAULT 1,
         price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
         total DECIMAL(15,2) NOT NULL DEFAULT 0,
         sold_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS customers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(160) NOT NULL,
+        email VARCHAR(190) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    ");
+
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_code VARCHAR(40) NOT NULL,
+        customer_id INT NOT NULL,
+        status ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL DEFAULT NULL,
+        KEY idx_status (status),
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS order_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id INT NOT NULL,
+        product_id INT NOT NULL,
+        qty INT NOT NULL DEFAULT 1,
+        price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
+        subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
         FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
       ) ENGINE=InnoDB
     ");
@@ -95,6 +133,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ON DUPLICATE KEY UPDATE `value`=`value`");
     $stmt->execute(['store_name', $app_name]);
     $stmt->execute(['store_subtitle', 'Katalog produk sederhana']);
+    $stmt->execute(['store_intro', 'Kami adalah usaha yang menghadirkan produk pilihan dengan kualitas terbaik untuk kebutuhan Anda.']);
+    $stmt->execute(['landing_css', '']);
+    $stmt->execute(['landing_html', '']);
+    $stmt->execute(['recaptcha_site_key', '']);
+    $stmt->execute(['recaptcha_secret_key', '']);
 
     // Tulis config.php
     $config = [
@@ -146,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="grid cols">
           <div>
             <label>Nama Aplikasi</label>
-            <input name="app_name" value="<?php echo h($_POST['app_name'] ?? 'Hope Noodles Belitung'); ?>">
+            <input name="app_name" value="<?php echo h($_POST['app_name'] ?? ''); ?>" placeholder="Nama toko Anda">
             <small>Contoh: Toko Adena</small>
           </div>
           <div>

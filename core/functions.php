@@ -71,6 +71,22 @@ function ensure_products_favorite_column(): void {
   }
 }
 
+function ensure_sales_transaction_code_column(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM sales LIKE 'transaction_code'");
+    $hasColumn = (bool)$stmt->fetch();
+    if (!$hasColumn) {
+      db()->exec("ALTER TABLE sales ADD COLUMN transaction_code VARCHAR(40) NULL AFTER id");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_user_invites_table(): void {
   static $ensured = false;
   if ($ensured) return;
@@ -145,6 +161,105 @@ function ensure_password_resets_table(): void {
   }
 }
 
+function ensure_landing_order_tables(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $db = db();
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS customers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(160) NOT NULL,
+        email VARCHAR(190) NOT NULL UNIQUE,
+        phone VARCHAR(30) NULL,
+        loyalty_points INT NOT NULL DEFAULT 0,
+        loyalty_remainder INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    ");
+
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_code VARCHAR(40) NOT NULL,
+        customer_id INT NOT NULL,
+        status ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL DEFAULT NULL,
+        KEY idx_status (status),
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS order_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id INT NOT NULL,
+        product_id INT NOT NULL,
+        qty INT NOT NULL DEFAULT 1,
+        price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
+        subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
+        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $stmt = $db->prepare("INSERT INTO settings (`key`,`value`) VALUES (?,?) ON DUPLICATE KEY UPDATE `value`=`value`");
+    $stmt->execute(['recaptcha_site_key', '']);
+    $stmt->execute(['recaptcha_secret_key', '']);
+    $stmt->execute(['loyalty_point_value', '0']);
+    $stmt->execute(['loyalty_remainder_mode', 'discard']);
+
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'phone'");
+    $hasPhone = (bool)$stmt->fetch();
+    if (!$hasPhone) {
+      $db->exec("ALTER TABLE customers ADD COLUMN phone VARCHAR(30) NULL AFTER name");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'loyalty_points'");
+    $hasPoints = (bool)$stmt->fetch();
+    if (!$hasPoints) {
+      $db->exec("ALTER TABLE customers ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'loyalty_remainder'");
+    $hasRemainder = (bool)$stmt->fetch();
+    if (!$hasRemainder) {
+      $db->exec("ALTER TABLE customers ADD COLUMN loyalty_remainder INT NOT NULL DEFAULT 0 AFTER loyalty_points");
+    }
+    try {
+      $db->exec("ALTER TABLE customers ADD UNIQUE KEY uniq_phone (phone)");
+    } catch (Throwable $e) {
+      // abaikan jika indeks sudah ada
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function ensure_loyalty_rewards_table(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("
+      CREATE TABLE IF NOT EXISTS loyalty_rewards (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        product_id INT NOT NULL,
+        points_required INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_product (product_id),
+        KEY idx_points (points_required),
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_owner_role(): void {
   static $ensured = false;
   if ($ensured) return;
@@ -173,4 +288,79 @@ function normalize_money(string $s): float {
   $s = trim($s);
   $s = str_replace([' ', ','], ['', ''], $s);
   return (float)$s;
+}
+
+function verify_recaptcha_response(
+  string $token,
+  string $secret,
+  string $remoteIp = '',
+  string $expectedAction = '',
+  float $minScore = 0.5
+): bool {
+  if ($token === '' || $secret === '') {
+    return false;
+  }
+
+  $payload = [
+    'secret' => $secret,
+    'response' => $token,
+  ];
+  if ($remoteIp !== '') {
+    $payload['remoteip'] = $remoteIp;
+  }
+
+  $opts = [
+    'http' => [
+      'method' => 'POST',
+      'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+      'content' => http_build_query($payload),
+      'timeout' => 8,
+    ],
+  ];
+  $context = stream_context_create($opts);
+  $result = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $context);
+  if ($result === false) {
+    return false;
+  }
+  $data = json_decode($result, true);
+  if (empty($data['success'])) {
+    return false;
+  }
+  if ($expectedAction !== '' && (($data['action'] ?? '') !== $expectedAction)) {
+    return false;
+  }
+  if (isset($data['score']) && $minScore > 0 && (float)$data['score'] < $minScore) {
+    return false;
+  }
+  return true;
+}
+
+function landing_default_html(): string {
+  return <<<'HTML'
+<div class="content landing">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:12px">
+        {{store_logo_block}}
+        <div>
+          <h2 style="margin:0">{{store_name}}</h2>
+          <p style="margin:6px 0 0"><small>{{store_subtitle}}</small></p>
+        </div>
+      </div>
+      {{login_button}}
+    </div>
+  </div>
+
+  {{notice}}
+
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Tentang Kami</h3>
+    <p style="margin:0;color:var(--muted)">{{store_intro}}</p>
+  </div>
+
+  {{products}}
+
+  {{cart}}
+</div>
+HTML;
 }
