@@ -174,3 +174,29 @@ function normalize_money(string $s): float {
   $s = str_replace([' ', ','], ['', ''], $s);
   return (float)$s;
 }
+
+function landing_default_html(): string {
+  return <<<'HTML'
+<div class="content landing">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:12px">
+        {{store_logo_block}}
+        <div>
+          <h2 style="margin:0">{{store_name}}</h2>
+          <p style="margin:6px 0 0"><small>{{store_subtitle}}</small></p>
+        </div>
+      </div>
+      <a class="btn" href="{{login_url}}">Login</a>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin:0 0 8px">Tentang Kami</h3>
+    <p style="margin:0;color:var(--muted)">{{store_intro}}</p>
+  </div>
+
+  {{products}}
+</div>
+HTML;
+}

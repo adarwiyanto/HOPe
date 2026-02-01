@@ -12,8 +12,11 @@ try {
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', 'Katalog produk sederhana');
+$storeIntro = setting('store_intro', 'Kami adalah usaha yang menghadirkan produk pilihan dengan kualitas terbaik untuk kebutuhan Anda.');
 $storeLogo = setting('store_logo', '');
 $customCss = setting('custom_css', '');
+$landingCss = setting('landing_css', '');
+$landingHtml = setting('landing_html', '');
 ?>
 <!doctype html>
 <html>
@@ -25,25 +28,13 @@ $customCss = setting('custom_css', '');
   <link rel="apple-touch-icon" href="<?php echo e(favicon_url()); ?>">
   <link rel="manifest" href="<?php echo e(base_url('manifest.php')); ?>">
   <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
-  <style><?php echo $customCss; ?></style>
+  <style><?php echo $customCss; ?><?php echo $landingCss; ?></style>
 </head>
 <body>
-  <div class="content">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
-        <div style="display:flex;align-items:center;gap:12px">
-          <?php if (!empty($storeLogo)): ?>
-            <img src="<?php echo e(base_url($storeLogo)); ?>" alt="<?php echo e($storeName); ?>" style="width:56px;height:56px;object-fit:cover;border-radius:12px;border:1px solid var(--border)">
-          <?php endif; ?>
-          <div>
-            <h2 style="margin:0"><?php echo e($storeName); ?></h2>
-            <p style="margin:6px 0 0"><small><?php echo e($storeSubtitle); ?></small></p>
-          </div>
-        </div>
-        <a class="btn" href="<?php echo e(base_url('login.php')); ?>">Login</a>
-      </div>
-    </div>
-
+  <?php
+    $productCards = '';
+    ob_start();
+  ?>
     <div class="grid cols-2" style="margin-top:16px">
       <?php foreach ($products as $p): ?>
         <div class="card">
@@ -61,6 +52,24 @@ $customCss = setting('custom_css', '');
         </div>
       <?php endforeach; ?>
     </div>
-  </div>
+  <?php
+    $productCards = ob_get_clean();
+    $logoBlock = '';
+    $storeLogoUrl = '';
+    if (!empty($storeLogo)) {
+      $storeLogoUrl = base_url($storeLogo);
+      $logoBlock = '<img src="' . e($storeLogoUrl) . '" alt="' . e($storeName) . '" style="width:56px;height:56px;object-fit:cover;border-radius:12px;border:1px solid var(--border)">';
+    }
+    $landingTemplate = $landingHtml !== '' ? $landingHtml : landing_default_html();
+    echo strtr($landingTemplate, [
+      '{{store_name}}' => e($storeName),
+      '{{store_subtitle}}' => e($storeSubtitle),
+      '{{store_intro}}' => e($storeIntro),
+      '{{store_logo}}' => e($storeLogoUrl),
+      '{{store_logo_block}}' => $logoBlock,
+      '{{login_url}}' => e(base_url('login.php')),
+      '{{products}}' => $productCards,
+    ]);
+  ?>
 </body>
 </html>
