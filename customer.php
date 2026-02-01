@@ -22,6 +22,11 @@ if (!empty($_SESSION['customer_err'])) {
   unset($_SESSION['customer_err']);
 }
 
+$recaptchaSiteKey = setting('recaptcha_site_key', '');
+$recaptchaSecretKey = setting('recaptcha_secret_key', '');
+$recaptchaAction = 'customer_register';
+$recaptchaMinScore = 0.5;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
   $action = $_POST['action'] ?? '';
@@ -45,6 +50,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($birthDate === '') throw new Exception('Tanggal lahir wajib diisi.');
       $birth = DateTimeImmutable::createFromFormat('Y-m-d', $birthDate);
       if (!$birth) throw new Exception('Tanggal lahir tidak valid.');
+      if ($recaptchaSecretKey === '') {
+        throw new Exception('reCAPTCHA belum diatur oleh admin.');
+      }
+      $recaptchaToken = (string)($_POST['g-recaptcha-response'] ?? '');
+      if (!verify_recaptcha_response(
+        $recaptchaToken,
+        $recaptchaSecretKey,
+        $_SERVER['REMOTE_ADDR'] ?? '',
+        $recaptchaAction,
+        $recaptchaMinScore
+      )) {
+        throw new Exception('Verifikasi reCAPTCHA gagal.');
+      }
 
       $stmt = db()->prepare("SELECT id, password_hash FROM customers WHERE phone = ? LIMIT 1");
       $stmt->execute([$phone]);
@@ -243,7 +261,7 @@ $customCss = setting('custom_css', '');
 
             <div class="card">
               <h3 style="margin-top:0">Daftar Pelanggan</h3>
-              <form method="post">
+              <form method="post" class="customer-register">
                 <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                 <input type="hidden" name="action" value="register">
                 <div class="row">
@@ -271,7 +289,14 @@ $customCss = setting('custom_css', '');
                   <label>Tanggal Lahir</label>
                   <input name="birth_date" type="date" required>
                 </div>
-                <button class="btn" type="submit">Daftar</button>
+                <?php if (!empty($recaptchaSiteKey)): ?>
+                  <input type="hidden" name="g-recaptcha-response" id="recaptcha-register-token">
+                <?php else: ?>
+                  <div class="card" style="margin-top:12px;border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)">
+                    reCAPTCHA belum disetting. Hubungi admin.
+                  </div>
+                <?php endif; ?>
+                <button class="btn" type="submit" <?php echo $recaptchaSiteKey === '' ? 'disabled' : ''; ?>>Daftar</button>
               </form>
             </div>
           </div>
@@ -280,5 +305,32 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
   <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+  <?php if (!empty($recaptchaSiteKey)): ?>
+    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
+    <script>
+      (function () {
+        const form = document.querySelector('.customer-register');
+        if (!form) return;
+        const tokenInput = document.getElementById('recaptcha-register-token');
+        if (!tokenInput) return;
+        form.addEventListener('submit', function (event) {
+          if (form.dataset.recaptchaReady === '1') return;
+          event.preventDefault();
+          grecaptcha.ready(function () {
+            grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
+              .then(function (token) {
+                tokenInput.value = token;
+                form.dataset.recaptchaReady = '1';
+                form.submit();
+              })
+              .catch(function () {
+                form.dataset.recaptchaReady = '';
+                form.submit();
+              });
+          });
+        });
+      })();
+    </script>
+  <?php endif; ?>
 </body>
 </html>

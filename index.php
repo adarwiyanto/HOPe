@@ -169,10 +169,15 @@ $customer = customer_current();
 $customerButton = $customer
   ? '<a class="btn" href="' . e(base_url('customer.php')) . '">Akun Saya</a>'
   : '<a class="btn" href="' . e(base_url('customer.php')) . '">Masuk / Daftar</a>';
-$adminButton = $currentUser
-  ? '<a class="btn btn-light" href="' . e(base_url('admin/dashboard.php')) . '">Admin</a>'
-  : '<a class="btn btn-light" href="' . e(base_url('login.php')) . '">Login Admin</a>';
-$loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . $customerButton . $adminButton . '</div>';
+$adminButton = '';
+if ($currentUser && in_array($currentUser['role'] ?? '', ['admin', 'owner'], true)) {
+  $adminButton = '<a class="btn btn-light" href="' . e(base_url('admin/dashboard.php')) . '">Admin</a>';
+}
+$loginButtons = [$customerButton];
+if ($adminButton !== '') {
+  $loginButtons[] = $adminButton;
+}
+$loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('', $loginButtons) . '</div>';
 ?>
 <!doctype html>
 <html>
