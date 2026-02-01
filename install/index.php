@@ -40,85 +40,148 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->exec("USE `{$db_name}`");
 
     $pdo->exec("
-      CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL UNIQUE,
-        email VARCHAR(190) NULL,
-        name VARCHAR(120) NOT NULL,
-        role ENUM('owner','admin','user','pegawai') NOT NULL DEFAULT 'admin',
-        avatar_path VARCHAR(255) NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB
+      CREATE TABLE IF NOT EXISTS customers (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        name VARCHAR(160) NOT NULL,
+        phone VARCHAR(30) DEFAULT NULL,
+        loyalty_points INT(11) NOT NULL DEFAULT 0,
+        loyalty_remainder INT(11) NOT NULL DEFAULT 0,
+        email VARCHAR(190) NOT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY email (email),
+        UNIQUE KEY uniq_phone (phone)
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
     ");
 
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS products (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INT(11) NOT NULL AUTO_INCREMENT,
         name VARCHAR(180) NOT NULL,
-        category VARCHAR(120) NULL,
-        is_best_seller TINYINT(1) NOT NULL DEFAULT 0,
-        price DECIMAL(15,2) NOT NULL DEFAULT 0,
-        image_path VARCHAR(255) NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB
+        price DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        image_path VARCHAR(255) DEFAULT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        is_favorite TINYINT(1) NOT NULL DEFAULT 0,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
     ");
 
     $pdo->exec("
-      CREATE TABLE IF NOT EXISTS sales (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        transaction_code VARCHAR(40) NULL,
-        product_id INT NOT NULL,
-        qty INT NOT NULL DEFAULT 1,
-        price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
-        total DECIMAL(15,2) NOT NULL DEFAULT 0,
-        sold_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB
-    ");
-
-    $pdo->exec("
-      CREATE TABLE IF NOT EXISTS customers (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(160) NOT NULL,
-        email VARCHAR(190) NOT NULL UNIQUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB
+      CREATE TABLE IF NOT EXISTS loyalty_rewards (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        product_id INT(11) NOT NULL,
+        points_required INT(11) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_product (product_id),
+        KEY idx_points (points_required),
+        CONSTRAINT loyalty_rewards_ibfk_1 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
     ");
 
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS orders (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id INT(11) NOT NULL AUTO_INCREMENT,
         order_code VARCHAR(40) NOT NULL,
-        customer_id INT NOT NULL,
+        customer_id INT(11) NOT NULL,
         status ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP NULL DEFAULT NULL,
+        PRIMARY KEY (id),
         KEY idx_status (status),
-        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB
+        KEY customer_id (customer_id),
+        CONSTRAINT orders_ibfk_1 FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
     ");
 
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS order_items (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        order_id INT NOT NULL,
-        product_id INT NOT NULL,
-        qty INT NOT NULL DEFAULT 1,
-        price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
-        subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,
-        FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        order_id INT(11) NOT NULL,
+        product_id INT(11) NOT NULL,
+        qty INT(11) NOT NULL DEFAULT 1,
+        price_each DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        subtotal DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        PRIMARY KEY (id),
+        KEY order_id (order_id),
+        KEY product_id (product_id),
+        CONSTRAINT order_items_ibfk_1 FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+        CONSTRAINT order_items_ibfk_2 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+    ");
+
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS sales (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        transaction_code VARCHAR(40) DEFAULT NULL,
+        product_id INT(11) NOT NULL,
+        qty INT(11) NOT NULL DEFAULT 1,
+        price_each DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        total DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+        payment_method VARCHAR(20) NOT NULL DEFAULT 'cash',
+        payment_proof_path VARCHAR(255) DEFAULT NULL,
+        return_reason VARCHAR(255) DEFAULT NULL,
+        returned_at TIMESTAMP NULL DEFAULT NULL,
+        sold_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY product_id (product_id),
+        CONSTRAINT sales_ibfk_1 FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
     ");
 
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS settings (
-        `key` VARCHAR(80) PRIMARY KEY,
-        `value` MEDIUMTEXT NOT NULL
-      ) ENGINE=InnoDB
+        `key` VARCHAR(80) NOT NULL,
+        `value` MEDIUMTEXT NOT NULL,
+        PRIMARY KEY (`key`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+    ");
+
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS users (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        username VARCHAR(50) NOT NULL,
+        email VARCHAR(190) DEFAULT NULL,
+        name VARCHAR(120) NOT NULL,
+        role ENUM('owner','admin','pegawai') NOT NULL DEFAULT 'admin',
+        avatar_path VARCHAR(255) DEFAULT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY username (username)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
+    ");
+
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        user_id INT(11) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
+        used_at TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_token_hash (token_hash),
+        KEY idx_user_id (user_id),
+        CONSTRAINT password_resets_ibfk_1 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+    ");
+
+    $pdo->exec("
+      CREATE TABLE IF NOT EXISTS user_invites (
+        id INT(11) NOT NULL AUTO_INCREMENT,
+        email VARCHAR(190) NOT NULL,
+        role VARCHAR(30) NOT NULL,
+        token_hash CHAR(64) NOT NULL,
+        expires_at TIMESTAMP NULL DEFAULT NULL,
+        used_at TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_token_hash (token_hash),
+        KEY idx_email (email)
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
     ");
 
     $hash = password_hash($admin_pass1, PASSWORD_DEFAULT);
