@@ -157,7 +157,7 @@ $customCss = setting('custom_css', '');
           </div>
           <button class="btn" type="submit">Simpan reCAPTCHA</button>
         </form>
-        <p><small>Gunakan kunci reCAPTCHA v2 (checkbox).</small></p>
+        <p><small>Gunakan kunci reCAPTCHA v3 (score-based) terbaru dari Google.</small></p>
       </div>
     </div>
   </div>

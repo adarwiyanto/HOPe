@@ -226,7 +226,13 @@ function normalize_money(string $s): float {
   return (float)$s;
 }
 
-function verify_recaptcha_response(string $token, string $secret, string $remoteIp = ''): bool {
+function verify_recaptcha_response(
+  string $token,
+  string $secret,
+  string $remoteIp = '',
+  string $expectedAction = '',
+  float $minScore = 0.5
+): bool {
   if ($token === '' || $secret === '') {
     return false;
   }
@@ -253,7 +259,16 @@ function verify_recaptcha_response(string $token, string $secret, string $remote
     return false;
   }
   $data = json_decode($result, true);
-  return !empty($data['success']);
+  if (empty($data['success'])) {
+    return false;
+  }
+  if ($expectedAction !== '' && (($data['action'] ?? '') !== $expectedAction)) {
+    return false;
+  }
+  if (isset($data['score']) && $minScore > 0 && (float)$data['score'] < $minScore) {
+    return false;
+  }
+  return true;
 }
 
 function landing_default_html(): string {
