@@ -56,9 +56,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       CREATE TABLE IF NOT EXISTS products (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(180) NOT NULL,
+        category VARCHAR(120) NULL,
+        is_best_seller TINYINT(1) NOT NULL DEFAULT 0,
         price DECIMAL(15,2) NOT NULL DEFAULT 0,
         image_path VARCHAR(255) NULL,
-        is_favorite TINYINT(1) NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
@@ -138,6 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute(['landing_html', '']);
     $stmt->execute(['recaptcha_site_key', '']);
     $stmt->execute(['recaptcha_secret_key', '']);
+    $stmt->execute(['landing_order_enabled', '1']);
 
     // Tulis config.php
     $config = [

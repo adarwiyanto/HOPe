@@ -7,8 +7,9 @@ require_once __DIR__ . '/../core/csrf.php';
 require_admin();
 
 $id = (int)($_GET['id'] ?? 0);
-ensure_products_favorite_column();
-$product = ['name'=>'','price'=>'0','image_path'=>null,'is_favorite'=>0];
+ensure_products_category_column();
+ensure_products_best_seller_column();
+$product = ['name'=>'','category'=>'','price'=>'0','image_path'=>null,'is_best_seller'=>0];
 
 if ($id) {
   $stmt = db()->prepare("SELECT * FROM products WHERE id=?");
@@ -22,8 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
 
   $name = trim($_POST['name'] ?? '');
+  $category = trim($_POST['category'] ?? '');
   $price = normalize_money($_POST['price'] ?? '0');
-  $isFavorite = isset($_POST['is_favorite']) ? 1 : 0;
+  $isBestSeller = isset($_POST['is_best_seller']) ? 1 : 0;
 
   try {
     if ($name === '') throw new Exception('Nama produk wajib diisi.');
@@ -56,11 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($id) {
-      $stmt = db()->prepare("UPDATE products SET name=?, price=?, image_path=?, is_favorite=? WHERE id=?");
-      $stmt->execute([$name, $price, $imagePath, $isFavorite, $id]);
+      $stmt = db()->prepare("UPDATE products SET name=?, category=?, is_best_seller=?, price=?, image_path=? WHERE id=?");
+      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $id]);
     } else {
-      $stmt = db()->prepare("INSERT INTO products (name, price, image_path, is_favorite) VALUES (?,?,?,?)");
-      $stmt->execute([$name, $price, $imagePath, $isFavorite]);
+      $stmt = db()->prepare("INSERT INTO products (name, category, is_best_seller, price, image_path) VALUES (?,?,?,?,?)");
+      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath]);
     }
 
     redirect(base_url('admin/products.php'));
@@ -104,6 +106,10 @@ $customCss = setting('custom_css', '');
             <input name="name" value="<?php echo e($_POST['name'] ?? $product['name']); ?>" required>
           </div>
           <div class="row">
+            <label>Kategori</label>
+            <input name="category" value="<?php echo e($_POST['category'] ?? $product['category']); ?>" placeholder="Contoh: Minuman">
+          </div>
+          <div class="row">
             <label>Harga</label>
             <input name="price" value="<?php echo e($_POST['price'] ?? (string)$product['price']); ?>" required>
             <small>Gunakan angka, contoh: 12500</small>
@@ -118,9 +124,9 @@ $customCss = setting('custom_css', '');
             <?php endif; ?>
           </div>
           <div class="row">
-            <label>
-              <input type="checkbox" name="is_favorite" value="1" <?php echo !empty($_POST) ? (isset($_POST['is_favorite']) ? 'checked' : '') : ((int)$product['is_favorite'] === 1 ? 'checked' : ''); ?>>
-              Tandai sebagai favorit (tampil di landing page)
+            <label class="checkbox-row">
+              <input type="checkbox" name="is_best_seller" value="1" <?php echo !empty($_POST) ? (isset($_POST['is_best_seller']) ? 'checked' : '') : ((int)$product['is_best_seller'] === 1 ? 'checked' : ''); ?>>
+              Tandai sebagai best seller (tampil di paling atas)
             </label>
           </div>
           <button class="btn" type="submit">Simpan</button>

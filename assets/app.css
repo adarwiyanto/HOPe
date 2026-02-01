@@ -295,6 +295,17 @@ input:focus, select:focus, textarea:focus{
   box-shadow: 0 0 0 4px rgba(59,130,246,.12);
 }
 .row{display:grid; gap:8px; margin:10px 0}
+.checkbox-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.checkbox-row input[type="checkbox"]{
+  width:auto;
+  padding:0;
+  margin:0;
+  box-shadow:none;
+}
 
 .radio-group{
   display:flex;
@@ -419,6 +430,11 @@ input:focus, select:focus, textarea:focus{
   border-color:#bfdbfe;
   box-shadow:0 12px 24px rgba(15,23,42,.08);
 }
+.landing-product-card-disabled:hover{
+  transform:none;
+  border-color:var(--border);
+  box-shadow:none;
+}
 .landing-product-body{
   display:flex;
   gap:12px;
@@ -431,6 +447,24 @@ input:focus, select:focus, textarea:focus{
   display:flex;
   flex-direction:column;
   align-items:flex-start;
+}
+.landing-product-meta{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  color:var(--muted);
+  font-size:12px;
+}
+.landing-product-highlight{
+  background:rgba(251,191,36,.18);
+  color:#b45309;
+  border-radius:999px;
+  padding:2px 8px;
+  font-weight:600;
+}
+.landing-product-card-disabled{
+  cursor:default;
+  opacity:0.9;
 }
 
 /* iOS fix: force text color rendering inside button */
