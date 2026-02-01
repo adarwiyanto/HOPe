@@ -9,6 +9,7 @@ require_admin();
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', 'Katalog produk sederhana');
+$storeIntro = setting('store_intro', 'Kami adalah usaha yang menghadirkan produk pilihan dengan kualitas terbaik untuk kebutuhan Anda.');
 $storeLogo = setting('store_logo', '');
 $err = '';
 
@@ -17,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   $name = trim($_POST['store_name'] ?? '');
   $subtitle = trim($_POST['store_subtitle'] ?? '');
+  $intro = trim($_POST['store_intro'] ?? '');
   $removeLogo = isset($_POST['remove_logo']);
 
   try {
@@ -57,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     set_setting('store_name', $name);
     set_setting('store_subtitle', $subtitle);
+    set_setting('store_intro', $intro);
     set_setting('store_logo', $logoPath);
 
     redirect(base_url('admin/store.php'));
@@ -101,6 +104,10 @@ $customCss = setting('custom_css', '');
           <div class="row">
             <label>Subjudul</label>
             <input name="store_subtitle" value="<?php echo e($_POST['store_subtitle'] ?? $storeSubtitle); ?>">
+          </div>
+          <div class="row">
+            <label>Perkenalan Usaha</label>
+            <textarea name="store_intro" rows="4"><?php echo e($_POST['store_intro'] ?? $storeIntro); ?></textarea>
           </div>
           <div class="row">
             <label>Logo Toko (opsional, max 2MB)</label>
