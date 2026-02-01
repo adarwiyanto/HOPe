@@ -205,7 +205,6 @@ $loginButton = $currentUser
               <span class="landing-product-info">
                 <span class="landing-product-name"><?php echo e($p['name']); ?></span>
                 <span class="badge">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></span>
-                <span class="landing-product-cta">Klik untuk tambah ke keranjang</span>
               </span>
             </span>
           </button>
