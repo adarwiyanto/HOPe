@@ -32,6 +32,7 @@ $cart = $_SESSION['landing_cart'] ?? [];
 $notice = $_SESSION['landing_notice'] ?? '';
 $err = $_SESSION['landing_err'] ?? '';
 unset($_SESSION['landing_notice'], $_SESSION['landing_err']);
+$currentCustomer = current_customer();
 
 $productsById = [];
 foreach ($products as $p) {
@@ -53,7 +54,94 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
-    if ($action === 'add') {
+    if ($action === 'customer_login') {
+      $customerPhone = trim($_POST['customer_phone'] ?? '');
+      $customerPassword = (string)($_POST['customer_password'] ?? '');
+      if ($customerPhone === '' || $customerPassword === '') {
+        throw new Exception('Nomor telepon dan password wajib diisi.');
+      }
+      if (!customer_login_attempt($customerPhone, $customerPassword)) {
+        throw new Exception('Nomor telepon atau password salah.');
+      }
+      $notice = 'Login berhasil.';
+    } elseif ($action === 'customer_register') {
+      $customerName = trim($_POST['customer_name'] ?? '');
+      $customerPhone = trim($_POST['customer_phone'] ?? '');
+      $customerPassword = (string)($_POST['customer_password'] ?? '');
+      $customerGender = trim($_POST['customer_gender'] ?? '');
+      $customerBirth = trim($_POST['customer_birth_date'] ?? '');
+      if ($customerName === '') {
+        throw new Exception('Nama wajib diisi.');
+      }
+      if ($customerPhone === '') {
+        throw new Exception('Nomor telepon wajib diisi.');
+      }
+      if (!preg_match('/^[0-9+][0-9\\s\\-]{6,20}$/', $customerPhone)) {
+        throw new Exception('Nomor telepon tidak valid.');
+      }
+      if (strlen($customerPassword) < 6) {
+        throw new Exception('Password minimal 6 karakter.');
+      }
+      if ($customerGender === '') {
+        throw new Exception('Jenis kelamin wajib dipilih.');
+      }
+      if ($customerBirth === '') {
+        throw new Exception('Tanggal lahir wajib diisi.');
+      }
+      $birthDate = DateTimeImmutable::createFromFormat('Y-m-d', $customerBirth);
+      if (!$birthDate) {
+        throw new Exception('Tanggal lahir tidak valid.');
+      }
+
+      $db = db();
+      $stmt = $db->prepare("SELECT id, password_hash FROM customers WHERE phone=? LIMIT 1");
+      $stmt->execute([$customerPhone]);
+      $existing = $stmt->fetch();
+      $hash = password_hash($customerPassword, PASSWORD_DEFAULT);
+
+      if ($existing) {
+        if (!empty($existing['password_hash'])) {
+          throw new Exception('Nomor telepon sudah terdaftar. Silakan login.');
+        }
+        $stmt = $db->prepare("
+          UPDATE customers
+          SET name = ?, email = ?, password_hash = ?, gender = ?, birth_date = ?
+          WHERE id = ?
+        ");
+        $stmt->execute([
+          $customerName,
+          $customerPhone,
+          $hash,
+          $customerGender,
+          $birthDate->format('Y-m-d'),
+          (int)$existing['id'],
+        ]);
+        $customerId = (int)$existing['id'];
+      } else {
+        $stmt = $db->prepare("
+          INSERT INTO customers (name, email, phone, password_hash, gender, birth_date)
+          VALUES (?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->execute([
+          $customerName,
+          $customerPhone,
+          $customerPhone,
+          $hash,
+          $customerGender,
+          $birthDate->format('Y-m-d'),
+        ]);
+        $customerId = (int)$db->lastInsertId();
+      }
+
+      $stmt = $db->prepare("SELECT id, name, phone, gender, birth_date, loyalty_points FROM customers WHERE id=? LIMIT 1");
+      $stmt->execute([$customerId]);
+      $customer = $stmt->fetch();
+      if (!$customer) {
+        throw new Exception('Pendaftaran gagal diproses.');
+      }
+      customer_login($customer);
+      $notice = 'Pendaftaran berhasil. Selamat berbelanja!';
+    } elseif ($action === 'add') {
       $cart[$productId] = ($cart[$productId] ?? 0) + 1;
       $notice = 'Produk ditambahkan ke keranjang.';
     } elseif ($action === 'inc') {
@@ -74,16 +162,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (empty($cart)) {
         throw new Exception('Keranjang masih kosong.');
       }
-      $customerName = trim($_POST['customer_name'] ?? '');
-      $customerPhone = trim($_POST['customer_phone'] ?? '');
-      if ($customerName === '') {
-        throw new Exception('Nama wajib diisi.');
-      }
-      if ($customerPhone === '') {
-        throw new Exception('Nomor telepon/WA wajib diisi.');
-      }
-      if (!preg_match('/^[0-9+][0-9\\s\\-]{6,20}$/', $customerPhone)) {
-        throw new Exception('Nomor telepon/WA tidak valid.');
+      $currentCustomer = current_customer();
+      if (!$currentCustomer) {
+        throw new Exception('Silakan login atau daftar terlebih dahulu untuk melanjutkan pemesanan.');
       }
       if ($recaptchaSecretKey === '') {
         throw new Exception('reCAPTCHA belum diatur oleh admin.');
@@ -102,18 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $db = db();
       $db->beginTransaction();
 
-      $stmt = $db->prepare("SELECT id FROM customers WHERE phone=? LIMIT 1");
-      $stmt->execute([$customerPhone]);
-      $customer = $stmt->fetch();
-      if ($customer) {
-        $customerId = (int)$customer['id'];
-        $stmt = $db->prepare("UPDATE customers SET name=? WHERE id=?");
-        $stmt->execute([$customerName, $customerId]);
-      } else {
-        $stmt = $db->prepare("INSERT INTO customers (name, email, phone) VALUES (?, ?, ?)");
-        $stmt->execute([$customerName, $customerPhone, $customerPhone]);
-        $customerId = (int)$db->lastInsertId();
-      }
+      $customerId = (int)$currentCustomer['id'];
 
       $orderCode = 'ORD-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(2)));
       $stmt = $db->prepare("INSERT INTO orders (order_code, customer_id, status) VALUES (?,?, 'pending')");
@@ -265,6 +335,67 @@ $loginButton = $currentUser
     <?php else: ?>
       <div class="card landing-cart">
         <h3 style="margin-top:0">Keranjang</h3>
+        <?php if ($currentCustomer): ?>
+          <div class="card" style="margin-bottom:12px;background:#f8fafc">
+            <strong>Halo, <?php echo e($currentCustomer['name']); ?></strong><br>
+            <small><?php echo e($currentCustomer['phone']); ?> · <?php echo e((string)($currentCustomer['loyalty_points'] ?? 0)); ?> poin</small>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+              <a class="btn" href="<?php echo e(base_url('customer/index.php')); ?>">Poin & Loyalti</a>
+              <a class="btn btn-ghost" href="<?php echo e(base_url('customer/logout.php')); ?>">Logout</a>
+            </div>
+          </div>
+        <?php else: ?>
+          <div class="grid cols-2" style="gap:12px;margin-bottom:12px">
+            <div class="card" style="background:#f8fafc">
+              <h4 style="margin-top:0">Login Pelanggan</h4>
+              <form method="post">
+                <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                <input type="hidden" name="action" value="customer_login">
+                <div class="row">
+                  <label>Nomor Telepon</label>
+                  <input name="customer_phone" type="tel" inputmode="tel" placeholder="Contoh: 08xxxxxxxxxx" required>
+                </div>
+                <div class="row">
+                  <label>Password</label>
+                  <input name="customer_password" type="password" required>
+                </div>
+                <button class="btn" type="submit">Login</button>
+              </form>
+            </div>
+            <div class="card" style="background:#f8fafc">
+              <h4 style="margin-top:0">Daftar Pelanggan</h4>
+              <form method="post">
+                <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                <input type="hidden" name="action" value="customer_register">
+                <div class="row">
+                  <label>Nama</label>
+                  <input name="customer_name" required>
+                </div>
+                <div class="row">
+                  <label>Nomor Telepon</label>
+                  <input name="customer_phone" type="tel" inputmode="tel" placeholder="Contoh: 08xxxxxxxxxx" required>
+                </div>
+                <div class="row">
+                  <label>Password</label>
+                  <input name="customer_password" type="password" minlength="6" required>
+                </div>
+                <div class="row">
+                  <label>Jenis Kelamin</label>
+                  <select name="customer_gender" required>
+                    <option value="">-- pilih --</option>
+                    <option value="Laki-laki">Laki-laki</option>
+                    <option value="Perempuan">Perempuan</option>
+                  </select>
+                </div>
+                <div class="row">
+                  <label>Tanggal Lahir</label>
+                  <input name="customer_birth_date" type="date" required>
+                </div>
+                <button class="btn" type="submit">Daftar</button>
+              </form>
+            </div>
+          </div>
+        <?php endif; ?>
         <?php if (empty($cartItems)): ?>
           <p style="margin:0;color:var(--muted)">Keranjang masih kosong. Klik produk untuk menambah.</p>
         <?php else: ?>
@@ -307,14 +438,11 @@ $loginButton = $currentUser
           <form method="post" class="landing-checkout">
             <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
             <input type="hidden" name="action" value="checkout">
-            <div class="row">
-              <label>Nama</label>
-              <input name="customer_name" required>
-            </div>
-            <div class="row">
-              <label>Nomor Telepon / WhatsApp</label>
-              <input name="customer_phone" type="tel" inputmode="tel" placeholder="Contoh: 08xxxxxxxxxx" required>
-            </div>
+            <?php if (!$currentCustomer): ?>
+              <div class="card landing-alert landing-alert-error" style="margin-top:12px">
+                Silakan login atau daftar terlebih dahulu untuk melanjutkan pemesanan.
+              </div>
+            <?php endif; ?>
             <?php if (!empty($recaptchaSiteKey)): ?>
               <input type="hidden" name="g-recaptcha-response" id="recaptcha-token">
             <?php else: ?>
@@ -322,7 +450,7 @@ $loginButton = $currentUser
                 reCAPTCHA belum disetting. Hubungi admin.
               </div>
             <?php endif; ?>
-            <button class="btn landing-checkout-btn" type="submit" <?php echo $recaptchaSiteKey === '' ? 'disabled' : ''; ?>>Kirim Pesanan</button>
+            <button class="btn landing-checkout-btn" type="submit" <?php echo (!$currentCustomer || $recaptchaSiteKey === '') ? 'disabled' : ''; ?>>Kirim Pesanan</button>
           </form>
         <?php endif; ?>
       </div>

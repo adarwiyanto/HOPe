@@ -119,6 +119,23 @@ function ensure_sales_transaction_code_column(): void {
   }
 }
 
+function ensure_sales_created_by_column(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM sales LIKE 'created_by'");
+    $hasColumn = (bool)$stmt->fetch();
+    if (!$hasColumn) {
+      db()->exec("ALTER TABLE sales ADD COLUMN created_by INT NULL AFTER transaction_code");
+      db()->exec("ALTER TABLE sales ADD KEY idx_sales_created_by (created_by)");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_user_invites_table(): void {
   static $ensured = false;
   if ($ensured) return;
@@ -206,6 +223,9 @@ function ensure_landing_order_tables(): void {
         name VARCHAR(160) NOT NULL,
         email VARCHAR(190) NOT NULL UNIQUE,
         phone VARCHAR(30) NULL,
+        password_hash VARCHAR(255) NULL,
+        gender VARCHAR(20) NULL,
+        birth_date DATE NULL,
         loyalty_points INT NOT NULL DEFAULT 0,
         loyalty_remainder INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -250,6 +270,21 @@ function ensure_landing_order_tables(): void {
     $hasPhone = (bool)$stmt->fetch();
     if (!$hasPhone) {
       $db->exec("ALTER TABLE customers ADD COLUMN phone VARCHAR(30) NULL AFTER name");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'password_hash'");
+    $hasPassword = (bool)$stmt->fetch();
+    if (!$hasPassword) {
+      $db->exec("ALTER TABLE customers ADD COLUMN password_hash VARCHAR(255) NULL AFTER phone");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'gender'");
+    $hasGender = (bool)$stmt->fetch();
+    if (!$hasGender) {
+      $db->exec("ALTER TABLE customers ADD COLUMN gender VARCHAR(20) NULL AFTER password_hash");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'birth_date'");
+    $hasBirthDate = (bool)$stmt->fetch();
+    if (!$hasBirthDate) {
+      $db->exec("ALTER TABLE customers ADD COLUMN birth_date DATE NULL AFTER gender");
     }
     $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'loyalty_points'");
     $hasPoints = (bool)$stmt->fetch();

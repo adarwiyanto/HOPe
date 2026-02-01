@@ -82,6 +82,7 @@ $stats = [
   'sales' => 0,
   'revenue' => 0.0,
   'returns' => 0,
+  'avg_spend' => 0.0,
 ];
 
 $stmt = db()->prepare("
@@ -93,6 +94,21 @@ $stmt->execute([$rangeStartStr, $rangeEndStr]);
 $statsRange = $stmt->fetch();
 $stats['sales'] = (int)($statsRange['c'] ?? 0);
 $stats['revenue'] = (float)($statsRange['s'] ?? 0);
+
+$stmt = db()->prepare("
+  SELECT COUNT(*) c, COALESCE(SUM(total_amount),0) s
+  FROM (
+    SELECT COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id)) tx_code,
+      SUM(total) total_amount
+    FROM sales
+    WHERE sold_at >= ? AND sold_at < ? AND return_reason IS NULL
+    GROUP BY COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))
+  ) t
+");
+$stmt->execute([$rangeStartStr, $rangeEndStr]);
+$avgStats = $stmt->fetch();
+$txCount = (int)($avgStats['c'] ?? 0);
+$stats['avg_spend'] = $txCount > 0 ? ((float)($avgStats['s'] ?? 0)) / $txCount : 0.0;
 
 $stmt = db()->prepare("
   SELECT COUNT(*) c
@@ -131,6 +147,79 @@ $topProducts = [];
 $deadStock = [];
 $sharePaymentsMonth = [];
 $recentReturns = [];
+
+$visitRange = $_GET['visit_range'] ?? 'all_time';
+$visitStart = null;
+$visitEnd = null;
+$visitLabel = '';
+
+switch ($visitRange) {
+  case 'this_week':
+    $visitStart = $today->modify('monday this week');
+    $visitEnd = $visitStart->modify('+1 week');
+    $visitLabel = 'Minggu Ini';
+    break;
+  case 'this_month':
+    $visitStart = $today->modify('first day of this month');
+    $visitEnd = $visitStart->modify('+1 month');
+    $visitLabel = 'Bulan Ini';
+    break;
+  case 'custom':
+    $visitStartInput = $_GET['visit_start'] ?? '';
+    $visitEndInput = $_GET['visit_end'] ?? '';
+    if ($visitStartInput && $visitEndInput) {
+      $visitStart = new DateTimeImmutable($visitStartInput);
+      $visitEnd = (new DateTimeImmutable($visitEndInput))->modify('+1 day');
+      $visitLabel = 'Custom';
+    } else {
+      $visitRange = 'all_time';
+      $visitLabel = 'All Time';
+    }
+    break;
+  case 'all_time':
+  default:
+    $visitRange = 'all_time';
+    $visitLabel = 'All Time';
+    break;
+}
+
+$visitParams = [];
+$visitWhere = "WHERE return_reason IS NULL";
+if ($visitStart && $visitEnd) {
+  $visitWhere .= " AND sold_at >= ? AND sold_at < ?";
+  $visitParams[] = $visitStart->format('Y-m-d H:i:s');
+  $visitParams[] = $visitEnd->format('Y-m-d H:i:s');
+}
+
+$stmt = db()->prepare("
+  SELECT HOUR(sold_at) h, COUNT(*) c
+  FROM (
+    SELECT COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id)) tx_code,
+      MIN(sold_at) sold_at
+    FROM sales
+    {$visitWhere}
+    GROUP BY COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))
+  ) t
+  GROUP BY HOUR(sold_at)
+  ORDER BY h ASC
+");
+$stmt->execute($visitParams);
+$visitRows = $stmt->fetchAll();
+$visitByHour = array_fill(0, 24, 0);
+foreach ($visitRows as $row) {
+  $hour = (int)$row['h'];
+  if ($hour >= 0 && $hour <= 23) {
+    $visitByHour[$hour] = (int)$row['c'];
+  }
+}
+$visitMax = 0;
+$visitPeakHour = null;
+foreach ($visitByHour as $hour => $count) {
+  if ($count > $visitMax) {
+    $visitMax = $count;
+    $visitPeakHour = $hour;
+  }
+}
 
 $todayStart = $today;
 $todayEnd = $today->modify('+1 day');
@@ -337,6 +426,48 @@ function format_rupiah($amount)
       font-size: 12px;
       color: #6b7280;
     }
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .grid.cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .grid.cols-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    @media (max-width: 980px) {
+      .grid.cols-3,
+      .grid.cols-4,
+      .grid.cols-5 {
+        grid-template-columns: 1fr;
+      }
+    }
+    .hour-chart {
+      display: grid;
+      grid-template-columns: repeat(24, minmax(0, 1fr));
+      gap: 6px;
+      align-items: end;
+      min-height: 140px;
+      margin-top: 12px;
+    }
+    .hour-bar {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #64748b;
+    }
+    .hour-bar-fill {
+      width: 100%;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(59,130,246,.9), rgba(59,130,246,.35));
+      min-height: 8px;
+    }
+    .hour-bar-count {
+      font-weight: 600;
+      color: #0f172a;
+    }
   </style>
 </head>
 <body>
@@ -360,6 +491,11 @@ function format_rupiah($amount)
         <div class="card" style="margin-bottom:16px">
           <h3 style="margin-top:0">Filter Periode</h3>
           <form method="get" style="margin-bottom:12px">
+            <input type="hidden" name="visit_range" value="<?php echo e($visitRange); ?>">
+            <?php if ($visitRange === 'custom'): ?>
+              <input type="hidden" name="visit_start" value="<?php echo e($_GET['visit_start'] ?? $today->format('Y-m-d')); ?>">
+              <input type="hidden" name="visit_end" value="<?php echo e($_GET['visit_end'] ?? $today->format('Y-m-d')); ?>">
+            <?php endif; ?>
             <div class="row">
               <label>Periode</label>
               <select name="range" id="sales-range">
@@ -382,7 +518,7 @@ function format_rupiah($amount)
           <p><small>Periode: <?php echo e($rangeLabel); ?></small></p>
         </div>
 
-        <div class="grid cols-4">
+        <div class="grid cols-5">
           <div class="card">
             <h4 style="margin-top:0">Total Produk</h4>
             <div style="font-size:24px;font-weight:600"><?php echo e((string)$stats['products']); ?></div>
@@ -399,6 +535,56 @@ function format_rupiah($amount)
             <h4 style="margin-top:0">Retur</h4>
             <div style="font-size:24px;font-weight:600"><?php echo e((string)$stats['returns']); ?></div>
           </div>
+          <div class="card">
+            <h4 style="margin-top:0">Rata-rata Belanja</h4>
+            <div style="font-size:24px;font-weight:600"><?php echo e(format_rupiah($stats['avg_spend'])); ?></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3 style="margin-top:0">Grafik Jam Ramai</h3>
+          <form method="get">
+            <input type="hidden" name="range" value="<?php echo e($range); ?>">
+            <?php if ($range === 'custom'): ?>
+              <input type="hidden" name="start" value="<?php echo e($_GET['start'] ?? $today->format('Y-m-d')); ?>">
+              <input type="hidden" name="end" value="<?php echo e($_GET['end'] ?? $today->format('Y-m-d')); ?>">
+            <?php endif; ?>
+            <div class="row">
+              <label>Rentang Waktu</label>
+              <select name="visit_range" id="visit-range">
+                <option value="all_time" <?php echo $visitRange === 'all_time' ? 'selected' : ''; ?>>All Time</option>
+                <option value="this_week" <?php echo $visitRange === 'this_week' ? 'selected' : ''; ?>>Minggu Ini</option>
+                <option value="this_month" <?php echo $visitRange === 'this_month' ? 'selected' : ''; ?>>Bulan Ini</option>
+                <option value="custom" <?php echo $visitRange === 'custom' ? 'selected' : ''; ?>>Custom</option>
+              </select>
+            </div>
+            <div class="row" id="visit-custom-range" style="display:<?php echo $visitRange === 'custom' ? 'grid' : 'none'; ?>;gap:8px">
+              <label for="visit_start">Mulai</label>
+              <input type="date" name="visit_start" id="visit_start" value="<?php echo e($_GET['visit_start'] ?? $today->format('Y-m-d')); ?>">
+              <label for="visit_end">Sampai</label>
+              <input type="date" name="visit_end" id="visit_end" value="<?php echo e($_GET['visit_end'] ?? $today->format('Y-m-d')); ?>">
+            </div>
+            <button class="btn" type="submit">Terapkan</button>
+          </form>
+          <p class="kpi-subtitle">Periode grafik: <?php echo e($visitLabel); ?></p>
+          <?php if ($visitMax === 0): ?>
+            <p style="margin-top:12px">Belum ada transaksi pada periode ini.</p>
+          <?php else: ?>
+            <p style="margin-top:12px">
+              Jam paling ramai: <strong><?php echo e(str_pad((string)$visitPeakHour, 2, '0', STR_PAD_LEFT)); ?>:00</strong>
+              (<?php echo e((string)$visitMax); ?> transaksi)
+            </p>
+            <div class="hour-chart">
+              <?php foreach ($visitByHour as $hour => $count): ?>
+                <?php $height = $visitMax > 0 ? max(8, (int)round(($count / $visitMax) * 120)) : 8; ?>
+                <div class="hour-bar">
+                  <div class="hour-bar-count"><?php echo e((string)$count); ?></div>
+                  <div class="hour-bar-fill" style="height:<?php echo e((string)$height); ?>px"></div>
+                  <div><?php echo e(str_pad((string)$hour, 2, '0', STR_PAD_LEFT)); ?></div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
         </div>
 
         <?php if ($role === 'owner'): ?>
@@ -724,6 +910,13 @@ function format_rupiah($amount)
     if (rangeSelect && customRange) {
       rangeSelect.addEventListener('change', () => {
         customRange.style.display = rangeSelect.value === 'custom' ? 'grid' : 'none';
+      });
+    }
+    const visitRangeSelect = document.querySelector('#visit-range');
+    const visitCustomRange = document.querySelector('#visit-custom-range');
+    if (visitRangeSelect && visitCustomRange) {
+      visitRangeSelect.addEventListener('change', () => {
+        visitCustomRange.style.display = visitRangeSelect.value === 'custom' ? 'grid' : 'none';
       });
     }
   </script>

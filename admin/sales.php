@@ -6,6 +6,7 @@ require_once __DIR__ . '/../core/csrf.php';
 
 require_admin();
 ensure_sales_transaction_code_column();
+ensure_sales_created_by_column();
 
 $err = '';
 $me = current_user();
@@ -85,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $total = $price * $qty;
 
     $transactionCode = 'TRX-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(2)));
-    $stmt = db()->prepare("INSERT INTO sales (transaction_code, product_id, qty, price_each, total) VALUES (?,?,?,?,?)");
-    $stmt->execute([$transactionCode, $product_id, $qty, $price, $total]);
+    $stmt = db()->prepare("INSERT INTO sales (transaction_code, product_id, qty, price_each, total, created_by) VALUES (?,?,?,?,?,?)");
+    $stmt->execute([$transactionCode, $product_id, $qty, $price, $total, (int)($me['id'] ?? 0)]);
 
     redirect(base_url('admin/sales.php'));
   } catch (Throwable $e) {
@@ -150,8 +151,10 @@ $stmt = db()->prepare("
     SUM(s.total) AS total_amount,
     MAX(s.payment_method) AS payment_method,
     MAX(s.payment_proof_path) AS payment_proof_path,
-    MAX(s.return_reason) AS return_reason
+    MAX(s.return_reason) AS return_reason,
+    MAX(u.name) AS created_by_name
   FROM sales s
+  LEFT JOIN users u ON u.id = s.created_by
   {$whereClause}
   GROUP BY COALESCE(NULLIF(s.transaction_code, ''), CONCAT('LEGACY-', s.id))
   ORDER BY sold_at DESC
@@ -396,6 +399,7 @@ $customCss = setting('custom_css', '');
                 </div>
                 <div class="transaction-summary">
                   <span>Pembayaran: <?php echo e($tx['payment_method'] ?? '-'); ?></span>
+                  <span>Input oleh: <?php echo e($tx['created_by_name'] ?? '-'); ?></span>
                   <span>Status:
                     <?php if (!empty($tx['return_reason'])): ?>
                       Retur: <?php echo e($tx['return_reason']); ?>

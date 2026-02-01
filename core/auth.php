@@ -6,6 +6,14 @@ function start_session(): void {
   $cfg = app_config();
   if (session_status() === PHP_SESSION_NONE) {
     session_name($cfg['security']['session_name']);
+    $lifetime = 60 * 60 * 24 * 30;
+    session_set_cookie_params([
+      'lifetime' => $lifetime,
+      'path' => '/',
+      'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+      'httponly' => true,
+      'samesite' => 'Lax',
+    ]);
     session_start();
   }
 }
@@ -33,6 +41,42 @@ function require_admin(): void {
 function current_user(): ?array {
   start_session();
   return $_SESSION['user'] ?? null;
+}
+
+function current_customer(): ?array {
+  start_session();
+  return $_SESSION['customer'] ?? null;
+}
+
+function customer_login_attempt(string $phone, string $password): bool {
+  $stmt = db()->prepare("SELECT id, name, phone, gender, birth_date, loyalty_points, password_hash FROM customers WHERE phone=? LIMIT 1");
+  $stmt->execute([$phone]);
+  $customer = $stmt->fetch();
+  if (!$customer) return false;
+  if (empty($customer['password_hash']) || !password_verify($password, $customer['password_hash'])) {
+    return false;
+  }
+  start_session();
+  unset($customer['password_hash']);
+  $_SESSION['customer'] = $customer;
+  return true;
+}
+
+function customer_login(array $customer): void {
+  start_session();
+  unset($customer['password_hash']);
+  $_SESSION['customer'] = $customer;
+}
+
+function customer_logout(): void {
+  start_session();
+  unset($_SESSION['customer']);
+}
+
+function require_customer(): void {
+  if (!current_customer()) {
+    redirect(base_url('index.php'));
+  }
 }
 
 function login_attempt(string $username, string $password): bool {

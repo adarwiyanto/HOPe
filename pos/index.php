@@ -8,6 +8,7 @@ require_login();
 ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 ensure_sales_transaction_code_column();
+ensure_sales_created_by_column();
 
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
@@ -211,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $db = db();
       $db->beginTransaction();
       $transactionCode = 'TRX-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(2)));
-      $stmt = $db->prepare("INSERT INTO sales (transaction_code, product_id, qty, price_each, total, payment_method, payment_proof_path) VALUES (?,?,?,?,?,?,?)");
+      $stmt = $db->prepare("INSERT INTO sales (transaction_code, product_id, qty, price_each, total, payment_method, payment_proof_path, created_by) VALUES (?,?,?,?,?,?,?,?)");
       $receiptItems = [];
       $receiptTotal = 0.0;
       foreach ($cart as $pid => $qty) {
@@ -224,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $price = (float)$productsById[$pid]['price'];
         $total = $price * $qty;
-        $stmt->execute([$transactionCode, (int)$pid, $qty, $price, $total, $paymentMethod, $paymentProofPath]);
+        $stmt->execute([$transactionCode, (int)$pid, $qty, $price, $total, $paymentMethod, $paymentProofPath, (int)($me['id'] ?? 0)]);
         $receiptItems[] = [
           'name' => $productsById[$pid]['name'],
           'qty' => $qty,
@@ -258,7 +259,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           if ($qty <= 0) {
             continue;
           }
-          $stmt->execute([$transactionCode, $pid, $qty, 0, 0, $paymentMethod, $paymentProofPath]);
+          $stmt->execute([$transactionCode, $pid, $qty, 0, 0, $paymentMethod, $paymentProofPath, (int)($me['id'] ?? 0)]);
           $receiptItems[] = [
             'name' => $reward['name'],
             'qty' => $qty,
