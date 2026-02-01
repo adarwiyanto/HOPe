@@ -71,6 +71,22 @@ function ensure_products_favorite_column(): void {
   }
 }
 
+function ensure_sales_transaction_code_column(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $stmt = db()->query("SHOW COLUMNS FROM sales LIKE 'transaction_code'");
+    $hasColumn = (bool)$stmt->fetch();
+    if (!$hasColumn) {
+      db()->exec("ALTER TABLE sales ADD COLUMN transaction_code VARCHAR(40) NULL AFTER id");
+    }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
 function ensure_user_invites_table(): void {
   static $ensured = false;
   if ($ensured) return;

@@ -1,5 +1,6 @@
 -- Tambahan kolom untuk pembayaran & retur transaksi
 ALTER TABLE sales
+  ADD COLUMN transaction_code VARCHAR(40) NULL AFTER id,
   ADD COLUMN payment_method VARCHAR(20) NOT NULL DEFAULT 'cash' AFTER total,
   ADD COLUMN payment_proof_path VARCHAR(255) NULL AFTER payment_method,
   ADD COLUMN return_reason VARCHAR(255) NULL AFTER payment_proof_path,

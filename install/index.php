@@ -67,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->exec("
       CREATE TABLE IF NOT EXISTS sales (
         id INT AUTO_INCREMENT PRIMARY KEY,
+        transaction_code VARCHAR(40) NULL,
         product_id INT NOT NULL,
         qty INT NOT NULL DEFAULT 1,
         price_each DECIMAL(15,2) NOT NULL DEFAULT 0,
