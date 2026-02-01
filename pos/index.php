@@ -22,12 +22,14 @@ foreach ($products as $p) {
 
 start_session();
 $cart = $_SESSION['pos_cart'] ?? [];
+$rewardCart = $_SESSION['pos_reward_cart'] ?? [];
 $activeOrderId = $_SESSION['pos_order_id'] ?? null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
   $action = $_POST['action'] ?? '';
   $productId = (int)($_POST['product_id'] ?? 0);
+  $rewardId = (int)($_POST['reward_id'] ?? 0);
 
   try {
     if (in_array($action, ['add','inc','dec','remove'], true)) {
@@ -35,9 +37,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Produk tidak ditemukan.');
       }
     }
+    if (in_array($action, ['claim_reward','remove_reward'], true)) {
+      if ($rewardId <= 0) {
+        throw new Exception('Reward tidak ditemukan.');
+      }
+      if (empty($activeOrderId)) {
+        throw new Exception('Reward hanya tersedia untuk pesanan aktif.');
+      }
+    }
 
     if ($action === 'new_transaction') {
       $cart = [];
+      $rewardCart = [];
       unset($_SESSION['pos_receipt']);
       if (!empty($_SESSION['pos_order_id'])) {
         $orderId = (int)$_SESSION['pos_order_id'];
@@ -104,9 +115,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt = $db->prepare("UPDATE orders SET status='processing' WHERE id=?");
       $stmt->execute([$orderId]);
       $_SESSION['pos_order_id'] = $orderId;
+      $rewardCart = [];
       $_SESSION['pos_notice'] = 'Pesanan ' . $order['order_code'] . ' dimuat ke keranjang.';
+    } elseif ($action === 'claim_reward') {
+      $db = db();
+      $stmt = $db->prepare("
+        SELECT o.id, c.id AS customer_id, c.loyalty_points
+        FROM orders o
+        JOIN customers c ON c.id = o.customer_id
+        WHERE o.id = ?
+        LIMIT 1
+      ");
+      $stmt->execute([(int)$activeOrderId]);
+      $order = $stmt->fetch();
+      if (!$order) {
+        throw new Exception('Pesanan tidak ditemukan.');
+      }
+      $stmt = $db->prepare("
+        SELECT lr.id, lr.product_id, lr.points_required, p.name
+        FROM loyalty_rewards lr
+        JOIN products p ON p.id = lr.product_id
+        WHERE lr.id = ?
+        LIMIT 1
+      ");
+      $stmt->execute([$rewardId]);
+      $reward = $stmt->fetch();
+      if (!$reward) {
+        throw new Exception('Reward tidak tersedia.');
+      }
+      $currentPoints = (int)($order['loyalty_points'] ?? 0);
+      $pointsRequired = (int)$reward['points_required'];
+      if ($currentPoints < $pointsRequired) {
+        throw new Exception('Poin tidak mencukupi untuk klaim reward.');
+      }
+      $stmt = $db->prepare("UPDATE customers SET loyalty_points = loyalty_points - ? WHERE id = ?");
+      $stmt->execute([$pointsRequired, (int)$order['customer_id']]);
+      $rewardCart[$rewardId] = ($rewardCart[$rewardId] ?? 0) + 1;
+      $_SESSION['pos_notice'] = 'Reward ditambahkan ke keranjang sebagai gratis.';
+    } elseif ($action === 'remove_reward') {
+      if (empty($rewardCart[$rewardId])) {
+        throw new Exception('Reward tidak ada di keranjang.');
+      }
+      $db = db();
+      $stmt = $db->prepare("
+        SELECT o.id, c.id AS customer_id
+        FROM orders o
+        JOIN customers c ON c.id = o.customer_id
+        WHERE o.id = ?
+        LIMIT 1
+      ");
+      $stmt->execute([(int)$activeOrderId]);
+      $order = $stmt->fetch();
+      if (!$order) {
+        throw new Exception('Pesanan tidak ditemukan.');
+      }
+      $stmt = $db->prepare("SELECT points_required FROM loyalty_rewards WHERE id = ? LIMIT 1");
+      $stmt->execute([$rewardId]);
+      $reward = $stmt->fetch();
+      if (!$reward) {
+        throw new Exception('Reward tidak tersedia.');
+      }
+      $qty = (int)$rewardCart[$rewardId];
+      unset($rewardCart[$rewardId]);
+      $refundPoints = (int)$reward['points_required'] * $qty;
+      $stmt = $db->prepare("UPDATE customers SET loyalty_points = loyalty_points + ? WHERE id = ?");
+      $stmt->execute([$refundPoints, (int)$order['customer_id']]);
+      $_SESSION['pos_notice'] = 'Reward dihapus dari keranjang dan poin dikembalikan.';
     } elseif ($action === 'checkout') {
-      if (empty($cart)) throw new Exception('Keranjang masih kosong.');
+      if (empty($cart) && empty($rewardCart)) throw new Exception('Keranjang masih kosong.');
       $paymentMethod = $_POST['payment_method'] ?? '';
       if (!in_array($paymentMethod, ['cash', 'qris'], true)) {
         throw new Exception('Pilih metode pembayaran.');
@@ -154,8 +230,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'qty' => $qty,
           'price' => $price,
           'subtotal' => $total,
+          'is_reward' => false,
         ];
         $receiptTotal += $total;
+      }
+      if (!empty($rewardCart)) {
+        $rewardIds = array_map('intval', array_keys($rewardCart));
+        $placeholders = implode(',', array_fill(0, count($rewardIds), '?'));
+        $stmtReward = $db->prepare("
+          SELECT lr.id, lr.product_id, p.name
+          FROM loyalty_rewards lr
+          JOIN products p ON p.id = lr.product_id
+          WHERE lr.id IN ($placeholders)
+        ");
+        $stmtReward->execute($rewardIds);
+        $rewardRows = [];
+        foreach ($stmtReward->fetchAll() as $reward) {
+          $rewardRows[(int)$reward['id']] = $reward;
+        }
+        foreach ($rewardCart as $rid => $qty) {
+          $reward = $rewardRows[(int)$rid] ?? null;
+          if (!$reward) {
+            throw new Exception('Reward tidak ditemukan saat checkout.');
+          }
+          $pid = (int)$reward['product_id'];
+          $qty = (int)$qty;
+          if ($qty <= 0) {
+            continue;
+          }
+          $stmt->execute([$transactionCode, $pid, $qty, 0, 0, $paymentMethod, $paymentProofPath]);
+          $receiptItems[] = [
+            'name' => $reward['name'],
+            'qty' => $qty,
+            'price' => 0,
+            'subtotal' => 0,
+            'is_reward' => true,
+          ];
+        }
       }
       $db->commit();
       if (!empty($_SESSION['pos_order_id'])) {
@@ -199,6 +310,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'total' => $receiptTotal,
       ];
       $cart = [];
+      $rewardCart = [];
       $_SESSION['pos_notice'] = 'Transaksi berhasil disimpan.';
     }
   } catch (Throwable $e) {
@@ -209,6 +321,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 
   $_SESSION['pos_cart'] = $cart;
+  $_SESSION['pos_reward_cart'] = $rewardCart;
   redirect(base_url('pos/index.php'));
 }
 
@@ -236,6 +349,10 @@ $rewardOptions = db()->query("
   JOIN products p ON p.id = lr.product_id
   ORDER BY lr.points_required ASC
 ")->fetchAll();
+$rewardOptionsById = [];
+foreach ($rewardOptions as $reward) {
+  $rewardOptionsById[(int)$reward['id']] = $reward;
+}
 
 $availableRewards = [];
 if (!empty($activeOrder) && !empty($rewardOptions)) {
@@ -293,7 +410,29 @@ foreach ($cart as $pid => $qty) {
     'price' => $price,
     'qty' => $qty,
     'subtotal' => $subtotal,
+    'is_reward' => false,
   ];
+}
+if (!empty($rewardCart)) {
+  foreach ($rewardCart as $rid => $qty) {
+    $reward = $rewardOptionsById[(int)$rid] ?? null;
+    if (!$reward) continue;
+    $pid = (int)$reward['product_id'];
+    if (empty($productsById[$pid])) continue;
+    $qty = (int)$qty;
+    if ($qty <= 0) continue;
+    $cartCount += $qty;
+    $cartItems[] = [
+      'id' => $pid,
+      'reward_id' => (int)$rid,
+      'name' => $productsById[$pid]['name'],
+      'price' => 0,
+      'qty' => $qty,
+      'subtotal' => 0,
+      'is_reward' => true,
+      'points_required' => (int)$reward['points_required'],
+    ];
+  }
 }
 ?>
 <!doctype html>
@@ -389,9 +528,22 @@ foreach ($cart as $pid => $qty) {
               <div class="pos-receipt-row">
                 <div>
                   <div class="pos-receipt-item-name"><?php echo e($item['name']); ?></div>
-                  <div class="pos-receipt-item-meta"><?php echo e((string)$item['qty']); ?> x Rp <?php echo e(number_format((float)$item['price'], 0, '.', ',')); ?></div>
+                  <div class="pos-receipt-item-meta">
+                    <?php echo e((string)$item['qty']); ?> x
+                    <?php if (!empty($item['is_reward'])): ?>
+                      Gratis
+                    <?php else: ?>
+                      Rp <?php echo e(number_format((float)$item['price'], 0, '.', ',')); ?>
+                    <?php endif; ?>
+                  </div>
                 </div>
-                <div class="pos-receipt-item-subtotal">Rp <?php echo e(number_format((float)$item['subtotal'], 0, '.', ',')); ?></div>
+                <div class="pos-receipt-item-subtotal">
+                  <?php if (!empty($item['is_reward'])): ?>
+                    Gratis
+                  <?php else: ?>
+                    Rp <?php echo e(number_format((float)$item['subtotal'], 0, '.', ',')); ?>
+                  <?php endif; ?>
+                </div>
               </div>
             <?php endforeach; ?>
           </div>
@@ -468,17 +620,26 @@ foreach ($cart as $pid => $qty) {
             <?php if (!empty($activeOrder)): ?>
               <div class="pos-order-banner">
                 Pesanan: <strong><?php echo e($activeOrder['order_code']); ?></strong><br>
-                <?php echo e($activeOrder['name']); ?> · <?php echo e($activeOrder['contact']); ?>
+                <?php echo e($activeOrder['name']); ?> · <?php echo e($activeOrder['contact']); ?><br>
+                <span class="pos-order-points">Sisa poin: <?php echo e((string)((int)($activeOrder['loyalty_points'] ?? 0))); ?> poin</span>
               </div>
               <?php if (!empty($availableRewards)): ?>
-                <div class="pos-order-banner" style="margin-top:12px;border-color:rgba(56,189,248,.35);background:rgba(56,189,248,.12)">
+                <div class="pos-order-banner pos-reward-banner">
                   <strong>Reward tersedia untuk diklaim</strong>
-                  <div style="margin-top:6px">
+                  <div class="pos-reward-list">
                     <?php foreach ($availableRewards as $reward): ?>
-                      <div><?php echo e($reward['name']); ?> · <?php echo e((string)$reward['points_required']); ?> poin</div>
+                      <form method="post" class="pos-reward-claim">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="claim_reward">
+                        <input type="hidden" name="reward_id" value="<?php echo e((string)$reward['id']); ?>">
+                        <button class="pos-reward-button" type="submit">
+                          <span><?php echo e($reward['name']); ?></span>
+                          <span class="pos-reward-points"><?php echo e((string)$reward['points_required']); ?> poin</span>
+                        </button>
+                      </form>
                     <?php endforeach; ?>
                   </div>
-                  <small>Konfirmasi klaim reward sebelum checkout.</small>
+                  <small>Klik reward untuk menambahkan produk gratis ke keranjang.</small>
                 </div>
               <?php endif; ?>
             <?php endif; ?>
@@ -491,35 +652,63 @@ foreach ($cart as $pid => $qty) {
             <?php else: ?>
               <div class="pos-cart-items">
                 <?php foreach ($cartItems as $item): ?>
-                  <div class="pos-cart-item">
+                  <div class="pos-cart-item<?php echo !empty($item['is_reward']) ? ' pos-cart-item-reward' : ''; ?>">
                     <div class="pos-cart-item-head">
-                      <div class="pos-cart-item-name"><?php echo e($item['name']); ?></div>
-                      <div class="pos-cart-item-price">Rp <?php echo e(number_format($item['price'], 0, '.', ',')); ?></div>
+                      <div class="pos-cart-item-name">
+                        <?php echo e($item['name']); ?>
+                        <?php if (!empty($item['is_reward'])): ?>
+                          <span class="pos-reward-badge">Reward</span>
+                        <?php endif; ?>
+                      </div>
+                      <div class="pos-cart-item-price">
+                        <?php if (!empty($item['is_reward'])): ?>
+                          Gratis
+                        <?php else: ?>
+                          Rp <?php echo e(number_format($item['price'], 0, '.', ',')); ?>
+                        <?php endif; ?>
+                      </div>
                     </div>
                     <div class="pos-cart-row">
-                      <div class="pos-qty">
-                        <form method="post">
-                          <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                          <input type="hidden" name="action" value="dec">
-                          <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
-                          <button class="btn pos-qty-btn" type="submit">−</button>
-                        </form>
-                        <div class="pos-qty-value"><?php echo e((string)$item['qty']); ?></div>
-                        <form method="post">
-                          <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                          <input type="hidden" name="action" value="inc">
-                          <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
-                          <button class="btn pos-qty-btn" type="submit">+</button>
-                        </form>
-                      </div>
-                      <div class="pos-cart-subtotal">Rp <?php echo e(number_format($item['subtotal'], 0, '.', ',')); ?></div>
+                      <?php if (!empty($item['is_reward'])): ?>
+                        <div class="pos-qty pos-qty-static">
+                          <div class="pos-qty-label">Qty</div>
+                          <div class="pos-qty-value"><?php echo e((string)$item['qty']); ?></div>
+                        </div>
+                        <div class="pos-cart-subtotal">Rp 0</div>
+                      <?php else: ?>
+                        <div class="pos-qty">
+                          <form method="post">
+                            <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                            <input type="hidden" name="action" value="dec">
+                            <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
+                            <button class="btn pos-qty-btn" type="submit">−</button>
+                          </form>
+                          <div class="pos-qty-value"><?php echo e((string)$item['qty']); ?></div>
+                          <form method="post">
+                            <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                            <input type="hidden" name="action" value="inc">
+                            <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
+                            <button class="btn pos-qty-btn" type="submit">+</button>
+                          </form>
+                        </div>
+                        <div class="pos-cart-subtotal">Rp <?php echo e(number_format($item['subtotal'], 0, '.', ',')); ?></div>
+                      <?php endif; ?>
                     </div>
-                    <form method="post" class="pos-remove-form">
-                      <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
-                      <input type="hidden" name="action" value="remove">
-                      <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
-                      <button class="btn pos-remove-btn" type="submit">Hapus</button>
-                    </form>
+                    <?php if (!empty($item['is_reward'])): ?>
+                      <form method="post" class="pos-remove-form">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="remove_reward">
+                        <input type="hidden" name="reward_id" value="<?php echo e((string)$item['reward_id']); ?>">
+                        <button class="btn pos-remove-btn" type="submit">Hapus Reward</button>
+                      </form>
+                    <?php else: ?>
+                      <form method="post" class="pos-remove-form">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="remove">
+                        <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
+                        <button class="btn pos-remove-btn" type="submit">Hapus</button>
+                      </form>
+                    <?php endif; ?>
                   </div>
                 <?php endforeach; ?>
               </div>

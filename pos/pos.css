@@ -103,6 +103,63 @@
   font-size:13px;
   color:#1e3a8a;
 }
+.pos-order-points{
+  display:inline-flex;
+  margin-top:4px;
+  font-weight:600;
+}
+.pos-reward-banner{
+  border-color:rgba(56,189,248,.35);
+  background:rgba(56,189,248,.12);
+}
+.pos-reward-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:8px;
+}
+.pos-reward-claim{
+  margin:0;
+}
+.pos-reward-button{
+  width:100%;
+  border:1px solid rgba(56,189,248,.4);
+  background:#fff;
+  color:#0f172a;
+  border-radius:10px;
+  padding:8px 10px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:13px;
+  cursor:pointer;
+}
+.pos-reward-button:hover{
+  border-color:rgba(56,189,248,.7);
+  box-shadow:0 0 0 2px rgba(56,189,248,.15);
+}
+.pos-reward-points{
+  font-weight:700;
+  color:#0284c7;
+}
+.pos-reward-badge{
+  margin-left:6px;
+  padding:2px 6px;
+  border-radius:999px;
+  font-size:11px;
+  background:#e0f2fe;
+  color:#0369a1;
+  font-weight:700;
+}
+.pos-qty-static{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.pos-qty-label{
+  font-size:12px;
+  color:var(--muted);
+}
 
 .pos-receipt{
   display:flex;
