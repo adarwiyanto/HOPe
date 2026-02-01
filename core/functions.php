@@ -157,6 +157,8 @@ function ensure_landing_order_tables(): void {
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(160) NOT NULL,
         email VARCHAR(190) NOT NULL UNIQUE,
+        phone VARCHAR(30) NULL,
+        loyalty_points INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
@@ -191,6 +193,22 @@ function ensure_landing_order_tables(): void {
     $stmt = $db->prepare("INSERT INTO settings (`key`,`value`) VALUES (?,?) ON DUPLICATE KEY UPDATE `value`=`value`");
     $stmt->execute(['recaptcha_site_key', '']);
     $stmt->execute(['recaptcha_secret_key', '']);
+
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'phone'");
+    $hasPhone = (bool)$stmt->fetch();
+    if (!$hasPhone) {
+      $db->exec("ALTER TABLE customers ADD COLUMN phone VARCHAR(30) NULL AFTER name");
+    }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'loyalty_points'");
+    $hasPoints = (bool)$stmt->fetch();
+    if (!$hasPoints) {
+      $db->exec("ALTER TABLE customers ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone");
+    }
+    try {
+      $db->exec("ALTER TABLE customers ADD UNIQUE KEY uniq_phone (phone)");
+    } catch (Throwable $e) {
+      // abaikan jika indeks sudah ada
+    }
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
   }
