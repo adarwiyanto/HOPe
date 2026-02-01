@@ -26,6 +26,15 @@ a{color:inherit; text-decoration:none}
 small{color:var(--muted)}
 hr{border:none;border-top:1px solid var(--border);margin:14px 0}
 
+/* iOS/WebKit button normalize (important for Safari/Chrome iOS) */
+button{
+  font:inherit;
+  color:inherit;
+  appearance:none;
+  -webkit-appearance:none;
+  border-radius:0;
+}
+
 /* Layout */
 .container{display:flex; min-height:100vh}
 .sidebar{
@@ -423,11 +432,16 @@ input:focus, select:focus, textarea:focus{
   flex-direction:column;
   align-items:flex-start;
 }
+
+/* iOS fix: force text color rendering inside button */
 .landing-product-name{
   font-weight:700;
   line-height:1.35;
   white-space:normal;
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
 }
+
 .landing-product-thumb-fallback{
   display:flex;
   align-items:center;
