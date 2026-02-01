@@ -159,6 +159,7 @@ function ensure_landing_order_tables(): void {
         email VARCHAR(190) NOT NULL UNIQUE,
         phone VARCHAR(30) NULL,
         loyalty_points INT NOT NULL DEFAULT 0,
+        loyalty_remainder INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
@@ -193,6 +194,8 @@ function ensure_landing_order_tables(): void {
     $stmt = $db->prepare("INSERT INTO settings (`key`,`value`) VALUES (?,?) ON DUPLICATE KEY UPDATE `value`=`value`");
     $stmt->execute(['recaptcha_site_key', '']);
     $stmt->execute(['recaptcha_secret_key', '']);
+    $stmt->execute(['loyalty_point_value', '0']);
+    $stmt->execute(['loyalty_remainder_mode', 'discard']);
 
     $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'phone'");
     $hasPhone = (bool)$stmt->fetch();
@@ -204,11 +207,38 @@ function ensure_landing_order_tables(): void {
     if (!$hasPoints) {
       $db->exec("ALTER TABLE customers ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone");
     }
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'loyalty_remainder'");
+    $hasRemainder = (bool)$stmt->fetch();
+    if (!$hasRemainder) {
+      $db->exec("ALTER TABLE customers ADD COLUMN loyalty_remainder INT NOT NULL DEFAULT 0 AFTER loyalty_points");
+    }
     try {
       $db->exec("ALTER TABLE customers ADD UNIQUE KEY uniq_phone (phone)");
     } catch (Throwable $e) {
       // abaikan jika indeks sudah ada
     }
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function ensure_loyalty_rewards_table(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("
+      CREATE TABLE IF NOT EXISTS loyalty_rewards (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        product_id INT NOT NULL,
+        points_required INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_product (product_id),
+        KEY idx_points (points_required),
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
   }

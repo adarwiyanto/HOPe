@@ -6,6 +6,7 @@ require_once __DIR__ . '/../core/csrf.php';
 
 require_login();
 ensure_landing_order_tables();
+ensure_loyalty_rewards_table();
 
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
@@ -191,7 +192,7 @@ unset($_SESSION['pos_notice'], $_SESSION['pos_err']);
 $activeOrder = null;
 if (!empty($activeOrderId)) {
   $stmt = db()->prepare("
-    SELECT o.order_code, c.name, COALESCE(c.phone, c.email) AS contact
+    SELECT o.order_code, c.name, COALESCE(c.phone, c.email) AS contact, c.loyalty_points
     FROM orders o
     JOIN customers c ON c.id = o.customer_id
     WHERE o.id = ?
@@ -199,6 +200,23 @@ if (!empty($activeOrderId)) {
   ");
   $stmt->execute([(int)$activeOrderId]);
   $activeOrder = $stmt->fetch();
+}
+
+$rewardOptions = db()->query("
+  SELECT lr.id, lr.product_id, lr.points_required, p.name
+  FROM loyalty_rewards lr
+  JOIN products p ON p.id = lr.product_id
+  ORDER BY lr.points_required ASC
+")->fetchAll();
+
+$availableRewards = [];
+if (!empty($activeOrder) && !empty($rewardOptions)) {
+  $points = (int)($activeOrder['loyalty_points'] ?? 0);
+  foreach ($rewardOptions as $reward) {
+    if ($points >= (int)$reward['points_required']) {
+      $availableRewards[] = $reward;
+    }
+  }
 }
 
 $pendingOrders = db()->query("
@@ -424,6 +442,17 @@ foreach ($cart as $pid => $qty) {
                 Pesanan: <strong><?php echo e($activeOrder['order_code']); ?></strong><br>
                 <?php echo e($activeOrder['name']); ?> · <?php echo e($activeOrder['contact']); ?>
               </div>
+              <?php if (!empty($availableRewards)): ?>
+                <div class="pos-order-banner" style="margin-top:12px;border-color:rgba(56,189,248,.35);background:rgba(56,189,248,.12)">
+                  <strong>Reward tersedia untuk diklaim</strong>
+                  <div style="margin-top:6px">
+                    <?php foreach ($availableRewards as $reward): ?>
+                      <div><?php echo e($reward['name']); ?> · <?php echo e((string)$reward['points_required']); ?> poin</div>
+                    <?php endforeach; ?>
+                  </div>
+                  <small>Konfirmasi klaim reward sebelum checkout.</small>
+                </div>
+              <?php endif; ?>
             <?php endif; ?>
 
             <?php if (empty($cartItems)): ?>
