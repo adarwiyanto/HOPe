@@ -57,6 +57,7 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
       </button>
       <div class="submenu" id="m-produk">
         <a href="<?php echo e(base_url('admin/products.php')); ?>">Produk</a>
+        <a href="<?php echo e(base_url('admin/product_categories.php')); ?>">Kategori Produk</a>
       </div>
     </div>
 

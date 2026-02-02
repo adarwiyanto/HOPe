@@ -87,6 +87,34 @@ function ensure_products_category_column(): void {
   }
 }
 
+function ensure_product_categories_table(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("
+      CREATE TABLE IF NOT EXISTS product_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(120) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_name (name)
+      ) ENGINE=InnoDB
+    ");
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function product_categories(): array {
+  try {
+    $stmt = db()->query("SELECT id, name FROM product_categories ORDER BY name ASC");
+    return $stmt->fetchAll();
+  } catch (Throwable $e) {
+    return [];
+  }
+}
+
 function ensure_products_best_seller_column(): void {
   static $ensured = false;
   if ($ensured) return;
