@@ -46,6 +46,7 @@ button{
   height:100vh;
   overflow:auto;
   transition: width .18s ease;
+  z-index:40;
 }
 .sidebar.collapsed{width:80px}
 .main{flex:1; display:flex; flex-direction:column; min-width:0}
@@ -200,7 +201,7 @@ button{
   padding:0 16px;
   position:sticky;
   top:0;
-  z-index:20;
+  z-index:50;
   box-shadow: 0 6px 14px rgba(11,134,216,.18);
 }
 .topbar .brand-logo{
@@ -598,6 +599,11 @@ input:focus, select:focus, textarea:focus{
   align-items:center;
   justify-content:center;
   z-index:200;
+}
+
+.is-admin .qris-preview-modal{
+  display:none !important;
+  pointer-events:none !important;
 }
 
 .qris-preview-modal.is-open{
