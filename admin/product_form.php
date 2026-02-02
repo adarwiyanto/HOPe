@@ -93,8 +93,8 @@ $customCss = setting('custom_css', '');
     </div>
 
     <div class="content">
-      <div class="card">
-        <h3 style="margin-top:0"><?php echo $id ? 'Edit Produk' : 'Tambah Produk'; ?></h3>
+      <div class="card product-form-card">
+        <h3><?php echo $id ? 'Edit Produk' : 'Tambah Produk'; ?></h3>
         <?php if ($err): ?>
           <div class="card" style="border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)"><?php echo e($err); ?></div>
         <?php endif; ?>
@@ -118,7 +118,8 @@ $customCss = setting('custom_css', '');
             <label>Foto Produk (opsional, max 2MB)</label>
             <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp">
             <?php if (!empty($product['image_path'])): ?>
-              <div style="margin-top:10px">
+              <div class="helper">
+                <small>Foto saat ini:</small>
                 <img class="thumb" src="<?php echo e(base_url($product['image_path'])); ?>">
               </div>
             <?php endif; ?>
