@@ -8,6 +8,7 @@ require_admin();
 
 $id = (int)($_GET['id'] ?? 0);
 ensure_products_category_column();
+ensure_product_categories_table();
 ensure_products_best_seller_column();
 $product = ['name'=>'','category'=>'','price'=>'0','image_path'=>null,'is_best_seller'=>0];
 
@@ -18,6 +19,7 @@ if ($id) {
 }
 
 $err = '';
+$categories = product_categories();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
@@ -29,6 +31,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   try {
     if ($name === '') throw new Exception('Nama produk wajib diisi.');
+    if (!empty($categories)) {
+      $categoryNames = array_map(static function ($cat) {
+        return $cat['name'];
+      }, $categories);
+      $isLegacyCategory = $id && $product['category'] === $category;
+      if ($category !== '' && !in_array($category, $categoryNames, true) && !$isLegacyCategory) {
+        throw new Exception('Kategori tidak valid. Silakan pilih dari daftar.');
+      }
+    }
 
     // Upload foto (opsional)
     $imagePath = $product['image_path'];
@@ -108,7 +119,31 @@ $customCss = setting('custom_css', '');
           <div class="grid cols-2">
             <div class="row">
               <label>Kategori</label>
-              <input name="category" value="<?php echo e($_POST['category'] ?? $product['category']); ?>" placeholder="Contoh: Minuman">
+              <?php
+                $selectedCategory = $_POST['category'] ?? $product['category'];
+                $categoryNames = array_map(static function ($cat) {
+                  return $cat['name'];
+                }, $categories);
+                $hasLegacyCategory = $selectedCategory !== '' && !in_array($selectedCategory, $categoryNames, true);
+              ?>
+              <select name="category">
+                <option value="">Tanpa kategori</option>
+                <?php foreach ($categories as $category): ?>
+                  <option value="<?php echo e($category['name']); ?>" <?php echo $selectedCategory === $category['name'] ? 'selected' : ''; ?>>
+                    <?php echo e($category['name']); ?>
+                  </option>
+                <?php endforeach; ?>
+                <?php if ($hasLegacyCategory): ?>
+                  <option value="<?php echo e($selectedCategory); ?>" selected>
+                    <?php echo e($selectedCategory); ?> (belum terdaftar)
+                  </option>
+                <?php endif; ?>
+              </select>
+              <?php if (empty($categories)): ?>
+                <small>Belum ada kategori. Tambahkan di menu <a href="<?php echo e(base_url('admin/product_categories.php')); ?>">Kategori Produk</a>.</small>
+              <?php else: ?>
+                <small>Kelola kategori di menu <a href="<?php echo e(base_url('admin/product_categories.php')); ?>">Kategori Produk</a>.</small>
+              <?php endif; ?>
             </div>
             <div class="row">
               <label>Harga</label>
