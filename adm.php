@@ -27,12 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $p = (string)($_POST['password'] ?? '');
   if (login_attempt($u, $p)) {
     $me = current_user();
-    if (!in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
-      logout();
-      $err = 'Akun ini bukan admin.';
-    } else {
+    if (in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
       redirect(base_url('admin/dashboard.php'));
     }
+    redirect(base_url('pos/index.php'));
   } else {
     $failedAttempts = login_record_failed_attempt();
     if ($failedAttempts >= 3) {
