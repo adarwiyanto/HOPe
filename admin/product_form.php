@@ -105,14 +105,16 @@ $customCss = setting('custom_css', '');
             <label>Nama Produk</label>
             <input name="name" value="<?php echo e($_POST['name'] ?? $product['name']); ?>" required>
           </div>
-          <div class="row">
-            <label>Kategori</label>
-            <input name="category" value="<?php echo e($_POST['category'] ?? $product['category']); ?>" placeholder="Contoh: Minuman">
-          </div>
-          <div class="row">
-            <label>Harga</label>
-            <input name="price" value="<?php echo e($_POST['price'] ?? (string)$product['price']); ?>" required>
-            <small>Gunakan angka, contoh: 12500</small>
+          <div class="grid cols-2">
+            <div class="row">
+              <label>Kategori</label>
+              <input name="category" value="<?php echo e($_POST['category'] ?? $product['category']); ?>" placeholder="Contoh: Minuman">
+            </div>
+            <div class="row">
+              <label>Harga</label>
+              <input type="number" name="price" inputmode="numeric" min="0" step="1" value="<?php echo e($_POST['price'] ?? (string)$product['price']); ?>" required>
+              <small>Gunakan angka, contoh: 12500</small>
+            </div>
           </div>
           <div class="row">
             <label>Foto Produk (opsional, max 2MB)</label>
