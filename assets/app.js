@@ -1,4 +1,9 @@
 (function(){
+  const body = document.body;
+  if (body) {
+    const isAdmin = window.location.pathname.includes('/admin/');
+    body.classList.add(isAdmin ? 'is-admin' : 'is-public');
+  }
   const btn = document.querySelector('[data-toggle-sidebar]');
   const sidebar = document.querySelector('.sidebar');
   if (btn && sidebar){
