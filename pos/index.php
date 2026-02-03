@@ -1,9 +1,11 @@
 <?php
 require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
+require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
+start_secure_session();
 require_login();
 ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
@@ -21,7 +23,6 @@ foreach ($products as $p) {
   $productsById[(int)$p['id']] = $p;
 }
 
-start_session();
 $cart = $_SESSION['pos_cart'] ?? [];
 $rewardCart = $_SESSION['pos_reward_cart'] ?? [];
 $activeOrderId = $_SESSION['pos_order_id'] ?? null;

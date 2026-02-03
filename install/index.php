@@ -1,7 +1,8 @@
 <?php
 // Installer: membuat DB + tabel + admin + config.php, lalu lock.
 $lock = __DIR__ . '/install.lock';
-if (file_exists($lock)) {
+$lockAlt = __DIR__ . '/LOCK';
+if (file_exists($lock) || file_exists($lockAlt)) {
   header('Location: ../login.php');
   exit;
 }
@@ -217,6 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Lock installer
     file_put_contents($lock, "installed_at=" . date('c'));
+    file_put_contents($lockAlt, "installed_at=" . date('c'));
 
     header('Location: ../login.php');
     exit;
@@ -284,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div style="margin-top:14px">
           <button class="btn" type="submit">Install</button>
         </div>
-        <p><small>Sesudah berhasil, installer otomatis terkunci (install/install.lock) dan Anda diarahkan ke login.</small></p>
+        <p><small>Sesudah berhasil, installer otomatis terkunci (install/install.lock + install/LOCK) dan Anda diarahkan ke login.</small></p>
       </form>
     </div>
   </div>

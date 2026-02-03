@@ -1,9 +1,11 @@
 <?php
 require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
+require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
 
+start_secure_session();
 require_admin();
 ensure_landing_order_tables();
 
@@ -51,6 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
         $allowed = ['jpg','jpeg','png','webp'];
         if (!in_array($ext, $allowed, true)) throw new Exception('Format logo harus JPG/PNG/WEBP.');
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($f['tmp_name']);
+        $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!in_array($mime, $allowedMime, true)) throw new Exception('MIME logo tidak valid.');
 
         $dir = __DIR__ . '/../uploads/branding';
         ensure_upload_dir($dir);
