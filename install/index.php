@@ -3,7 +3,7 @@
 $lock = __DIR__ . '/install.lock';
 $lockAlt = __DIR__ . '/LOCK';
 if (file_exists($lock) || file_exists($lockAlt)) {
-  header('Location: ../login.php');
+  header('Location: ../adm.php');
   exit;
 }
 
@@ -220,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     file_put_contents($lock, "installed_at=" . date('c'));
     file_put_contents($lockAlt, "installed_at=" . date('c'));
 
-    header('Location: ../login.php');
+    header('Location: ../adm.php');
     exit;
 
   } catch (Throwable $e) {

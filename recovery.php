@@ -96,7 +96,7 @@ $appName = app_config()['app']['name'];
         <button class="btn" type="submit" style="width:100%">Kirim Link Recovery</button>
       </form>
       <div class="center" style="margin-top:12px">
-        <a href="<?php echo e(base_url('login.php')); ?>">Kembali ke Login</a>
+        <a href="<?php echo e(base_url('adm.php')); ?>">Kembali ke Login</a>
       </div>
     </div>
   </div>

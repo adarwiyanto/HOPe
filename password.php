@@ -16,7 +16,7 @@ $stmt->execute([$userId]);
 $user = $stmt->fetch();
 if (!$user) {
   logout();
-  redirect(base_url('login.php'));
+  redirect(base_url('adm.php'));
 }
 
 $err = '';

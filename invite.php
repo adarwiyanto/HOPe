@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
       <?php endif; ?>
       <?php if ($ok): ?>
         <div class="card" style="border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10)">
-          <?php echo e($ok); ?> <a href="<?php echo e(base_url('login.php')); ?>">Login</a>
+          <?php echo e($ok); ?> <a href="<?php echo e(base_url('adm.php')); ?>">Login</a>
         </div>
       <?php endif; ?>
 
