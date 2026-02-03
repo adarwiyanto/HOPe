@@ -1,8 +1,10 @@
 <?php
 require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
+require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 
+start_secure_session();
 require_login();
 
 $appName = app_config()['app']['name'];
@@ -13,7 +15,6 @@ $storeAddress = setting('store_address', '');
 $storePhone = setting('store_phone', '');
 $receiptFooter = setting('receipt_footer', '');
 
-start_session();
 $receipt = $_SESSION['pos_receipt'] ?? null;
 $receiptId = trim($_GET['id'] ?? '');
 $receiptValid = $receipt && $receiptId !== '' && $receiptId === ($receipt['id'] ?? '');

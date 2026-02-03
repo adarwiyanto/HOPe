@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 
-start_session();
+start_secure_session();
 
-if (file_exists(__DIR__ . '/install/install.lock') === false && !file_exists(__DIR__ . '/config.php')) {
+if ((file_exists(__DIR__ . '/install/install.lock') === false && file_exists(__DIR__ . '/install/LOCK') === false)
+  && !file_exists(__DIR__ . '/config.php')) {
   redirect('install/index.php');
 }
 
@@ -15,20 +17,27 @@ if (login_should_recover()) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  csrf_check();
   $u = trim($_POST['username'] ?? '');
   $p = (string)($_POST['password'] ?? '');
-  if (login_attempt($u, $p)) {
+  $rateId = ($u !== '' ? $u : 'guest') . '|' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+  if (!rate_limit_check('admin_login', $rateId)) {
+    $err = 'Terlalu banyak percobaan login. Silakan coba lagi nanti.';
+  } elseif (login_attempt($u, $p)) {
     $me = current_user();
     if (!in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
       redirect(base_url('pos/index.php'));
     }
+    rate_limit_clear('admin_login', $rateId);
     redirect(base_url('admin/dashboard.php'));
+  } else {
+    $failedAttempts = login_record_failed_attempt();
+    rate_limit_record('admin_login', $rateId);
+    if ($failedAttempts >= 3) {
+      redirect(base_url('recovery.php'));
+    }
+    $err = 'Username atau password salah.';
   }
-  $failedAttempts = login_record_failed_attempt();
-  if ($failedAttempts >= 3) {
-    redirect(base_url('recovery.php'));
-  }
-  $err = 'Username atau password salah.';
 }
 $appName = app_config()['app']['name'];
 ?>
@@ -56,6 +65,7 @@ $appName = app_config()['app']['name'];
         <div class="card" style="border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)"><?php echo e($err); ?></div>
       <?php endif; ?>
       <form method="post">
+        <input type="hidden" name="_csrf" value="<?php echo e(csrf_generate_token()); ?>">
         <div class="row">
           <label>Username</label>
           <input name="username" autocomplete="username" required>
