@@ -77,7 +77,7 @@ $appName = app_config()['app']['name'];
       <?php endif; ?>
       <?php if ($ok): ?>
         <div class="card" style="border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10)"><?php echo e($ok); ?></div>
-        <div class="center"><a href="<?php echo e(base_url('login.php')); ?>">Login</a></div>
+        <div class="center"><a href="<?php echo e(base_url('adm.php')); ?>">Login</a></div>
       <?php endif; ?>
 
       <?php if ($reset && !$ok): ?>

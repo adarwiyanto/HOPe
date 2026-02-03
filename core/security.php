@@ -7,10 +7,9 @@ function start_secure_session(): void {
     || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
   $cookieParams = session_get_cookie_params();
 
-  ini_set('session.use_strict_mode', '1');
-  ini_set('session.cookie_httponly', '1');
-
   if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.cookie_httponly', '1');
     session_name($cfg['security']['session_name'] ?? 'HOPESESSID');
     session_set_cookie_params([
       'lifetime' => 0,
@@ -180,4 +179,3 @@ function rate_limit_clear(string $scope, string $identifier): void {
     rate_limit_write($data);
   }
 }
-

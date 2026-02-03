@@ -10,7 +10,7 @@ function start_session(): void {
 function require_login(): void {
   start_session();
   if (empty($_SESSION['user'])) {
-    redirect(base_url('login.php'));
+    redirect(base_url('adm.php'));
   }
 }
 
