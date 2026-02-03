@@ -1,19 +1,16 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/security.php';
 
 function start_session(): void {
-  $cfg = app_config();
-  if (session_status() === PHP_SESSION_NONE) {
-    session_name($cfg['security']['session_name']);
-    session_start();
-  }
+  start_secure_session();
 }
 
 function require_login(): void {
   start_session();
   if (empty($_SESSION['user'])) {
-    redirect(base_url('login.php'));
+    redirect(base_url('adm.php'));
   }
 }
 
@@ -41,9 +38,36 @@ function login_attempt(string $username, string $password): bool {
   $stmt->execute([$username]);
   $u = $stmt->fetch();
   if (!$u) return false;
-  if (!password_verify($password, $u['password_hash'])) return false;
+  $hash = (string)$u['password_hash'];
+  $verified = password_verify($password, $hash);
+  if (!$verified) {
+    $legacyMatch = false;
+    if ($hash !== '') {
+      if (strlen($hash) === 32 && hash_equals($hash, md5($password))) {
+        $legacyMatch = true;
+      } elseif (strlen($hash) === 40 && hash_equals($hash, sha1($password))) {
+        $legacyMatch = true;
+      } elseif (hash_equals($hash, $password)) {
+        $legacyMatch = true;
+      }
+    }
+    if (!$legacyMatch) {
+      return false;
+    }
+  }
 
   start_session();
+  session_regenerate_id(true);
+  if ($verified && password_needs_rehash($hash, PASSWORD_DEFAULT)) {
+    $newHash = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = db()->prepare("UPDATE users SET password_hash=? WHERE id=?");
+    $stmt->execute([$newHash, (int)$u['id']]);
+  }
+  if (!$verified) {
+    $newHash = password_hash($password, PASSWORD_DEFAULT);
+    $stmt = db()->prepare("UPDATE users SET password_hash=? WHERE id=?");
+    $stmt->execute([$newHash, (int)$u['id']]);
+  }
   unset($u['password_hash']);
   if (($u['role'] ?? '') === 'superadmin') {
     $u['role'] = 'owner';

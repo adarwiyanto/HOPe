@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/csrf.php';
 require_once __DIR__ . '/core/customer_auth.php';
@@ -28,7 +29,7 @@ $landingOrderEnabled = setting('landing_order_enabled', '1') === '1';
 $recaptchaAction = 'checkout';
 $recaptchaMinScore = 0.5;
 
-start_session();
+start_secure_session();
 customer_bootstrap_from_cookie();
 $cart = $_SESSION['landing_cart'] ?? [];
 $notice = $_SESSION['landing_notice'] ?? '';
@@ -350,7 +351,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
       '{{store_logo}}' => e($storeLogoUrl),
       '{{store_logo_block}}' => $logoBlock,
       '{{login_button}}' => $loginButton,
-      '{{login_url}}' => e(base_url('login.php')),
+      '{{login_url}}' => e(base_url('adm.php')),
       '{{notice}}' => $noticeBlock,
       '{{products}}' => $productCards,
       '{{cart}}' => $cartBlock,

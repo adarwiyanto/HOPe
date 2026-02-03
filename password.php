@@ -1,9 +1,11 @@
 <?php
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/csrf.php';
 
+start_secure_session();
 require_login();
 ensure_user_profile_columns();
 
@@ -14,7 +16,7 @@ $stmt->execute([$userId]);
 $user = $stmt->fetch();
 if (!$user) {
   logout();
-  redirect(base_url('login.php'));
+  redirect(base_url('adm.php'));
 }
 
 $err = '';

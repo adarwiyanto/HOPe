@@ -1,10 +1,12 @@
 <?php
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/csrf.php';
 require_once __DIR__ . '/core/customer_auth.php';
 
+start_secure_session();
 ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 customer_bootstrap_from_cookie();
@@ -12,7 +14,6 @@ customer_bootstrap_from_cookie();
 $err = '';
 $notice = '';
 
-start_session();
 if (!empty($_SESSION['customer_notice'])) {
   $notice = (string)$_SESSION['customer_notice'];
   unset($_SESSION['customer_notice']);
@@ -101,9 +102,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($phone === '' || $password === '') {
         throw new Exception('Nomor telepon dan password wajib diisi.');
       }
+      $rateId = $phone . '|' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+      if (!rate_limit_check('customer_login', $rateId)) {
+        throw new Exception('Terlalu banyak percobaan login. Silakan coba lagi nanti.');
+      }
       if (!customer_login($phone, $password)) {
+        rate_limit_record('customer_login', $rateId);
         throw new Exception('Nomor telepon atau password salah.');
       }
+      rate_limit_clear('customer_login', $rateId);
       $_SESSION['customer_notice'] = 'Login berhasil.';
       redirect(base_url('customer.php'));
     }

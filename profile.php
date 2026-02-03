@@ -1,9 +1,11 @@
 <?php
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/csrf.php';
 
+start_secure_session();
 require_login();
 ensure_user_profile_columns();
 
@@ -14,7 +16,7 @@ $stmt->execute([$userId]);
 $user = $stmt->fetch();
 if (!$user) {
   logout();
-  redirect(base_url('login.php'));
+  redirect(base_url('adm.php'));
 }
 
 $err = '';
@@ -40,10 +42,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (!empty($_FILES['avatar']['error'])) {
         throw new Exception('Gagal mengunggah foto profil.');
       }
+      if ($_FILES['avatar']['size'] > 2 * 1024 * 1024) {
+        throw new Exception('Ukuran foto profil maksimal 2MB.');
+      }
       $tmpPath = $_FILES['avatar']['tmp_name'];
       $imageInfo = @getimagesize($tmpPath);
       if (!$imageInfo) {
         throw new Exception('File foto tidak valid.');
+      }
+      $finfo = new finfo(FILEINFO_MIME_TYPE);
+      $mime = $finfo->file($tmpPath);
+      $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!in_array($mime, $allowedMime, true)) {
+        throw new Exception('Format foto profil tidak valid.');
       }
       $allowedExt = ['jpg', 'jpeg', 'png', 'webp'];
       $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));

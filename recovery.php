@@ -1,10 +1,11 @@
 <?php
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/csrf.php';
 require_once __DIR__ . '/core/email.php';
 
-start_session();
+start_secure_session();
 ensure_user_profile_columns();
 ensure_password_resets_table();
 
@@ -95,7 +96,7 @@ $appName = app_config()['app']['name'];
         <button class="btn" type="submit" style="width:100%">Kirim Link Recovery</button>
       </form>
       <div class="center" style="margin-top:12px">
-        <a href="<?php echo e(base_url('login.php')); ?>">Kembali ke Login</a>
+        <a href="<?php echo e(base_url('adm.php')); ?>">Kembali ke Login</a>
       </div>
     </div>
   </div>

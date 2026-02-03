@@ -2,10 +2,9 @@
 if (!ob_get_level()) ob_start();
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/csrf.php';
-if (session_status() !== PHP_SESSION_ACTIVE) {
-  start_session();
-}
+start_secure_session();
 
 ensure_owner_role();
 ensure_user_invites_table();
@@ -106,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
       <?php endif; ?>
       <?php if ($ok): ?>
         <div class="card" style="border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10)">
-          <?php echo e($ok); ?> <a href="<?php echo e(base_url('login.php')); ?>">Login</a>
+          <?php echo e($ok); ?> <a href="<?php echo e(base_url('adm.php')); ?>">Login</a>
         </div>
       <?php endif; ?>
 

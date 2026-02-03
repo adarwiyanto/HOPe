@@ -1,9 +1,10 @@
 <?php
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
+require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/csrf.php';
 
-start_session();
+start_secure_session();
 ensure_password_resets_table();
 
 $err = '';
@@ -76,7 +77,7 @@ $appName = app_config()['app']['name'];
       <?php endif; ?>
       <?php if ($ok): ?>
         <div class="card" style="border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.10)"><?php echo e($ok); ?></div>
-        <div class="center"><a href="<?php echo e(base_url('login.php')); ?>">Login</a></div>
+        <div class="center"><a href="<?php echo e(base_url('adm.php')); ?>">Login</a></div>
       <?php endif; ?>
 
       <?php if ($reset && !$ok): ?>
