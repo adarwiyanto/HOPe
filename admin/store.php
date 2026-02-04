@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
 require_admin();
@@ -40,38 +41,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'store') {
       if ($removeLogo && $storeLogo) {
-        $old = __DIR__ . '/../' . $storeLogo;
-        if (file_exists($old)) @unlink($old);
+        if (upload_is_legacy_path($storeLogo)) {
+          $old = __DIR__ . '/../' . $storeLogo;
+          if (file_exists($old)) @unlink($old);
+        } else {
+          upload_secure_delete($storeLogo, 'image');
+        }
         $logoPath = '';
       }
 
       if (!empty($_FILES['store_logo']['name'])) {
-        $f = $_FILES['store_logo'];
-        if ($f['error'] !== UPLOAD_ERR_OK) throw new Exception('Upload gagal.');
-        if ($f['size'] > 2 * 1024 * 1024) throw new Exception('Maks ukuran logo 2MB.');
-
-        $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg','jpeg','png','webp'];
-        if (!in_array($ext, $allowed, true)) throw new Exception('Format logo harus JPG/PNG/WEBP.');
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mime = $finfo->file($f['tmp_name']);
-        $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!in_array($mime, $allowedMime, true)) throw new Exception('MIME logo tidak valid.');
-
-        $dir = __DIR__ . '/../uploads/branding';
-        ensure_upload_dir($dir);
-
-        $newName = 'logo_' . bin2hex(random_bytes(8)) . '.' . $ext;
-        $dest = $dir . '/' . $newName;
-
-        if (!move_uploaded_file($f['tmp_name'], $dest)) throw new Exception('Gagal menyimpan file upload.');
+        $upload = upload_secure($_FILES['store_logo'], 'image');
+        if (empty($upload['ok'])) throw new Exception($upload['error'] ?? 'Upload gagal.');
 
         if ($storeLogo) {
-          $old = __DIR__ . '/../' . $storeLogo;
-          if (file_exists($old)) @unlink($old);
+          if (upload_is_legacy_path($storeLogo)) {
+            $old = __DIR__ . '/../' . $storeLogo;
+            if (file_exists($old)) @unlink($old);
+          } else {
+            upload_secure_delete($storeLogo, 'image');
+          }
         }
 
-        $logoPath = 'uploads/branding/' . $newName;
+        $logoPath = $upload['name'];
       }
 
       set_setting('store_name', $name);
@@ -139,10 +131,10 @@ $customCss = setting('custom_css', '');
           </div>
           <div class="row">
             <label>Logo Toko (opsional, max 2MB)</label>
-            <input type="file" name="store_logo" accept=".jpg,.jpeg,.png,.webp">
+            <input type="file" name="store_logo" accept=".jpg,.jpeg,.png">
             <?php if (!empty($storeLogo)): ?>
               <div style="margin-top:10px;display:flex;align-items:center;gap:12px">
-                <img class="thumb" src="<?php echo e(base_url($storeLogo)); ?>">
+                <img class="thumb" src="<?php echo e(upload_url($storeLogo, 'image')); ?>">
                 <label style="display:flex;align-items:center;gap:8px">
                   <input type="checkbox" name="remove_logo" value="1">
                   Hapus logo

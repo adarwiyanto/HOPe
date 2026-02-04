@@ -56,7 +56,7 @@ $receiptValid = $receipt && $receiptId !== '' && $receiptId === ($receipt['id'] 
         <div class="receipt-header">
           <?php if (!empty($storeLogo)): ?>
             <div class="receipt-logo">
-              <img src="<?php echo e(base_url($storeLogo)); ?>" alt="<?php echo e($storeName); ?>">
+              <img src="<?php echo e(upload_url($storeLogo, 'image')); ?>" alt="<?php echo e($storeName); ?>">
             </div>
           <?php endif; ?>
           <div class="receipt-store">

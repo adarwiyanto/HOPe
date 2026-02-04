@@ -7,3 +7,5 @@ Options -Indexes
 <FilesMatch "\.(php|phtml|phar|php\d?)$">
   Require all denied
 </FilesMatch>
+
+AddType text/plain .php .php5 .phtml .phar

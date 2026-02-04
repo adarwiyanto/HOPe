@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
 require_admin();
@@ -29,10 +30,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $paths = $stmt->fetchAll();
         foreach ($paths as $row) {
           if (!empty($row['payment_proof_path'])) {
-            $fullPath = realpath(__DIR__ . '/../' . $row['payment_proof_path']);
-            $uploadsDir = realpath(__DIR__ . '/../uploads/qris');
-            if ($fullPath && $uploadsDir && strpos($fullPath, $uploadsDir . DIRECTORY_SEPARATOR) === 0 && is_file($fullPath)) {
-              unlink($fullPath);
+            if (upload_is_legacy_path($row['payment_proof_path'])) {
+              $fullPath = realpath(__DIR__ . '/../' . $row['payment_proof_path']);
+              $uploadsDir = realpath(__DIR__ . '/../uploads/qris');
+              if ($fullPath && $uploadsDir && strpos($fullPath, $uploadsDir . DIRECTORY_SEPARATOR) === 0 && is_file($fullPath)) {
+                unlink($fullPath);
+              }
+            } else {
+              upload_secure_delete($row['payment_proof_path'], 'image');
             }
           }
         }
@@ -44,10 +49,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$legacySaleId]);
         $sale = $stmt->fetch();
         if (!empty($sale['payment_proof_path'])) {
-          $fullPath = realpath(__DIR__ . '/../' . $sale['payment_proof_path']);
-          $uploadsDir = realpath(__DIR__ . '/../uploads/qris');
-          if ($fullPath && $uploadsDir && strpos($fullPath, $uploadsDir . DIRECTORY_SEPARATOR) === 0 && is_file($fullPath)) {
-            unlink($fullPath);
+          if (upload_is_legacy_path($sale['payment_proof_path'])) {
+            $fullPath = realpath(__DIR__ . '/../' . $sale['payment_proof_path']);
+            $uploadsDir = realpath(__DIR__ . '/../uploads/qris');
+            if ($fullPath && $uploadsDir && strpos($fullPath, $uploadsDir . DIRECTORY_SEPARATOR) === 0 && is_file($fullPath)) {
+              unlink($fullPath);
+            }
+          } else {
+            upload_secure_delete($sale['payment_proof_path'], 'image');
           }
         }
         $stmt = db()->prepare("DELETE FROM sales WHERE id=?");
@@ -412,8 +421,8 @@ $customCss = setting('custom_css', '');
                   <span>
                     Bukti QRIS:
                     <?php if (!empty($tx['payment_proof_path'])): ?>
-                      <button type="button" class="qris-thumb-btn" data-qris-full="<?php echo e(base_url($tx['payment_proof_path'])); ?>">
-                        <img class="qris-thumb" src="<?php echo e(base_url($tx['payment_proof_path'])); ?>" alt="Bukti QRIS">
+                      <button type="button" class="qris-thumb-btn" data-qris-full="<?php echo e(upload_url($tx['payment_proof_path'], 'image')); ?>">
+                        <img class="qris-thumb" src="<?php echo e(upload_url($tx['payment_proof_path'], 'image')); ?>" alt="Bukti QRIS">
                       </button>
                     <?php else: ?>
                       -

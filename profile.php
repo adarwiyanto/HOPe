@@ -4,6 +4,7 @@ require_once __DIR__ . '/core/functions.php';
 require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/csrf.php';
+require_once __DIR__ . '/lib/upload_secure.php';
 
 start_secure_session();
 require_login();
@@ -39,42 +40,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $avatarPath = $user['avatar_path'] ?? null;
     if (!empty($_FILES['avatar']['name'])) {
-      if (!empty($_FILES['avatar']['error'])) {
-        throw new Exception('Gagal mengunggah foto profil.');
-      }
-      if ($_FILES['avatar']['size'] > 2 * 1024 * 1024) {
-        throw new Exception('Ukuran foto profil maksimal 2MB.');
-      }
-      $tmpPath = $_FILES['avatar']['tmp_name'];
-      $imageInfo = @getimagesize($tmpPath);
-      if (!$imageInfo) {
-        throw new Exception('File foto tidak valid.');
-      }
-      $finfo = new finfo(FILEINFO_MIME_TYPE);
-      $mime = $finfo->file($tmpPath);
-      $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!in_array($mime, $allowedMime, true)) {
-        throw new Exception('Format foto profil tidak valid.');
-      }
-      $allowedExt = ['jpg', 'jpeg', 'png', 'webp'];
-      $ext = strtolower(pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION));
-      if (!in_array($ext, $allowedExt, true)) {
-        $ext = 'jpg';
-      }
-      $uploadDir = __DIR__ . '/uploads/avatars';
-      ensure_upload_dir($uploadDir);
-      $filename = 'avatar_' . $userId . '_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
-      $dest = $uploadDir . '/' . $filename;
-      if (!move_uploaded_file($tmpPath, $dest)) {
-        throw new Exception('Foto profil gagal disimpan.');
-      }
+      $upload = upload_secure($_FILES['avatar'], 'image');
+      if (empty($upload['ok'])) throw new Exception($upload['error'] ?? 'Gagal mengunggah foto profil.');
+
       if (!empty($avatarPath)) {
-        $old = __DIR__ . '/' . $avatarPath;
-        if (file_exists($old)) {
-          @unlink($old);
+        if (upload_is_legacy_path($avatarPath)) {
+          $old = __DIR__ . '/' . $avatarPath;
+          if (file_exists($old)) {
+            @unlink($old);
+          }
+        } else {
+          upload_secure_delete($avatarPath, 'image');
         }
       }
-      $avatarPath = 'uploads/avatars/' . $filename;
+      $avatarPath = $upload['name'];
     }
 
     $stmt = db()->prepare("UPDATE users SET username=?, name=?, avatar_path=? WHERE id=?");
@@ -96,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $customCss = setting('custom_css', '');
 $isPegawai = ($user['role'] ?? '') === 'pegawai';
-$avatarUrl = !empty($user['avatar_path']) ? base_url($user['avatar_path']) : '';
+$avatarUrl = !empty($user['avatar_path']) ? upload_url($user['avatar_path'], 'image') : '';
 $initial = strtoupper(substr((string)($user['name'] ?? 'U'), 0, 1));
 ?>
 <!doctype html>
@@ -168,7 +147,7 @@ $initial = strtoupper(substr((string)($user['name'] ?? 'U'), 0, 1));
                 <?php else: ?>
                   <div class="profile-avatar-preview"><?php echo e($initial); ?></div>
                 <?php endif; ?>
-                <input class="file-hidden" type="file" id="avatar" name="avatar" accept="image/*" capture="user">
+                <input class="file-hidden" type="file" id="avatar" name="avatar" accept=".jpg,.jpeg,.png" capture="user">
                 <button class="btn" type="button" data-trigger-avatar>Ambil Foto</button>
                 <small>Foto wajib diambil dari kamera.</small>
               </div>

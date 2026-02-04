@@ -208,7 +208,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
             <button class="card landing-product-card" type="submit">
               <span class="landing-product-body">
                 <?php if (!empty($p['image_path'])): ?>
-                  <img class="thumb" src="<?php echo e(base_url($p['image_path'])); ?>" alt="">
+                  <img class="thumb" src="<?php echo e(upload_url($p['image_path'], 'image')); ?>" alt="">
                 <?php else: ?>
                   <span class="thumb landing-product-thumb-fallback">No Img</span>
                 <?php endif; ?>
@@ -230,7 +230,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
             <div class="card landing-product-card landing-product-card-disabled">
               <span class="landing-product-body">
                 <?php if (!empty($p['image_path'])): ?>
-                  <img class="thumb" src="<?php echo e(base_url($p['image_path'])); ?>" alt="">
+                  <img class="thumb" src="<?php echo e(upload_url($p['image_path'], 'image')); ?>" alt="">
                 <?php else: ?>
                   <span class="thumb landing-product-thumb-fallback">No Img</span>
                 <?php endif; ?>
@@ -340,7 +340,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
     $logoBlock = '';
     $storeLogoUrl = '';
     if (!empty($storeLogo)) {
-      $storeLogoUrl = base_url($storeLogo);
+      $storeLogoUrl = upload_url($storeLogo, 'image');
       $logoBlock = '<img src="' . e($storeLogoUrl) . '" alt="' . e($storeName) . '" style="width:56px;height:56px;object-fit:cover;border-radius:12px;border:1px solid var(--border)">';
     }
     $landingTemplate = $landingHtml !== '' ? $landingHtml : landing_default_html();

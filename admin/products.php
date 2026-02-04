@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
 require_admin();
@@ -22,8 +23,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delet
   $stmt->execute([$id]);
 
   if ($p && !empty($p['image_path'])) {
-    $full = __DIR__ . '/../' . $p['image_path'];
-    if (file_exists($full)) @unlink($full);
+    if (upload_is_legacy_path($p['image_path'])) {
+      $full = __DIR__ . '/../' . $p['image_path'];
+      if (file_exists($full)) @unlink($full);
+    } else {
+      upload_secure_delete($p['image_path'], 'image');
+    }
   }
 
   redirect(base_url('admin/products.php'));
@@ -65,7 +70,7 @@ $customCss = setting('custom_css', '');
               <tr>
                 <td>
                   <?php if ($p['image_path']): ?>
-                    <img class="thumb" src="<?php echo e(base_url($p['image_path'])); ?>">
+                    <img class="thumb" src="<?php echo e(upload_url($p['image_path'], 'image')); ?>">
                   <?php else: ?>
                     <div class="thumb" style="display:flex;align-items:center;justify-content:center;color:var(--muted)">No</div>
                   <?php endif; ?>

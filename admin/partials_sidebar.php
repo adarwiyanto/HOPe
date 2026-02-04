@@ -6,7 +6,7 @@ $appName = app_config()['app']['name'];
 $u = current_user();
 $avatarUrl = '';
 if (!empty($u['avatar_path'])) {
-  $avatarUrl = base_url($u['avatar_path']);
+  $avatarUrl = upload_url($u['avatar_path'], 'image');
 }
 $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
 ?>
