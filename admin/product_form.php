@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
 require_admin();
@@ -46,32 +47,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Upload foto (opsional)
     $imagePath = $product['image_path'];
     if (!empty($_FILES['image']['name'])) {
-      $f = $_FILES['image'];
-      if ($f['error'] !== UPLOAD_ERR_OK) throw new Exception('Upload gagal.');
-      if ($f['size'] > 2 * 1024 * 1024) throw new Exception('Maks ukuran foto 2MB.');
-
-      $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
-      $allowed = ['jpg','jpeg','png','webp'];
-      if (!in_array($ext, $allowed, true)) throw new Exception('Format foto harus JPG/PNG/WEBP.');
-      $finfo = new finfo(FILEINFO_MIME_TYPE);
-      $mime = $finfo->file($f['tmp_name']);
-      $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!in_array($mime, $allowedMime, true)) throw new Exception('MIME foto tidak valid.');
-
-      $dir = __DIR__ . '/../uploads/products';
-      ensure_upload_dir($dir);
-
-      $newName = 'p_' . bin2hex(random_bytes(8)) . '.' . $ext;
-      $dest = $dir . '/' . $newName;
-
-      if (!move_uploaded_file($f['tmp_name'], $dest)) throw new Exception('Gagal menyimpan file upload.');
+      $upload = upload_secure($_FILES['image'], 'image');
+      if (empty($upload['ok'])) throw new Exception($upload['error'] ?? 'Upload gagal.');
 
       // Hapus foto lama
       if ($imagePath) {
-        $old = __DIR__ . '/../' . $imagePath;
-        if (file_exists($old)) @unlink($old);
+        if (upload_is_legacy_path($imagePath)) {
+          $old = __DIR__ . '/../' . $imagePath;
+          if (file_exists($old)) @unlink($old);
+        } else {
+          upload_secure_delete($imagePath, 'image');
+        }
       }
-      $imagePath = 'uploads/products/' . $newName;
+      $imagePath = $upload['name'];
     }
 
     if ($id) {
@@ -157,13 +145,13 @@ $customCss = setting('custom_css', '');
               <small>Gunakan angka, contoh: 12500</small>
             </div>
           </div>
-          <div class="row">
-            <label>Foto Produk (opsional, max 2MB)</label>
-            <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp">
+            <div class="row">
+              <label>Foto Produk (opsional, max 2MB)</label>
+            <input type="file" name="image" accept=".jpg,.jpeg,.png">
             <?php if (!empty($product['image_path'])): ?>
               <div class="helper">
                 <small>Foto saat ini:</small>
-                <img class="thumb" src="<?php echo e(base_url($product['image_path'])); ?>">
+                <img class="thumb" src="<?php echo e(upload_url($product['image_path'], 'image')); ?>">
               </div>
             <?php endif; ?>
           </div>
