@@ -24,6 +24,21 @@ function asset_url(string $path = ''): string {
   return "{$url}?v={$version}";
 }
 
+function upload_is_legacy_path(string $path): bool {
+  return strpos($path, '/') !== false
+    || strpos($path, '\\') !== false
+    || strpos($path, 'uploads') !== false;
+}
+
+function upload_url(?string $path, string $type = 'image'): string {
+  if (!$path) return '';
+  if (upload_is_legacy_path($path)) {
+    return base_url($path);
+  }
+  $type = $type === 'doc' ? 'doc' : 'image';
+  return base_url('download.php?type=' . urlencode($type) . '&f=' . urlencode($path));
+}
+
 function redirect(string $to): void {
   header("Location: {$to}");
   exit;
@@ -44,7 +59,7 @@ function setting(string $key, $default = null) {
 function favicon_url(): string {
   $storeLogo = setting('store_logo', '');
   if (!empty($storeLogo)) {
-    return base_url($storeLogo);
+    return upload_url($storeLogo, 'image');
   }
   return base_url('assets/favicon.svg');
 }

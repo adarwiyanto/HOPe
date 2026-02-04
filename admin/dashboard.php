@@ -498,7 +498,7 @@ function format_rupiah($amount)
       <div class="topbar">
         <a class="brand-logo" href="<?php echo e(base_url('admin/dashboard.php')); ?>">
           <?php if (!empty($storeLogo)): ?>
-            <img src="<?php echo e(base_url($storeLogo)); ?>" alt="<?php echo e($storeName); ?>">
+            <img src="<?php echo e(upload_url($storeLogo, 'image')); ?>" alt="<?php echo e($storeName); ?>">
           <?php else: ?>
             <span><?php echo e($storeName); ?></span>
           <?php endif; ?>

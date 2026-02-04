@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
 require_login();
@@ -194,21 +195,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($_FILES['payment_proof']['name'] ?? '')) {
           throw new Exception('Bukti pembayaran QRIS wajib diunggah.');
         }
-        if (!empty($_FILES['payment_proof']['error'])) {
-          throw new Exception('Gagal mengunggah bukti pembayaran.');
+        $upload = upload_secure($_FILES['payment_proof'], 'image');
+        if (empty($upload['ok'])) {
+          throw new Exception($upload['error'] ?? 'Gagal mengunggah bukti pembayaran.');
         }
-        $uploadDir = __DIR__ . '/../uploads/qris';
-        if (!is_dir($uploadDir)) {
-          mkdir($uploadDir, 0777, true);
-        }
-        $ext = pathinfo($_FILES['payment_proof']['name'], PATHINFO_EXTENSION);
-        $safeExt = $ext ? strtolower($ext) : 'jpg';
-        $filename = 'qris_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $safeExt;
-        $dest = $uploadDir . '/' . $filename;
-        if (!move_uploaded_file($_FILES['payment_proof']['tmp_name'], $dest)) {
-          throw new Exception('Bukti pembayaran gagal disimpan.');
-        }
-        $paymentProofPath = 'uploads/qris/' . $filename;
+        $paymentProofPath = $upload['name'];
       }
       $db = db();
       $db->beginTransaction();
@@ -586,7 +577,7 @@ if (!empty($rewardCart)) {
                 <div class="pos-product-card" data-name="<?php echo e(strtolower($p['name'])); ?>">
                   <div class="pos-product-thumb">
                     <?php if (!empty($p['image_path'])): ?>
-                      <img src="<?php echo e(base_url($p['image_path'])); ?>" alt="<?php echo e($p['name']); ?>">
+                      <img src="<?php echo e(upload_url($p['image_path'], 'image')); ?>" alt="<?php echo e($p['name']); ?>">
                     <?php else: ?>
                       <div class="pos-product-placeholder">No Image</div>
                     <?php endif; ?>
@@ -743,7 +734,7 @@ if (!empty($rewardCart)) {
                   </div>
                   <div class="pos-qris" data-qris-field hidden>
                     <label for="payment_proof">Foto Bukti QRIS</label>
-                    <input class="pos-qris-input" type="file" id="payment_proof" name="payment_proof" accept="image/*" capture="environment">
+                    <input class="pos-qris-input" type="file" id="payment_proof" name="payment_proof" accept=".jpg,.jpeg,.png" capture="environment">
                     <label class="btn pos-qris-upload" for="payment_proof">Ambil Foto QRIS</label>
                     <div class="pos-qris-preview" data-qris-preview hidden>
                       <img alt="Preview bukti QRIS">
