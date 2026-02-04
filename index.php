@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/config.local.php';
 require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
 require_once __DIR__ . '/core/security.php';
