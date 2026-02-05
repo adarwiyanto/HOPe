@@ -565,6 +565,25 @@ input:focus, select:focus, textarea:focus{
   width:100%;
   margin-top:8px;
 }
+.landing-promo{
+  border:1px solid rgba(245,158,11,.35);
+  background:linear-gradient(135deg, rgba(251,191,36,.16), rgba(249,115,22,.12));
+}
+.landing-promo-title{
+  margin:0 0 10px;
+  font-size:13px;
+  font-weight:800;
+  letter-spacing:.16em;
+  color:#b45309;
+}
+.landing-promo-text{
+  margin:0;
+  font-size:clamp(18px, 2.6vw, 28px);
+  line-height:1.3;
+  font-weight:700;
+  color:#7c2d12;
+  text-wrap:balance;
+}
 @media (max-width: 720px){
   .landing-cart-item{
     grid-template-columns:1fr;

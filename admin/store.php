@@ -15,6 +15,8 @@ $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', 'Katalog produk sederhana');
 $storeIntro = setting('store_intro', 'Kami adalah usaha yang menghadirkan produk pilihan dengan kualitas terbaik untuk kebutuhan Anda.');
 $storeLogo = setting('store_logo', '');
+$storePromo = setting('store_promo', '');
+$storePromoEnabled = setting('store_promo_enabled', '1') === '1';
 $recaptchaSiteKey = setting('recaptcha_site_key', '');
 $recaptchaSecretKey = setting('recaptcha_secret_key', '');
 $landingOrderEnabled = setting('landing_order_enabled', '1') === '1';
@@ -30,6 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $recaptchaSiteKeyInput = trim($_POST['recaptcha_site_key'] ?? '');
   $recaptchaSecretKeyInput = trim($_POST['recaptcha_secret_key'] ?? '');
   $landingOrderEnabledInput = isset($_POST['landing_order_enabled']) ? '1' : '0';
+  $storePromoInput = trim($_POST['store_promo'] ?? '');
+  $storePromoEnabledInput = isset($_POST['store_promo_enabled']) ? '1' : '0';
   $removeLogo = isset($_POST['remove_logo']);
 
   try {
@@ -70,6 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       set_setting('store_subtitle', $subtitle);
       set_setting('store_intro', $intro);
       set_setting('store_logo', $logoPath);
+      set_setting('store_promo', $storePromoInput);
+      set_setting('store_promo_enabled', $storePromoEnabledInput);
     }
 
     if ($action === 'recaptcha') {
@@ -128,6 +134,16 @@ $customCss = setting('custom_css', '');
           <div class="row">
             <label>Perkenalan Usaha</label>
             <textarea name="store_intro" rows="4"><?php echo e($_POST['store_intro'] ?? $storeIntro); ?></textarea>
+          </div>
+          <div class="row">
+            <label>Konten PROMO</label>
+            <textarea name="store_promo" rows="4" placeholder="Contoh: Diskon 20% untuk semua menu sampai akhir bulan"><?php echo e($_POST['store_promo'] ?? $storePromo); ?></textarea>
+          </div>
+          <div class="row">
+            <label class="checkbox-row">
+              <input type="checkbox" name="store_promo_enabled" value="1" <?php echo $storePromoEnabled ? 'checked' : ''; ?>>
+              Tampilkan kolom PROMO di landing page
+            </label>
           </div>
           <div class="row">
             <label>Logo Toko (opsional, max 2MB)</label>

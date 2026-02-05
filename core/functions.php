@@ -512,6 +512,8 @@ function landing_default_html(): string {
     <p style="margin:0;color:var(--muted)">{{store_intro}}</p>
   </div>
 
+  {{promo_section}}
+
   {{products}}
 
   {{cart}}
