@@ -326,9 +326,8 @@ $customCss = setting('custom_css', '');
     <script>
       (function () {
         const form = document.querySelector('.customer-register');
-        if (!form) return;
         const tokenInput = document.getElementById('recaptcha-register-token');
-        if (!tokenInput) return;
+        const canStoreToken = !!form && !!tokenInput;
         let tokenPromise = null;
 
         function requestToken() {
@@ -342,8 +341,10 @@ $customCss = setting('custom_css', '');
             window.grecaptcha.ready(function () {
               window.grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
                 .then(function (token) {
-                  tokenInput.value = token;
-                  form.dataset.recaptchaReady = '1';
+                  if (canStoreToken) {
+                    tokenInput.value = token;
+                    form.dataset.recaptchaReady = '1';
+                  }
                   resolve(token);
                 })
                 .catch(reject)
@@ -356,7 +357,7 @@ $customCss = setting('custom_css', '');
         }
 
         requestToken().catch(function () {
-          // Token will be retried on submit.
+          // Token will be retried periodically and on submit (if form exists).
         });
 
         window.setInterval(function () {
@@ -364,6 +365,8 @@ $customCss = setting('custom_css', '');
             // Keep trying silently to avoid expired token.
           });
         }, 90 * 1000);
+
+        if (!canStoreToken) return;
 
         form.addEventListener('submit', function (event) {
           if (form.dataset.recaptchaReady === '1' && tokenInput.value !== '') return;
