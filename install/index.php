@@ -216,6 +216,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $configPath = __DIR__ . '/../config.php';
     file_put_contents($configPath, $configPhp);
 
+    $uploadFolderName = preg_replace('/[^a-z0-9_-]+/i', '_', strtolower($app_name));
+    if ($uploadFolderName === '' || $uploadFolderName === null) {
+      $uploadFolderName = 'hope_uploads';
+    }
+    $configLocalPath = __DIR__ . '/../config.local.php';
+    $configLocalPhp = <<<PHP
+<?php
+// config.local.php — upload privat di luar public_html
+
+\$homeDir = dirname(__DIR__);
+\$base = rtrim(\$homeDir, '/') . '/private_uploads/{$uploadFolderName}/';
+
+// Pastikan folder ada
+if (!is_dir(\$base)) {
+    @mkdir(\$base, 0755, true);
+}
+
+// Set ENV
+putenv('HOPE_UPLOAD_BASE=' . \$base);
+\$_ENV['HOPE_UPLOAD_BASE'] = \$base;
+\$_SERVER['HOPE_UPLOAD_BASE'] = \$base;
+
+// Fallback stabil
+if (!defined('HOPE_UPLOAD_BASE')) {
+    define('HOPE_UPLOAD_BASE', \$base);
+}
+PHP;
+    file_put_contents($configLocalPath, $configLocalPhp);
+
     // Lock installer
     file_put_contents($lock, "installed_at=" . date('c'));
     file_put_contents($lockAlt, "installed_at=" . date('c'));
