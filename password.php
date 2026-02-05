@@ -103,6 +103,6 @@ $isPegawai = ($user['role'] ?? '') === 'pegawai';
       </div>
     </div>
   </div>
-  <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+  <script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

@@ -133,7 +133,7 @@ $customCss = setting('custom_css', '');
                 </td>
                 <td><?php echo e((string)$category['product_count']); ?></td>
                 <td>
-                  <form method="post" onsubmit="return confirm('Hapus kategori ini?')">
+                  <form method="post" data-confirm="Hapus kategori ini?">
                     <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="id" value="<?php echo e((string)$category['id']); ?>">
@@ -148,6 +148,6 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
 </div>
-<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

@@ -453,7 +453,7 @@ $customCss = setting('custom_css', '');
                     </form>
                   <?php endif; ?>
                   <?php if (($me['role'] ?? '') === 'owner'): ?>
-                    <form method="post" onsubmit="return confirm('Hapus transaksi ini?');">
+                    <form method="post" data-confirm="Hapus transaksi ini?">
                       <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                       <input type="hidden" name="action" value="delete">
                       <?php if ($legacyId > 0): ?>
@@ -479,7 +479,7 @@ $customCss = setting('custom_css', '');
   </div>
   <button class="qris-preview-exit" type="button" data-qris-close>← Kembali</button>
 </div>
-<script>
+<script nonce="<?php echo e(csp_nonce()); ?>">
   document.querySelectorAll('[data-return-form]').forEach((form) => {
     const reasonWrap = form.querySelector('[data-return-reason]');
     const reasonInput = reasonWrap ? reasonWrap.querySelector('input[name="return_reason"]') : null;
@@ -595,6 +595,6 @@ $customCss = setting('custom_css', '');
     });
   }
 </script>
-<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

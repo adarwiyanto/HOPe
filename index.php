@@ -366,8 +366,8 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
         z-index: 9999;
       }
     </style>
-    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
-    <script>
+    <script defer src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
+    <script nonce="<?php echo e(csp_nonce()); ?>">
       (function () {
         const form = document.querySelector('.landing-checkout');
         const tokenInput = document.getElementById('recaptcha-checkout-token');

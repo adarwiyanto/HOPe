@@ -165,7 +165,7 @@ $customCss = setting('custom_css', '');
                     <td><?php echo e($reward['name']); ?></td>
                     <td><?php echo e((string)$reward['points_required']); ?></td>
                     <td>
-                      <form method="post" onsubmit="return confirm('Hapus reward ini?')">
+                      <form method="post" data-confirm="Hapus reward ini?">
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                         <input type="hidden" name="action" value="delete_reward">
                         <input type="hidden" name="reward_id" value="<?php echo e((string)$reward['id']); ?>">
@@ -182,6 +182,6 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
 </div>
-<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ return [
   'app' => [
     'name' => 'Hope Noodles Belitung',
     'base_url' => 'http://localhost/toko_online', // diset saat instalasi
+    'version' => '1.0.0', // cache busting asset
   ],
   'db' => [
     'host' => '127.0.0.1',
@@ -16,5 +17,6 @@ return [
   ],
   'security' => [
     'session_name' => 'TOKOSESS',
+    'csp_enforce' => false, // default report-only
   ],
 ];
