@@ -13,7 +13,7 @@ function base_url(string $path = ''): string {
 function app_cache_bust(): string {
   static $version = null;
   if ($version !== null) return $version;
-  $version = (string)($_SERVER['REQUEST_TIME'] ?? time());
+  $version = function_exists('app_version') ? app_version() : (string)($_SERVER['REQUEST_TIME'] ?? time());
   return $version;
 }
 

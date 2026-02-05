@@ -41,7 +41,7 @@ $receiptValid = $receipt && $receiptId !== '' && $receiptId === ($receipt['id'] 
         </ul>
       </div>
       <div class="receipt-toolbar-actions">
-        <button class="btn" type="button" onclick="window.print()">Print</button>
+        <button class="btn" type="button" data-print-window>Print</button>
         <a class="btn" href="<?php echo e(base_url('pos/index.php')); ?>">Kembali</a>
       </div>
     </div>

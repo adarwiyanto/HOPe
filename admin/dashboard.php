@@ -919,8 +919,8 @@ function format_rupiah($amount)
       </div>
     </div>
   </div>
-  <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
-  <script>
+  <script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+  <script nonce="<?php echo e(csp_nonce()); ?>">
     const rangeSelect = document.querySelector('#sales-range');
     const customRange = document.querySelector('#custom-range');
     if (rangeSelect && customRange) {

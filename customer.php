@@ -311,7 +311,7 @@ $customCss = setting('custom_css', '');
       </div>
     </div>
   </div>
-  <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+  <script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
   <?php if (!empty($recaptchaSiteKey)): ?>
     <style>
       .grecaptcha-badge {
@@ -322,8 +322,8 @@ $customCss = setting('custom_css', '');
         z-index: 9999;
       }
     </style>
-    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
-    <script>
+    <script defer src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
+    <script nonce="<?php echo e(csp_nonce()); ?>">
       (function () {
         const form = document.querySelector('.customer-register');
         const tokenInput = document.getElementById('recaptcha-register-token');

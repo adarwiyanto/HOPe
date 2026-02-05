@@ -182,6 +182,6 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
 </div>
-<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

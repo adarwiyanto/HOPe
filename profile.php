@@ -158,8 +158,8 @@ $initial = strtoupper(substr((string)($user['name'] ?? 'U'), 0, 1));
       </div>
     </div>
   </div>
-  <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
-  <script>
+  <script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+  <script nonce="<?php echo e(csp_nonce()); ?>">
     (function(){
       const trigger = document.querySelector('[data-trigger-avatar]');
       const input = document.getElementById('avatar');

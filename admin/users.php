@@ -203,14 +203,14 @@ $mailCfg = mail_settings();
                         </select>
                         <button class="btn" type="submit">Simpan</button>
                       </form>
-                      <form method="post" onsubmit="return confirm('Hapus user ini?');" style="display:inline">
+                      <form method="post" data-confirm="Hapus user ini?" style="display:inline">
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo e($u['id']); ?>">
                         <button class="btn" type="submit">Hapus</button>
                       </form>
                     <?php elseif (($me['role'] ?? '') === 'admin' && (int)$u['id'] !== (int)($me['id'] ?? 0) && !in_array(($u['role'] ?? ''), ['owner', 'superadmin'], true)): ?>
-                      <form method="post" onsubmit="return confirm('Hapus user ini?');" style="display:inline">
+                      <form method="post" data-confirm="Hapus user ini?" style="display:inline">
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?php echo e($u['id']); ?>">
@@ -256,6 +256,6 @@ $mailCfg = mail_settings();
     </div>
   </div>
 </div>
-<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

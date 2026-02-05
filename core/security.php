@@ -1,6 +1,67 @@
 <?php
 require_once __DIR__ . '/functions.php';
 
+function app_version(): string {
+  $cfg = app_config();
+  $configured = trim((string)($cfg['app']['version'] ?? ''));
+  if ($configured !== '') {
+    return $configured;
+  }
+  return (string)($_SERVER['REQUEST_TIME'] ?? time());
+}
+
+function csp_nonce(): string {
+  static $nonce = null;
+  if ($nonce === null) {
+    $nonce = base64_encode(random_bytes(16));
+  }
+  return $nonce;
+}
+
+function csp_should_enforce(): bool {
+  $env = getenv('CSP_ENFORCE');
+  if ($env !== false && $env !== '') {
+    return in_array(strtolower(trim((string)$env)), ['1', 'true', 'yes', 'on'], true);
+  }
+
+  $cfg = app_config();
+  return !empty($cfg['security']['csp_enforce']);
+}
+
+function send_csp_header(): void {
+  static $sent = false;
+  if ($sent || headers_sent()) {
+    return;
+  }
+
+  $nonce = csp_nonce();
+  $policy = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "script-src 'self' 'nonce-{$nonce}' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+    "frame-src https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://www.google.com/recaptcha/ https://www.gstatic.com/recaptcha/",
+    "form-action 'self'",
+    'upgrade-insecure-requests',
+  ];
+  $value = implode('; ', $policy);
+
+  if (csp_should_enforce()) {
+    header('Content-Security-Policy: ' . $value);
+  } else {
+    header('Content-Security-Policy-Report-Only: ' . $value);
+  }
+
+  $sent = true;
+}
+
+send_csp_header();
+
 function start_secure_session(): void {
   $cfg = app_config();
   $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
