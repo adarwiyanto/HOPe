@@ -328,60 +328,108 @@ $customCss = setting('custom_css', '');
         const form = document.querySelector('.customer-register');
         const tokenInput = document.getElementById('recaptcha-register-token');
         const canStoreToken = !!form && !!tokenInput;
+        const siteKey = '<?php echo e($recaptchaSiteKey); ?>';
+        const action = '<?php echo e($recaptchaAction); ?>';
+        const timeoutMs = 8000;
+        const refreshMs = 90 * 1000;
         let tokenPromise = null;
+        let lastTokenAt = 0;
 
-        function requestToken() {
+        function setSubmitBusy(isBusy) {
+          if (!form) return;
+          const submitButton = form.querySelector('button[type="submit"]');
+          if (!submitButton) return;
+          if (typeof submitButton.dataset.originalText === 'undefined') {
+            submitButton.dataset.originalText = submitButton.textContent;
+          }
+          submitButton.disabled = isBusy;
+          submitButton.textContent = isBusy ? 'Memverifikasi...' : submitButton.dataset.originalText;
+        }
+
+        function requestToken(options) {
+          const opts = options || {};
           if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
             return Promise.reject(new Error('recaptcha-not-ready'));
           }
           if (tokenPromise) {
             return tokenPromise;
           }
+          if (!opts.force && lastTokenAt > 0 && Date.now() - lastTokenAt < refreshMs) {
+            return Promise.resolve(tokenInput ? tokenInput.value : 'ok');
+          }
           tokenPromise = new Promise(function (resolve, reject) {
+            let timeoutId = window.setTimeout(function () {
+              timeoutId = null;
+              reject(new Error('recaptcha-timeout'));
+            }, timeoutMs);
+
             window.grecaptcha.ready(function () {
-              window.grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
+              window.grecaptcha.execute(siteKey, { action: action })
                 .then(function (token) {
+                  if (!token) {
+                    throw new Error('recaptcha-empty-token');
+                  }
+                  if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                  }
+                  lastTokenAt = Date.now();
                   if (canStoreToken) {
                     tokenInput.value = token;
                     form.dataset.recaptchaReady = '1';
+                    form.dataset.recaptchaReadyAt = String(lastTokenAt);
                   }
                   resolve(token);
                 })
-                .catch(reject)
-                .finally(function () {
-                  tokenPromise = null;
+                .catch(function (error) {
+                  if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                  }
+                  reject(error);
                 });
             });
+          }).finally(function () {
+            tokenPromise = null;
           });
+
           return tokenPromise;
         }
 
         requestToken().catch(function () {
-          // Token will be retried periodically and on submit (if form exists).
+          // Best effort on page load to trigger badge visibility.
         });
 
         window.setInterval(function () {
-          requestToken().catch(function () {
-            // Keep trying silently to avoid expired token.
+          if (form && form.dataset.submitting === '1') return;
+          requestToken({ force: true }).catch(function () {
+            // Silent retry for token refresh.
           });
-        }, 90 * 1000);
+        }, refreshMs);
 
         if (!canStoreToken) return;
 
         form.addEventListener('submit', function (event) {
-          if (form.dataset.recaptchaReady === '1' && tokenInput.value !== '') return;
           if (form.dataset.submitting === '1') {
             event.preventDefault();
             return;
           }
+
           event.preventDefault();
           form.dataset.submitting = '1';
-          requestToken()
+          form.dataset.recaptchaReady = '';
+          setSubmitBusy(true);
+
+          requestToken({ force: true })
             .then(function () {
               form.submit();
             })
-            .catch(function () {
+            .catch(function (error) {
               form.dataset.submitting = '';
+              form.dataset.recaptchaReady = '';
+              setSubmitBusy(false);
+              if (error && error.message === 'recaptcha-timeout') {
+                alert('reCAPTCHA lambat merespons. Coba refresh halaman atau nonaktifkan adblock, lalu coba lagi.');
+                return;
+              }
               alert('reCAPTCHA belum siap. Silakan coba beberapa detik lagi.');
             });
         });
