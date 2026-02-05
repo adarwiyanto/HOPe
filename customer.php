@@ -313,6 +313,15 @@ $customCss = setting('custom_css', '');
   </div>
   <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
   <?php if (!empty($recaptchaSiteKey)): ?>
+    <style>
+      .grecaptcha-badge {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 9999;
+      }
+    </style>
     <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
     <script>
       (function () {
@@ -320,31 +329,58 @@ $customCss = setting('custom_css', '');
         if (!form) return;
         const tokenInput = document.getElementById('recaptcha-register-token');
         if (!tokenInput) return;
+        let tokenPromise = null;
+
+        function requestToken() {
+          if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
+            return Promise.reject(new Error('recaptcha-not-ready'));
+          }
+          if (tokenPromise) {
+            return tokenPromise;
+          }
+          tokenPromise = new Promise(function (resolve, reject) {
+            window.grecaptcha.ready(function () {
+              window.grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
+                .then(function (token) {
+                  tokenInput.value = token;
+                  form.dataset.recaptchaReady = '1';
+                  resolve(token);
+                })
+                .catch(reject)
+                .finally(function () {
+                  tokenPromise = null;
+                });
+            });
+          });
+          return tokenPromise;
+        }
+
+        requestToken().catch(function () {
+          // Token will be retried on submit.
+        });
+
+        window.setInterval(function () {
+          requestToken().catch(function () {
+            // Keep trying silently to avoid expired token.
+          });
+        }, 90 * 1000);
+
         form.addEventListener('submit', function (event) {
-          if (form.dataset.recaptchaReady === '1') return;
+          if (form.dataset.recaptchaReady === '1' && tokenInput.value !== '') return;
           if (form.dataset.submitting === '1') {
             event.preventDefault();
             return;
           }
           event.preventDefault();
           form.dataset.submitting = '1';
-          if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
-            form.dataset.submitting = '';
-            alert('reCAPTCHA belum siap. Silakan coba beberapa detik lagi.');
-            return;
-          }
-          window.grecaptcha.ready(function () {
-            window.grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
-              .then(function (token) {
-                tokenInput.value = token;
-                form.dataset.recaptchaReady = '1';
-                form.submit();
-              })
-              .catch(function () {
-                form.dataset.submitting = '';
-                alert('Verifikasi reCAPTCHA gagal. Silakan coba lagi.');
-              });
-          });
+          requestToken()
+            .then(function () {
+              form.submit();
+            })
+            .catch(function () {
+              form.dataset.submitting = '';
+              alert('reCAPTCHA belum siap. Silakan coba beberapa detik lagi.');
+            });
         });
       })();
     </script>
