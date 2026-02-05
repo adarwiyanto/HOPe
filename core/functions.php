@@ -438,16 +438,41 @@ function verify_recaptcha_response(
     $payload['remoteip'] = $remoteIp;
   }
 
-  $opts = [
-    'http' => [
-      'method' => 'POST',
-      'header' => "Content-type: application/x-www-form-urlencoded\r\n",
-      'content' => http_build_query($payload),
-      'timeout' => 8,
-    ],
-  ];
-  $context = stream_context_create($opts);
-  $result = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $context);
+  $requestBody = http_build_query($payload);
+  $result = false;
+
+  if (function_exists('curl_init')) {
+    $ch = curl_init('https://www.google.com/recaptcha/api/siteverify');
+    if ($ch !== false) {
+      curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $requestBody,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 8,
+      ]);
+      $curlResponse = curl_exec($ch);
+      $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+      curl_close($ch);
+      if ($curlResponse !== false && $httpCode >= 200 && $httpCode < 300) {
+        $result = $curlResponse;
+      }
+    }
+  }
+
+  if ($result === false) {
+    $opts = [
+      'http' => [
+        'method' => 'POST',
+        'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+        'content' => $requestBody,
+        'timeout' => 8,
+      ],
+    ];
+    $context = stream_context_create($opts);
+    $result = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $context);
+  }
+
   if ($result === false) {
     return false;
   }

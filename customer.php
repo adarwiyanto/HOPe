@@ -313,28 +313,125 @@ $customCss = setting('custom_css', '');
   </div>
   <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
   <?php if (!empty($recaptchaSiteKey)): ?>
+    <style>
+      .grecaptcha-badge {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 9999;
+      }
+    </style>
     <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
     <script>
       (function () {
         const form = document.querySelector('.customer-register');
-        if (!form) return;
         const tokenInput = document.getElementById('recaptcha-register-token');
-        if (!tokenInput) return;
-        form.addEventListener('submit', function (event) {
-          if (form.dataset.recaptchaReady === '1') return;
-          event.preventDefault();
-          grecaptcha.ready(function () {
-            grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
-              .then(function (token) {
-                tokenInput.value = token;
-                form.dataset.recaptchaReady = '1';
-                form.submit();
-              })
-              .catch(function () {
-                form.dataset.recaptchaReady = '';
-                form.submit();
-              });
+        const canStoreToken = !!form && !!tokenInput;
+        const siteKey = '<?php echo e($recaptchaSiteKey); ?>';
+        const action = '<?php echo e($recaptchaAction); ?>';
+        const timeoutMs = 8000;
+        const refreshMs = 90 * 1000;
+        let tokenPromise = null;
+        let lastTokenAt = 0;
+
+        function setSubmitBusy(isBusy) {
+          if (!form) return;
+          const submitButton = form.querySelector('button[type="submit"]');
+          if (!submitButton) return;
+          if (typeof submitButton.dataset.originalText === 'undefined') {
+            submitButton.dataset.originalText = submitButton.textContent;
+          }
+          submitButton.disabled = isBusy;
+          submitButton.textContent = isBusy ? 'Memverifikasi...' : submitButton.dataset.originalText;
+        }
+
+        function requestToken(options) {
+          const opts = options || {};
+          if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
+            return Promise.reject(new Error('recaptcha-not-ready'));
+          }
+          if (tokenPromise) {
+            return tokenPromise;
+          }
+          if (!opts.force && lastTokenAt > 0 && Date.now() - lastTokenAt < refreshMs) {
+            return Promise.resolve(tokenInput ? tokenInput.value : 'ok');
+          }
+          tokenPromise = new Promise(function (resolve, reject) {
+            let timeoutId = window.setTimeout(function () {
+              timeoutId = null;
+              reject(new Error('recaptcha-timeout'));
+            }, timeoutMs);
+
+            window.grecaptcha.ready(function () {
+              window.grecaptcha.execute(siteKey, { action: action })
+                .then(function (token) {
+                  if (!token) {
+                    throw new Error('recaptcha-empty-token');
+                  }
+                  if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                  }
+                  lastTokenAt = Date.now();
+                  if (canStoreToken) {
+                    tokenInput.value = token;
+                    form.dataset.recaptchaReady = '1';
+                    form.dataset.recaptchaReadyAt = String(lastTokenAt);
+                  }
+                  resolve(token);
+                })
+                .catch(function (error) {
+                  if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                  }
+                  reject(error);
+                });
+            });
+          }).finally(function () {
+            tokenPromise = null;
           });
+
+          return tokenPromise;
+        }
+
+        requestToken().catch(function () {
+          // Best effort on page load to trigger badge visibility.
+        });
+
+        window.setInterval(function () {
+          if (form && form.dataset.submitting === '1') return;
+          requestToken({ force: true }).catch(function () {
+            // Silent retry for token refresh.
+          });
+        }, refreshMs);
+
+        if (!canStoreToken) return;
+
+        form.addEventListener('submit', function (event) {
+          if (form.dataset.submitting === '1') {
+            event.preventDefault();
+            return;
+          }
+
+          event.preventDefault();
+          form.dataset.submitting = '1';
+          form.dataset.recaptchaReady = '';
+          setSubmitBusy(true);
+
+          requestToken({ force: true })
+            .then(function () {
+              form.submit();
+            })
+            .catch(function (error) {
+              form.dataset.submitting = '';
+              form.dataset.recaptchaReady = '';
+              setSubmitBusy(false);
+              if (error && error.message === 'recaptcha-timeout') {
+                alert('reCAPTCHA lambat merespons. Coba refresh halaman atau nonaktifkan adblock, lalu coba lagi.');
+                return;
+              }
+              alert('reCAPTCHA belum siap. Silakan coba beberapa detik lagi.');
+            });
         });
       })();
     </script>

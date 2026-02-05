@@ -24,11 +24,7 @@ $storeLogo = setting('store_logo', '');
 $customCss = setting('custom_css', '');
 $landingCss = setting('landing_css', '');
 $landingHtml = setting('landing_html', '');
-$recaptchaSiteKey = setting('recaptcha_site_key', '');
-$recaptchaSecretKey = setting('recaptcha_secret_key', '');
 $landingOrderEnabled = setting('landing_order_enabled', '1') === '1';
-$recaptchaAction = 'checkout';
-$recaptchaMinScore = 0.5;
 
 start_secure_session();
 customer_bootstrap_from_cookie();
@@ -87,20 +83,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if ($customerName === '' || $customerPhone === '') {
         throw new Exception('Profil pelanggan belum lengkap.');
       }
-      if ($recaptchaSecretKey === '') {
-        throw new Exception('reCAPTCHA belum diatur oleh admin.');
-      }
-      $recaptchaToken = (string)($_POST['g-recaptcha-response'] ?? '');
-      if (!verify_recaptcha_response(
-        $recaptchaToken,
-        $recaptchaSecretKey,
-        $_SERVER['REMOTE_ADDR'] ?? '',
-        $recaptchaAction,
-        $recaptchaMinScore
-      )) {
-        throw new Exception('Verifikasi reCAPTCHA gagal.');
-      }
-
       $db = db();
       $db->beginTransaction();
 
@@ -323,14 +305,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
                   <div style="color:var(--muted)"><?php echo e($customer['phone']); ?></div>
                 </div>
               </div>
-              <?php if (!empty($recaptchaSiteKey)): ?>
-                <input type="hidden" name="g-recaptcha-response" id="recaptcha-token">
-              <?php else: ?>
-                <div class="card landing-alert landing-alert-error" style="margin-top:12px">
-                  reCAPTCHA belum disetting. Hubungi admin.
-                </div>
-              <?php endif; ?>
-              <button class="btn landing-checkout-btn" type="submit" <?php echo $recaptchaSiteKey === '' ? 'disabled' : ''; ?>>Kirim Pesanan</button>
+              <button class="btn landing-checkout-btn" type="submit">Kirim Pesanan</button>
             </form>
           <?php endif; ?>
         <?php endif; ?>
@@ -358,32 +333,5 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
       '{{cart}}' => $cartBlock,
     ]);
   ?>
-  <?php if (!empty($recaptchaSiteKey) && $landingOrderEnabled): ?>
-    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
-    <script>
-      (function () {
-        const form = document.querySelector('.landing-checkout');
-        if (!form) return;
-        const tokenInput = document.getElementById('recaptcha-token');
-        if (!tokenInput) return;
-        form.addEventListener('submit', function (event) {
-          if (form.dataset.recaptchaReady === '1') return;
-          event.preventDefault();
-          grecaptcha.ready(function () {
-            grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
-              .then(function (token) {
-                tokenInput.value = token;
-                form.dataset.recaptchaReady = '1';
-                form.submit();
-              })
-              .catch(function () {
-                form.dataset.recaptchaReady = '';
-                form.submit();
-              });
-          });
-        });
-      })();
-    </script>
-  <?php endif; ?>
 </body>
 </html>
