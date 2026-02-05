@@ -25,6 +25,10 @@ $customCss = setting('custom_css', '');
 $landingCss = setting('landing_css', '');
 $landingHtml = setting('landing_html', '');
 $landingOrderEnabled = setting('landing_order_enabled', '1') === '1';
+$recaptchaSiteKey = setting('recaptcha_site_key', '');
+$recaptchaSecretKey = setting('recaptcha_secret_key', '');
+$checkoutRecaptchaAction = 'checkout';
+$recaptchaMinScore = 0.5;
 
 start_secure_session();
 customer_bootstrap_from_cookie();
@@ -77,6 +81,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       if (!$customer) {
         throw new Exception('Silakan login atau daftar terlebih dahulu.');
+      }
+      if ($recaptchaSecretKey === '') {
+        throw new Exception('reCAPTCHA checkout belum diatur oleh admin.');
+      }
+      $recaptchaToken = (string)($_POST['g-recaptcha-response'] ?? '');
+      if (!verify_recaptcha_response(
+        $recaptchaToken,
+        $recaptchaSecretKey,
+        $_SERVER['REMOTE_ADDR'] ?? '',
+        $checkoutRecaptchaAction,
+        $recaptchaMinScore
+      )) {
+        throw new Exception('Verifikasi reCAPTCHA checkout gagal.');
       }
       $customerName = trim((string)($customer['name'] ?? ''));
       $customerPhone = trim((string)($customer['phone'] ?? ''));
@@ -298,6 +315,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
             <form method="post" class="landing-checkout">
               <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
               <input type="hidden" name="action" value="checkout">
+              <input type="hidden" name="g-recaptcha-response" id="recaptcha-checkout-token">
               <div class="row">
                 <label>Pelanggan</label>
                 <div>
@@ -305,7 +323,12 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
                   <div style="color:var(--muted)"><?php echo e($customer['phone']); ?></div>
                 </div>
               </div>
-              <button class="btn landing-checkout-btn" type="submit">Kirim Pesanan</button>
+              <button class="btn landing-checkout-btn" type="submit" <?php echo $recaptchaSiteKey === '' ? 'disabled' : ''; ?>>Kirim Pesanan</button>
+              <?php if ($recaptchaSiteKey === ''): ?>
+                <div class="card" style="margin-top:12px;border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)">
+                  reCAPTCHA checkout belum disetting. Hubungi admin.
+                </div>
+              <?php endif; ?>
             </form>
           <?php endif; ?>
         <?php endif; ?>
@@ -333,5 +356,132 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
       '{{cart}}' => $cartBlock,
     ]);
   ?>
+  <?php if (!empty($recaptchaSiteKey)): ?>
+    <style>
+      .grecaptcha-badge {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        z-index: 9999;
+      }
+    </style>
+    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
+    <script>
+      (function () {
+        const form = document.querySelector('.landing-checkout');
+        const tokenInput = document.getElementById('recaptcha-checkout-token');
+        const siteKey = '<?php echo e($recaptchaSiteKey); ?>';
+        const action = '<?php echo e($checkoutRecaptchaAction); ?>';
+        const timeoutMs = 8000;
+        const refreshMs = 90 * 1000;
+        let tokenPromise = null;
+        let lastTokenAt = 0;
+
+        function setSubmitBusy(isBusy) {
+          if (!form) return;
+          const submitButton = form.querySelector('.landing-checkout-btn');
+          if (!submitButton) return;
+          if (typeof submitButton.dataset.originalText === 'undefined') {
+            submitButton.dataset.originalText = submitButton.textContent;
+          }
+          submitButton.disabled = isBusy;
+          submitButton.textContent = isBusy ? 'Memverifikasi...' : submitButton.dataset.originalText;
+        }
+
+        function requestToken(options) {
+          const opts = options || {};
+          if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
+            return Promise.reject(new Error('recaptcha-not-ready'));
+          }
+          if (tokenPromise) {
+            return tokenPromise;
+          }
+          if (!opts.force && lastTokenAt > 0 && Date.now() - lastTokenAt < refreshMs && tokenInput && tokenInput.value !== '') {
+            return Promise.resolve(tokenInput.value);
+          }
+
+          tokenPromise = new Promise(function (resolve, reject) {
+            let timeoutId = window.setTimeout(function () {
+              timeoutId = null;
+              reject(new Error('recaptcha-timeout'));
+            }, timeoutMs);
+
+            window.grecaptcha.ready(function () {
+              window.grecaptcha.execute(siteKey, { action: action })
+                .then(function (token) {
+                  if (!token) {
+                    throw new Error('recaptcha-empty-token');
+                  }
+                  if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                  }
+                  lastTokenAt = Date.now();
+                  if (tokenInput) {
+                    tokenInput.value = token;
+                  }
+                  resolve(token);
+                })
+                .catch(function (error) {
+                  if (timeoutId !== null) {
+                    window.clearTimeout(timeoutId);
+                  }
+                  reject(error);
+                });
+            });
+          }).finally(function () {
+            tokenPromise = null;
+          });
+
+          return tokenPromise;
+        }
+
+        requestToken().catch(function () {
+          // Best effort for badge visibility.
+        });
+
+        window.setInterval(function () {
+          if (!form || form.dataset.submitting === '1') return;
+          requestToken({ force: true }).catch(function () {
+            // Silent retry for background refresh.
+          });
+        }, refreshMs);
+
+        if (!form || !tokenInput) return;
+
+        form.addEventListener('submit', function (event) {
+          if (form.dataset.submitting === '1') {
+            event.preventDefault();
+            return;
+          }
+
+          if (tokenInput.value !== '' && lastTokenAt > 0 && Date.now() - lastTokenAt < refreshMs) {
+            return;
+          }
+
+          event.preventDefault();
+          form.dataset.submitting = '1';
+          setSubmitBusy(true);
+
+          requestToken({ force: true })
+            .then(function (token) {
+              if (!token || tokenInput.value === '') {
+                throw new Error('recaptcha-empty-token');
+              }
+              form.submit();
+            })
+            .catch(function (error) {
+              form.dataset.submitting = '';
+              setSubmitBusy(false);
+              if (error && error.message === 'recaptcha-timeout') {
+                alert('reCAPTCHA lambat merespons. Coba refresh halaman atau nonaktifkan adblock, lalu coba lagi.');
+                return;
+              }
+              alert('reCAPTCHA belum siap. Silakan coba beberapa detik lagi.');
+            });
+        });
+      })();
+    </script>
+  <?php endif; ?>
 </body>
 </html>
