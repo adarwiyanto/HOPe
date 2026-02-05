@@ -369,16 +369,19 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
         form.addEventListener('submit', function (event) {
           if (form.dataset.recaptchaReady === '1') return;
           event.preventDefault();
-          grecaptcha.ready(function () {
-            grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
+          if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
+            alert('reCAPTCHA belum siap. Silakan coba beberapa detik lagi.');
+            return;
+          }
+          window.grecaptcha.ready(function () {
+            window.grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
               .then(function (token) {
                 tokenInput.value = token;
                 form.dataset.recaptchaReady = '1';
                 form.submit();
               })
               .catch(function () {
-                form.dataset.recaptchaReady = '';
-                form.submit();
+                alert('Verifikasi reCAPTCHA gagal. Silakan coba lagi.');
               });
           });
         });
