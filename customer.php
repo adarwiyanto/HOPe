@@ -419,7 +419,10 @@ $customCss = setting('custom_css', '');
           setSubmitBusy(true);
 
           requestToken({ force: true })
-            .then(function () {
+            .then(function (token) {
+              if (!token || !tokenInput.value) {
+                throw new Error('recaptcha-empty-token');
+              }
               form.submit();
             })
             .catch(function (error) {
