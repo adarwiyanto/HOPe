@@ -6,13 +6,13 @@ require_once __DIR__ . '/config/upload.php';
 start_session();
 customer_bootstrap_from_cookie();
 
-if (empty($_SESSION['user']) && empty($_SESSION['customer'])) {
+$type = $_GET['type'] ?? 'image';
+$type = $type === 'doc' ? 'doc' : 'image';
+
+if ($type === 'doc' && empty($_SESSION['user']) && empty($_SESSION['customer'])) {
   http_response_code(403);
   exit('Forbidden');
 }
-
-$type = $_GET['type'] ?? 'image';
-$type = $type === 'doc' ? 'doc' : 'image';
 
 $file = basename((string)($_GET['f'] ?? ''));
 if ($file === '' || $file === '.' || $file === '..') {
