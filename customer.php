@@ -329,8 +329,8 @@ $customCss = setting('custom_css', '');
           event.preventDefault();
           form.dataset.submitting = '1';
           if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
-            form.dataset.recaptchaReady = '1';
-            form.submit();
+            form.dataset.submitting = '';
+            alert('reCAPTCHA belum siap. Silakan coba beberapa detik lagi.');
             return;
           }
           window.grecaptcha.ready(function () {
@@ -341,8 +341,8 @@ $customCss = setting('custom_css', '');
                 form.submit();
               })
               .catch(function () {
-                form.dataset.recaptchaReady = '1';
-                form.submit();
+                form.dataset.submitting = '';
+                alert('Verifikasi reCAPTCHA gagal. Silakan coba lagi.');
               });
           });
         });
