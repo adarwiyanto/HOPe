@@ -322,16 +322,26 @@ $customCss = setting('custom_css', '');
         if (!tokenInput) return;
         form.addEventListener('submit', function (event) {
           if (form.dataset.recaptchaReady === '1') return;
+          if (form.dataset.submitting === '1') {
+            event.preventDefault();
+            return;
+          }
           event.preventDefault();
-          grecaptcha.ready(function () {
-            grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
+          form.dataset.submitting = '1';
+          if (typeof window.grecaptcha === 'undefined' || typeof window.grecaptcha.ready !== 'function') {
+            form.dataset.recaptchaReady = '1';
+            form.submit();
+            return;
+          }
+          window.grecaptcha.ready(function () {
+            window.grecaptcha.execute('<?php echo e($recaptchaSiteKey); ?>', { action: '<?php echo e($recaptchaAction); ?>' })
               .then(function (token) {
                 tokenInput.value = token;
                 form.dataset.recaptchaReady = '1';
                 form.submit();
               })
               .catch(function () {
-                form.dataset.recaptchaReady = '';
+                form.dataset.recaptchaReady = '1';
                 form.submit();
               });
           });
