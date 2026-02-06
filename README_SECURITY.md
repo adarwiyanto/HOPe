@@ -60,3 +60,13 @@ File: `download.php`
 - Akses token via `download.php` tanpa login → 403.
 - Akses token via `download.php` dengan login → 200 dan tampil.
 
+## CSP Mode (Report-Only vs Enforce)
+
+Header CSP dikirim dari `core/security.php` dengan mode berikut:
+
+- Default: `Content-Security-Policy-Report-Only` (tidak memblokir, hanya report)
+- Enforce: set environment variable `CSP_ENFORCE=1` agar mengirim header `Content-Security-Policy`
+
+Rollback cepat:
+- Set `CSP_ENFORCE=0` (atau unset variabel) untuk kembali ke mode report-only.
+

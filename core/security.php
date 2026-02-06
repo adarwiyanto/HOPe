@@ -18,16 +18,6 @@ function csp_nonce(): string {
   return $nonce;
 }
 
-function csp_should_enforce(): bool {
-  $env = getenv('CSP_ENFORCE');
-  if ($env !== false && $env !== '') {
-    return in_array(strtolower(trim((string)$env)), ['1', 'true', 'yes', 'on'], true);
-  }
-
-  $cfg = app_config();
-  return !empty($cfg['security']['csp_enforce']);
-}
-
 function send_csp_header(): void {
   static $sent = false;
   if ($sent || headers_sent()) {
@@ -51,11 +41,8 @@ function send_csp_header(): void {
   ];
   $value = implode('; ', $policy);
 
-  if (csp_should_enforce()) {
-    header('Content-Security-Policy: ' . $value);
-  } else {
-    header('Content-Security-Policy-Report-Only: ' . $value);
-  }
+  header_remove('Content-Security-Policy-Report-Only');
+  header('Content-Security-Policy: ' . $value);
 
   $sent = true;
 }
