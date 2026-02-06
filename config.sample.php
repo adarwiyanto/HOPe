@@ -17,6 +17,6 @@ return [
   ],
   'security' => [
     'session_name' => 'TOKOSESS',
-    'csp_enforce' => false, // default report-only
+    'csp_enforce' => false, // legacy fallback (CSP_ENFORCE env lebih diprioritaskan)
   ],
 ];
