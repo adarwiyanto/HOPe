@@ -13,7 +13,7 @@ function base_url(string $path = ''): string {
 function app_cache_bust(): string {
   static $version = null;
   if ($version !== null) return $version;
-  $version = (string)($_SERVER['REQUEST_TIME'] ?? time());
+  $version = function_exists('app_version') ? app_version() : (string)($_SERVER['REQUEST_TIME'] ?? time());
   return $version;
 }
 
@@ -511,6 +511,8 @@ function landing_default_html(): string {
     <h3 style="margin:0 0 8px">Tentang Kami</h3>
     <p style="margin:0;color:var(--muted)">{{store_intro}}</p>
   </div>
+
+  {{promo_section}}
 
   {{products}}
 

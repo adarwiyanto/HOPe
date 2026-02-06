@@ -81,7 +81,7 @@ $customCss = setting('custom_css', '');
                 <td><?php echo !empty($p['is_best_seller']) ? '⭐' : '-'; ?></td>
                 <td style="display:flex;gap:8px;align-items:center">
                   <a class="btn" href="<?php echo e(base_url('admin/product_form.php?id=' . (int)$p['id'])); ?>">Edit</a>
-                  <form method="post" onsubmit="return confirm('Hapus produk ini?')">
+                  <form method="post" data-confirm="Hapus produk ini?">
                     <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="id" value="<?php echo e((string)$p['id']); ?>">
@@ -96,6 +96,6 @@ $customCss = setting('custom_css', '');
     </div>
   </div>
 </div>
-<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

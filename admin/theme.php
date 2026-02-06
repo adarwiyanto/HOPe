@@ -73,6 +73,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 </div>
-<script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
 </body>
 </html>

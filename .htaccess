@@ -21,5 +21,4 @@ RedirectMatch 404 ^/\.git
   Header set Referrer-Policy "strict-origin-when-cross-origin"
   Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
   Header set X-Frame-Options "DENY"
-  Header set Content-Security-Policy "default-src 'self'; img-src 'self' data: https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; script-src 'self' 'unsafe-inline' https://www.google.com https://www.gstatic.com; connect-src 'self' https://www.google.com https://www.gstatic.com; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
 </IfModule>

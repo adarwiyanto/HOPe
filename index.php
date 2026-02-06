@@ -21,6 +21,8 @@ $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', 'Katalog produk sederhana');
 $storeIntro = setting('store_intro', 'Kami adalah usaha yang menghadirkan produk pilihan dengan kualitas terbaik untuk kebutuhan Anda.');
 $storeLogo = setting('store_logo', '');
+$storePromo = setting('store_promo', '');
+$storePromoEnabled = setting('store_promo_enabled', '1') === '1';
 $customCss = setting('custom_css', '');
 $landingCss = setting('landing_css', '');
 $landingHtml = setting('landing_html', '');
@@ -347,6 +349,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
       '{{store_name}}' => e($storeName),
       '{{store_subtitle}}' => e($storeSubtitle),
       '{{store_intro}}' => e($storeIntro),
+      '{{store_promo}}' => nl2br(e($storePromo)),
       '{{store_logo}}' => e($storeLogoUrl),
       '{{store_logo_block}}' => $logoBlock,
       '{{login_button}}' => $loginButton,
@@ -354,6 +357,9 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
       '{{notice}}' => $noticeBlock,
       '{{products}}' => $productCards,
       '{{cart}}' => $cartBlock,
+      '{{promo_section}}' => ($storePromoEnabled && trim($storePromo) !== '')
+        ? '<div class="card landing-promo" style="margin-top:16px"><div class="landing-promo-title">PROMO</div><div class="landing-promo-text">' . nl2br(e($storePromo)) . '</div></div>'
+        : '',
     ]);
   ?>
   <?php if (!empty($recaptchaSiteKey)): ?>
@@ -366,8 +372,8 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
         z-index: 9999;
       }
     </style>
-    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
-    <script>
+    <script defer src="https://www.google.com/recaptcha/api.js?render=<?php echo e($recaptchaSiteKey); ?>"></script>
+    <script nonce="<?php echo e(csp_nonce()); ?>">
       (function () {
         const form = document.querySelector('.landing-checkout');
         const tokenInput = document.getElementById('recaptcha-checkout-token');

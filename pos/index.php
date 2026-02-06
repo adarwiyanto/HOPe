@@ -751,7 +751,7 @@ if (!empty($rewardCart)) {
       <?php endif; ?>
     </div>
   </div>
-  <script src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
-  <script src="<?php echo e(asset_url('pos/pos.js')); ?>"></script>
+  <script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+  <script defer src="<?php echo e(asset_url('pos/pos.js')); ?>"></script>
 </body>
 </html>
