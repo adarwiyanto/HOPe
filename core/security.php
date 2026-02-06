@@ -20,12 +20,11 @@ function csp_nonce(): string {
 
 function csp_should_enforce(): bool {
   $env = getenv('CSP_ENFORCE');
-  if ($env !== false && $env !== '') {
-    return in_array(strtolower(trim((string)$env)), ['1', 'true', 'yes', 'on'], true);
+  if ($env === false || trim((string)$env) === '') {
+    return false;
   }
 
-  $cfg = app_config();
-  return !empty($cfg['security']['csp_enforce']);
+  return in_array(strtolower(trim((string)$env)), ['1', 'true', 'yes', 'on'], true);
 }
 
 function send_csp_header(): void {
