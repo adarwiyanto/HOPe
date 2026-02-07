@@ -23,12 +23,22 @@ $today = app_today_jakarta();
 $err = '';
 $ok = '';
 
+$now = attendance_now();
+$todayDate = $now->format('Y-m-d');
+$currentTime = $now->format('H:i');
+
+$timeToMinutes = static function (string $time): int {
+  [$h, $m] = array_map('intval', explode(':', substr($time, 0, 5)));
+  return ($h * 60) + $m;
+};
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
   $postedType = ($_POST['type'] ?? 'in') === 'out' ? 'out' : 'in';
   $type = $postedType;
   $attendDate = trim((string)($_POST['attend_date'] ?? ''));
   $attendTime = trim((string)($_POST['attend_time'] ?? ''));
+  $earlyCheckoutReason = substr(trim((string)($_POST['early_checkout_reason'] ?? '')), 0, 255);
   $deviceInfo = substr(trim((string)($_POST['device_info'] ?? '')), 0, 255);
 
   try {
@@ -37,6 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (!preg_match('/^\d{2}:\d{2}$/', $attendTime)) {
       throw new Exception('Waktu absen tidak valid.');
+    }
+    if ($attendDate !== $todayDate) {
+      throw new Exception('Absensi hanya bisa untuk tanggal hari ini.');
     }
     if (empty($_FILES['attendance_photo']['name'] ?? '')) {
       throw new Exception('Foto wajib dari kamera.');
@@ -90,6 +103,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       throw new Exception('Absen pulang sudah tercatat.');
     }
 
+    $schedule = getScheduleForDate((int) $me['id'], $today);
+    $isOff = !empty($schedule['is_off']);
+    $isUnscheduled = $schedule['source'] === 'none';
+    $startTime = (string) ($schedule['start_time'] ?? '');
+    $endTime = (string) ($schedule['end_time'] ?? '');
+    $graceMinutes = max(0, (int) ($schedule['grace_minutes'] ?? 0));
+    $allowCheckinBefore = max(0, (int) ($schedule['allow_checkin_before_minutes'] ?? 0));
+    $overtimeBeforeLimit = max(0, (int) ($schedule['overtime_before_minutes'] ?? 0));
+    $overtimeAfterLimit = max(0, (int) ($schedule['overtime_after_minutes'] ?? 0));
+
+    $checkinStatus = null;
+    $checkoutStatus = null;
+    $lateMinutes = 0;
+    $earlyMinutes = 0;
+    $overtimeBefore = 0;
+    $overtimeAfter = 0;
+    $workMinutes = 0;
+
+    if ($type === 'in') {
+      if ($isOff) {
+        throw new Exception('Hari ini libur (OFF). Tidak perlu absensi datang.');
+      }
+      if ($isUnscheduled || $startTime === '' || $endTime === '') {
+        throw new Exception('Jadwal belum diatur. Hubungi admin.');
+      }
+
+      $checkinMin = $timeToMinutes($attendTime);
+      $startMin = $timeToMinutes($startTime);
+      $windowStart = $startMin - $allowCheckinBefore;
+      $windowEnd = $startMin + $graceMinutes;
+
+      if ($checkinMin < $windowStart) {
+        if ($overtimeBeforeLimit > 0) {
+          $checkinStatus = 'early';
+          $overtimeBefore = min($startMin - $checkinMin, $overtimeBeforeLimit);
+        } else {
+          $allowedHour = floor($windowStart / 60);
+          $allowedMinute = $windowStart % 60;
+          throw new Exception(sprintf('Belum masuk window absen. Anda bisa absen mulai %02d:%02d', $allowedHour, $allowedMinute));
+        }
+      } elseif ($checkinMin > $windowEnd) {
+        $checkinStatus = 'late';
+        $lateMinutes = $checkinMin - $windowEnd;
+      } else {
+        $checkinStatus = 'ontime';
+      }
+    }
+
+    if ($type === 'out') {
+      $checkinTs = !empty($row['checkin_time']) ? strtotime((string) $row['checkin_time']) : 0;
+      $checkoutTs = strtotime($timeFull);
+      if ($checkinTs > 0 && $checkoutTs > $checkinTs) {
+        $workMinutes = (int) floor(($checkoutTs - $checkinTs) / 60);
+      }
+
+      if ($isOff) {
+        $checkinStatus = 'off';
+        $checkoutStatus = 'off';
+      } elseif ($isUnscheduled || $startTime === '' || $endTime === '') {
+        $checkinStatus = 'unscheduled';
+        $checkoutStatus = 'unscheduled';
+      } else {
+        $checkoutMin = $timeToMinutes($attendTime);
+        $endMin = $timeToMinutes($endTime);
+        if ($checkoutMin < $endMin) {
+          $checkoutStatus = 'early_leave';
+          $earlyMinutes = $endMin - $checkoutMin;
+          if ($earlyCheckoutReason === '') {
+            throw new Exception('Alasan pulang lebih awal wajib diisi.');
+          }
+        } else {
+          $checkoutStatus = 'normal';
+          $earlyCheckoutReason = '';
+          if ($overtimeAfterLimit > 0) {
+            $overtimeAfter = min($checkoutMin - $endMin, $overtimeAfterLimit);
+          }
+        }
+      }
+    }
+
     $dir = attendance_upload_dir($today);
     $uniq = bin2hex(random_bytes(5));
     $ext = $mime === 'image/png' ? '.png' : '.jpg';
@@ -102,11 +195,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stored = 'attendance/' . substr($today, 0, 4) . '/' . substr($today, 5, 2) . '/' . $fileName;
 
     if ($type === 'in') {
-      $upd = $db->prepare("UPDATE employee_attendance SET checkin_time=?, checkin_photo_path=?, checkin_device_info=?, updated_at=NOW() WHERE id=?");
-      $upd->execute([$timeFull, $stored, $deviceInfo, (int)$row['id']]);
+      $upd = $db->prepare("UPDATE employee_attendance SET checkin_time=?, checkin_photo_path=?, checkin_device_info=?, checkin_status=?, late_minutes=?, overtime_before_minutes=?, updated_at=NOW() WHERE id=?");
+      $upd->execute([$timeFull, $stored, $deviceInfo, $checkinStatus, $lateMinutes, $overtimeBefore, (int)$row['id']]);
     } else {
-      $upd = $db->prepare("UPDATE employee_attendance SET checkout_time=?, checkout_photo_path=?, checkout_device_info=?, updated_at=NOW() WHERE id=?");
-      $upd->execute([$timeFull, $stored, $deviceInfo, (int)$row['id']]);
+      $upd = $db->prepare("UPDATE employee_attendance SET checkout_time=?, checkout_photo_path=?, checkout_device_info=?, checkin_status=COALESCE(checkin_status, ?), checkout_status=?, early_minutes=?, overtime_after_minutes=?, work_minutes=?, early_checkout_reason=?, updated_at=NOW() WHERE id=?");
+      $upd->execute([$timeFull, $stored, $deviceInfo, $checkinStatus, $checkoutStatus, $earlyMinutes, $overtimeAfter, $workMinutes, $earlyCheckoutReason !== '' ? $earlyCheckoutReason : null, (int)$row['id']]);
     }
 
     $db->commit();
@@ -146,6 +239,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <input type="hidden" name="device_info" id="device_info">
       <div class="row"><label>Tanggal</label><input name="attend_date" value="<?php echo e($today); ?>" readonly></div>
       <div class="row"><label>Waktu</label><input type="time" name="attend_time" value="<?php echo e(app_now_jakarta('H:i')); ?>" required></div>
+      <?php if ($type === 'out'): ?>
+      <div class="row">
+        <label>Alasan pulang lebih awal (wajib jika checkout sebelum jadwal)</label>
+        <textarea name="early_checkout_reason" rows="3" maxlength="255"></textarea>
+      </div>
+      <?php endif; ?>
       <div class="row">
         <label>Foto Absensi</label>
         <input type="file" name="attendance_photo" id="attendance_photo" accept="image/jpeg,image/png" capture="user" required>

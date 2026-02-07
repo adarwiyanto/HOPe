@@ -493,10 +493,36 @@ function ensure_employee_attendance_tables(): void {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       ) ENGINE=InnoDB
     ");
+
+    $addColumnIfMissing = static function (PDO $db, string $table, string $column, string $definition): void {
+      $stmt = $db->prepare('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?');
+      $stmt->execute([$table, $column]);
+      if ((int) $stmt->fetchColumn() === 0) {
+        $db->exec("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}");
+      }
+    };
+
+    $addColumnIfMissing($db, 'employee_schedule_weekly', 'allow_checkin_before_minutes', 'INT NOT NULL DEFAULT 0 AFTER grace_minutes');
+    $addColumnIfMissing($db, 'employee_schedule_weekly', 'overtime_before_minutes', 'INT NOT NULL DEFAULT 0 AFTER allow_checkin_before_minutes');
+    $addColumnIfMissing($db, 'employee_schedule_weekly', 'overtime_after_minutes', 'INT NOT NULL DEFAULT 0 AFTER overtime_before_minutes');
+
+    $addColumnIfMissing($db, 'employee_schedule_overrides', 'allow_checkin_before_minutes', 'INT NOT NULL DEFAULT 0 AFTER grace_minutes');
+    $addColumnIfMissing($db, 'employee_schedule_overrides', 'overtime_before_minutes', 'INT NOT NULL DEFAULT 0 AFTER allow_checkin_before_minutes');
+    $addColumnIfMissing($db, 'employee_schedule_overrides', 'overtime_after_minutes', 'INT NOT NULL DEFAULT 0 AFTER overtime_before_minutes');
+
+    $addColumnIfMissing($db, 'employee_attendance', 'checkin_status', "ENUM('ontime','late','early','invalid_window','off','unscheduled','absent') NULL AFTER checkout_device_info");
+    $addColumnIfMissing($db, 'employee_attendance', 'checkout_status', "ENUM('normal','early_leave','missing','off','unscheduled') NULL AFTER checkin_status");
+    $addColumnIfMissing($db, 'employee_attendance', 'late_minutes', 'INT NOT NULL DEFAULT 0 AFTER checkout_status');
+    $addColumnIfMissing($db, 'employee_attendance', 'early_minutes', 'INT NOT NULL DEFAULT 0 AFTER late_minutes');
+    $addColumnIfMissing($db, 'employee_attendance', 'overtime_before_minutes', 'INT NOT NULL DEFAULT 0 AFTER early_minutes');
+    $addColumnIfMissing($db, 'employee_attendance', 'overtime_after_minutes', 'INT NOT NULL DEFAULT 0 AFTER overtime_before_minutes');
+    $addColumnIfMissing($db, 'employee_attendance', 'work_minutes', 'INT NOT NULL DEFAULT 0 AFTER overtime_after_minutes');
+    $addColumnIfMissing($db, 'employee_attendance', 'early_checkout_reason', 'VARCHAR(255) NULL AFTER work_minutes');
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
   }
 }
+
 
 function ensure_employee_roles(): void {
   static $ensured = false;

@@ -13,10 +13,21 @@ $from = $_GET['from'] ?? date('Y-m-01');
 $to = $_GET['to'] ?? date('Y-m-t');
 $userId = (int) ($_GET['user_id'] ?? 0);
 $statusFilter = trim((string) ($_GET['status'] ?? ''));
+$isExport = (($_GET['export'] ?? '') === 'csv');
 
 $employees = db()->query("SELECT id,name,role FROM users WHERE role IN ('pegawai','pegawai_pos','pegawai_non_pos') ORDER BY name")->fetchAll();
-$employeeIds = array_map(fn($r) => (int) $r['id'], $employees);
+$employeeIds = array_map(static fn($r) => (int) $r['id'], $employees);
 $rows = [];
+
+$timeToMinutes = static function (?string $time): int {
+  if (empty($time) || !preg_match('/^\d{2}:\d{2}/', (string) $time)) {
+    return 0;
+  }
+  [$h, $m] = array_map('intval', explode(':', substr((string) $time, 0, 5)));
+  return ($h * 60) + $m;
+};
+
+$today = app_today_jakarta();
 
 if ($employeeIds && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
   $dates = [];
@@ -58,68 +69,140 @@ if ($employeeIds && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) && preg_match('/^
 
     foreach ($dates as $date) {
       $key = (int) $emp['id'] . '|' . $date;
-      $schedule = $override[$key] ?? ($weekly[(int) $emp['id']][(int) (new DateTimeImmutable($date))->format('N')] ?? null);
+      $schedule = $override[$key] ?? ($weekly[(int) $emp['id']][(int) (new DateTimeImmutable($date, new DateTimeZone('Asia/Jakarta')))->format('N')] ?? null);
       $att = $attMap[$key] ?? null;
 
-      $row = [
-        'date' => $date,
-        'name' => $emp['name'],
-        'user_id' => $emp['id'],
-        'start_time' => $schedule['start_time'] ?? null,
-        'end_time' => $schedule['end_time'] ?? null,
-        'grace_minutes' => (int) ($schedule['grace_minutes'] ?? 0),
-        'is_off' => (int) ($schedule['is_off'] ?? 0),
-        'checkin_time' => $att['checkin_time'] ?? null,
-        'checkout_time' => $att['checkout_time'] ?? null,
-        'checkin_photo_path' => $att['checkin_photo_path'] ?? null,
-        'checkout_photo_path' => $att['checkout_photo_path'] ?? null,
-      ];
+      $isOff = (int) ($schedule['is_off'] ?? 0) === 1;
+      $isUnscheduled = $schedule === null;
+      $startTime = (string) ($schedule['start_time'] ?? '');
+      $endTime = (string) ($schedule['end_time'] ?? '');
+      $grace = max(0, (int) ($schedule['grace_minutes'] ?? 0));
+      $window = max(0, (int) ($schedule['allow_checkin_before_minutes'] ?? 0));
+      $otBeforeLimit = max(0, (int) ($schedule['overtime_before_minutes'] ?? 0));
+      $otAfterLimit = max(0, (int) ($schedule['overtime_after_minutes'] ?? 0));
 
-      $row['status_in'] = 'Jadwal belum diatur';
-      $row['late_minutes'] = 0;
-      $row['status_out'] = '-';
-      $row['early_minutes'] = 0;
-      $row['status'] = '';
+      $checkinTime = $att['checkin_time'] ?? null;
+      $checkoutTime = $att['checkout_time'] ?? null;
+      $earlyReason = (string) ($att['early_checkout_reason'] ?? '');
+      $statusIn = 'Jadwal belum diatur';
+      $statusOut = 'Jadwal belum diatur';
+      $lateMinutes = 0;
+      $earlyMinutes = 0;
+      $otBefore = 0;
+      $otAfter = 0;
+      $workMinutes = 0;
+      $invalidReasonFlag = '';
 
-      if ($row['is_off']) {
-        $row['status'] = 'libur';
-        $row['status_in'] = 'Libur';
-        $row['status_out'] = 'Libur';
-      } elseif (empty($row['checkin_time'])) {
-        $row['status'] = 'tidak absen';
-        $row['status_in'] = 'Tidak absen';
+      if ($isOff) {
+        $statusIn = 'Libur';
+        $statusOut = 'Libur';
+      } elseif ($isUnscheduled || $startTime === '' || $endTime === '') {
+        $statusIn = 'Jadwal belum diatur';
+        $statusOut = 'Jadwal belum diatur';
+      } elseif (empty($checkinTime)) {
+        $statusIn = 'Tidak absen';
+        $statusOut = ($date < $today) ? 'Tidak absen pulang' : '-';
       } else {
-        $startTs = !empty($row['start_time']) ? strtotime($date . ' ' . $row['start_time']) : null;
-        $checkinTs = strtotime($row['checkin_time']);
+        $checkinMin = $timeToMinutes(date('H:i', strtotime((string) $checkinTime)));
+        $startMin = $timeToMinutes($startTime);
+        $windowStart = $startMin - $window;
+        $windowEnd = $startMin + $grace;
 
-        if ($startTs !== null && $checkinTs > ($startTs + ($row['grace_minutes'] * 60))) {
-          $row['status'] = 'telat';
-          $row['status_in'] = 'Telat';
-          $row['late_minutes'] = (int) floor(($checkinTs - $startTs) / 60);
+        if ($checkinMin < $windowStart) {
+          if ($otBeforeLimit > 0) {
+            $statusIn = 'Early Lembur';
+            $otBefore = min($startMin - $checkinMin, $otBeforeLimit);
+          } else {
+            $statusIn = 'Invalid Window';
+          }
+        } elseif ($checkinMin > $windowEnd) {
+          $statusIn = 'Telat';
+          $lateMinutes = $checkinMin - $windowEnd;
         } else {
-          $row['status'] = 'tepat';
-          $row['status_in'] = 'Tepat waktu';
+          $statusIn = 'Tepat';
         }
 
-        if (!empty($row['checkout_time']) && !empty($row['end_time'])) {
-          $endTs = strtotime($date . ' ' . $row['end_time']);
-          $outTs = strtotime($row['checkout_time']);
-          if ($outTs < $endTs) {
-            $row['status_out'] = 'Pulang cepat';
-            $row['early_minutes'] = (int) floor(($endTs - $outTs) / 60);
+        if (empty($checkoutTime)) {
+          $statusOut = ($date < $today) ? 'Tidak absen pulang' : '-';
+        } else {
+          $checkoutMin = $timeToMinutes(date('H:i', strtotime((string) $checkoutTime)));
+          $endMin = $timeToMinutes($endTime);
+
+          $checkinTs = strtotime((string) $checkinTime);
+          $checkoutTs = strtotime((string) $checkoutTime);
+          if ($checkinTs !== false && $checkoutTs !== false && $checkoutTs > $checkinTs) {
+            $workMinutes = (int) floor(($checkoutTs - $checkinTs) / 60);
+          }
+
+          if ($checkoutMin < $endMin) {
+            $statusOut = 'Pulang cepat';
+            $earlyMinutes = $endMin - $checkoutMin;
+            if ($earlyReason === '') {
+              $invalidReasonFlag = 'Alasan kosong';
+            }
           } else {
-            $row['status_out'] = 'Normal';
+            $statusOut = 'Normal';
+            if ($otAfterLimit > 0) {
+              $otAfter = min($checkoutMin - $endMin, $otAfterLimit);
+            }
           }
         }
       }
 
-      if ($statusFilter !== '' && $row['status'] !== $statusFilter) {
+      if ($statusFilter !== '' && strtolower($statusIn) !== strtolower($statusFilter)) {
         continue;
       }
 
-      $rows[] = $row;
+      $rows[] = [
+        'date' => $date,
+        'name' => $emp['name'],
+        'start_time' => $startTime,
+        'end_time' => $endTime,
+        'grace_minutes' => $grace,
+        'window_minutes' => $window,
+        'status_in' => $statusIn,
+        'late_minutes' => $lateMinutes,
+        'early_in_minutes' => $otBefore,
+        'status_out' => $statusOut,
+        'early_minutes' => $earlyMinutes,
+        'early_checkout_reason' => $earlyReason,
+        'invalid_reason_flag' => $invalidReasonFlag,
+        'overtime_before_minutes' => $otBefore,
+        'overtime_after_minutes' => $otAfter,
+        'work_minutes' => $workMinutes,
+        'checkin_photo_path' => $att['checkin_photo_path'] ?? null,
+        'checkout_photo_path' => $att['checkout_photo_path'] ?? null,
+      ];
     }
   }
+}
+
+if ($isExport) {
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="rekap-absensi-' . $from . '-sd-' . $to . '.csv"');
+  $out = fopen('php://output', 'w');
+  fputcsv($out, ['Tanggal', 'Pegawai', 'Jam Masuk', 'Jam Pulang', 'Grace', 'Window Absen Datang', 'Status Masuk', 'Telat (menit)', 'Early (menit)', 'Lembur Sebelum (menit)', 'Status Pulang', 'Pulang Cepat (menit)', 'Alasan Pulang Cepat', 'Lembur Sesudah (menit)', 'Work Minutes']);
+  foreach ($rows as $r) {
+    fputcsv($out, [
+      $r['date'],
+      $r['name'],
+      $r['start_time'],
+      $r['end_time'],
+      $r['grace_minutes'],
+      $r['window_minutes'],
+      $r['status_in'],
+      $r['late_minutes'],
+      $r['early_in_minutes'],
+      $r['overtime_before_minutes'],
+      $r['status_out'],
+      $r['early_minutes'],
+      $r['early_checkout_reason'],
+      $r['overtime_after_minutes'],
+      $r['work_minutes'],
+    ]);
+  }
+  fclose($out);
+  exit;
 }
 
 $customCss = setting('custom_css', '');
@@ -162,22 +245,25 @@ $sidebarHtml = ob_get_clean();
             </select>
           </div>
           <div class="row">
-            <label>Status</label>
+            <label>Status Masuk</label>
             <select name="status">
               <option value="">Semua</option>
               <option value="tepat" <?php echo $statusFilter === 'tepat' ? 'selected' : ''; ?>>Tepat</option>
               <option value="telat" <?php echo $statusFilter === 'telat' ? 'selected' : ''; ?>>Telat</option>
-              <option value="tidak absen" <?php echo $statusFilter === 'tidak absen' ? 'selected' : ''; ?>>Tidak absen</option>
-              <option value="libur" <?php echo $statusFilter === 'libur' ? 'selected' : ''; ?>>Libur</option>
+              <option value="early lembur" <?php echo strtolower($statusFilter) === 'early lembur' ? 'selected' : ''; ?>>Early Lembur</option>
+              <option value="invalid window" <?php echo strtolower($statusFilter) === 'invalid window' ? 'selected' : ''; ?>>Invalid Window</option>
+              <option value="tidak absen" <?php echo strtolower($statusFilter) === 'tidak absen' ? 'selected' : ''; ?>>Tidak absen</option>
+              <option value="libur" <?php echo strtolower($statusFilter) === 'libur' ? 'selected' : ''; ?>>Libur</option>
             </select>
           </div>
           <button class="btn" type="submit">Filter</button>
+          <a class="btn" href="<?php echo e(base_url('admin/attendance.php?from=' . urlencode($from) . '&to=' . urlencode($to) . '&user_id=' . (int) $userId . '&status=' . urlencode($statusFilter) . '&export=csv')); ?>">Export CSV</a>
         </form>
 
         <table class="table">
           <thead>
             <tr>
-              <th>Tanggal</th><th>Pegawai</th><th>Jadwal Masuk</th><th>Jadwal Pulang</th><th>Grace</th><th>Status Masuk</th><th>Telat(mnt)</th><th>Status Pulang</th><th>Pulang cepat(mnt)</th><th>Foto Masuk</th><th>Foto Pulang</th>
+              <th>Tanggal</th><th>Pegawai</th><th>Jadwal Masuk</th><th>Jadwal Pulang</th><th>Grace</th><th>Window Absen Datang</th><th>Status Masuk</th><th>Telat (mnt)</th><th>Early (mnt)</th><th>Lembur Sebelum</th><th>Status Pulang</th><th>Pulang cepat(mnt)</th><th>Alasan pulang cepat</th><th>Lembur Sesudah</th><th>Work Minutes</th><th>Foto Masuk</th><th>Foto Pulang</th>
             </tr>
           </thead>
           <tbody>
@@ -188,10 +274,21 @@ $sidebarHtml = ob_get_clean();
               <td><?php echo e((string) $r['start_time']); ?></td>
               <td><?php echo e((string) $r['end_time']); ?></td>
               <td><?php echo e((string) $r['grace_minutes']); ?></td>
+              <td><?php echo e((string) $r['window_minutes']); ?></td>
               <td><?php echo e($r['status_in']); ?></td>
               <td><?php echo e((string) $r['late_minutes']); ?></td>
+              <td><?php echo e((string) $r['early_in_minutes']); ?></td>
+              <td><?php echo e((string) $r['overtime_before_minutes']); ?></td>
               <td><?php echo e((string) $r['status_out']); ?></td>
               <td><?php echo e((string) $r['early_minutes']); ?></td>
+              <td>
+                <?php echo e($r['early_checkout_reason']); ?>
+                <?php if ($r['invalid_reason_flag'] !== ''): ?>
+                  <div style="color:#ef4444;font-size:12px"><?php echo e($r['invalid_reason_flag']); ?></div>
+                <?php endif; ?>
+              </td>
+              <td><?php echo e((string) $r['overtime_after_minutes']); ?></td>
+              <td><?php echo e((string) $r['work_minutes']); ?></td>
               <td><?php if ($r['checkin_photo_path']): ?><a href="<?php echo e(attendance_photo_url($r['checkin_photo_path'])); ?>" target="_blank">Lihat</a><?php endif; ?></td>
               <td><?php if ($r['checkout_photo_path']): ?><a href="<?php echo e(attendance_photo_url($r['checkout_photo_path'])); ?>" target="_blank">Lihat</a><?php endif; ?></td>
             </tr>
