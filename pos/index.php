@@ -33,6 +33,7 @@ $activeOrderId = $_SESSION['pos_order_id'] ?? null;
 
 $role = (string)($me['role'] ?? '');
 $isEmployee = is_employee_role($role);
+$isManagerToko = $role === 'manager_toko';
 $canProcessPayment = employee_can_process_payment($role);
 $attendanceToday = $isEmployee ? attendance_today_for_user((int)($me['id'] ?? 0)) : null;
 $hasCheckinToday = !empty($attendanceToday['checkin_time']);
@@ -479,6 +480,17 @@ if (!empty($rewardCart)) {
         <div class="pos-user-dropdown submenu" id="pos-user-menu">
           <a href="<?php echo e(base_url('profile.php')); ?>">Edit Profil</a>
           <a href="<?php echo e(base_url('password.php')); ?>">Ubah Password</a>
+          <?php if ($isManagerToko): ?>
+            <button type="button" class="pos-user-submenu-toggle" data-toggle-submenu="#pos-management-store-submenu">
+              Management Toko
+              <span class="pos-user-submenu-chevron">▾</span>
+            </button>
+            <div class="submenu pos-user-submenu" id="pos-management-store-submenu">
+              <a href="<?php echo e(base_url('admin/schedule.php')); ?>">Edit Jadwal Kerja Pegawai</a>
+              <a href="<?php echo e(base_url('admin/attendance.php')); ?>">Rekapitulasi Absen</a>
+            </div>
+          <?php endif; ?>
+          <a href="<?php echo e(base_url('pos/logout.php')); ?>">Logout</a>
         </div>
       </div>
       <?php if ($isEmployee): ?>
@@ -490,7 +502,6 @@ if (!empty($rewardCart)) {
           <button class="btn" type="button" disabled>Absen Lengkap</button>
         <?php endif; ?>
       <?php endif; ?>
-      <a class="btn pos-logout" href="<?php echo e(base_url('pos/logout.php')); ?>">Logout</a>
     </div>
 
     <div class="pos-wrap">

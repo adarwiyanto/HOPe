@@ -311,6 +311,40 @@
   border-color:#dbeafe;
 }
 
+.pos-user-dropdown button{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:8px 10px;
+  border-radius:10px;
+  color:var(--text);
+  font-size:14px;
+  border:1px solid transparent;
+  background:transparent;
+  cursor:pointer;
+}
+
+.pos-user-dropdown button:hover{
+  background:#f2f7ff;
+  border-color:#dbeafe;
+}
+
+.pos-user-submenu{
+  margin:4px 0 4px 12px;
+  display:none;
+}
+
+.pos-user-submenu.open{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+
+.pos-user-submenu-chevron{
+  opacity:.6;
+}
+
 .pos-logout{
   min-height:44px;
   padding:8px 16px;
