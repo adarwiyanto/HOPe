@@ -149,3 +149,102 @@ CREATE TABLE IF NOT EXISTS employee_schedule_overrides (
 
 ALTER TABLE orders
   MODIFY status ENUM('pending','processing','completed','cancelled','pending_payment','unpaid') NOT NULL DEFAULT 'pending';
+
+-- Payroll-ready attendance/schedule additive columns (idempotent)
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_schedule_weekly' AND column_name = 'allow_checkin_before_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_schedule_weekly ADD COLUMN allow_checkin_before_minutes INT NOT NULL DEFAULT 0 AFTER grace_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_schedule_weekly' AND column_name = 'overtime_before_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_schedule_weekly ADD COLUMN overtime_before_minutes INT NOT NULL DEFAULT 0 AFTER allow_checkin_before_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_schedule_weekly' AND column_name = 'overtime_after_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_schedule_weekly ADD COLUMN overtime_after_minutes INT NOT NULL DEFAULT 0 AFTER overtime_before_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_schedule_overrides' AND column_name = 'allow_checkin_before_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_schedule_overrides ADD COLUMN allow_checkin_before_minutes INT NOT NULL DEFAULT 0 AFTER grace_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_schedule_overrides' AND column_name = 'overtime_before_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_schedule_overrides ADD COLUMN overtime_before_minutes INT NOT NULL DEFAULT 0 AFTER allow_checkin_before_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_schedule_overrides' AND column_name = 'overtime_after_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_schedule_overrides ADD COLUMN overtime_after_minutes INT NOT NULL DEFAULT 0 AFTER overtime_before_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'checkin_status'
+);
+SET @sql := IF(@exists = 0, "ALTER TABLE employee_attendance ADD COLUMN checkin_status ENUM('ontime','late','early','invalid_window','off','unscheduled','absent') NULL AFTER checkout_device_info", 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'checkout_status'
+);
+SET @sql := IF(@exists = 0, "ALTER TABLE employee_attendance ADD COLUMN checkout_status ENUM('normal','early_leave','missing','off','unscheduled') NULL AFTER checkin_status", 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'late_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_attendance ADD COLUMN late_minutes INT NOT NULL DEFAULT 0 AFTER checkout_status', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'early_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_attendance ADD COLUMN early_minutes INT NOT NULL DEFAULT 0 AFTER late_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'overtime_before_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_attendance ADD COLUMN overtime_before_minutes INT NOT NULL DEFAULT 0 AFTER early_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'overtime_after_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_attendance ADD COLUMN overtime_after_minutes INT NOT NULL DEFAULT 0 AFTER overtime_before_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'work_minutes'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_attendance ADD COLUMN work_minutes INT NOT NULL DEFAULT 0 AFTER overtime_after_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'employee_attendance' AND column_name = 'early_checkout_reason'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE employee_attendance ADD COLUMN early_checkout_reason VARCHAR(255) NULL AFTER work_minutes', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

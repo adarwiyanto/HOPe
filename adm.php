@@ -20,6 +20,10 @@ if ($me && !in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
 }
 
 $err = '';
+if (!empty($_SESSION['flash_error'])) {
+  $err = (string) $_SESSION['flash_error'];
+  unset($_SESSION['flash_error']);
+}
 if (login_should_recover()) {
   redirect(base_url('recovery.php'));
 }

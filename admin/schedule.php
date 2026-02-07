@@ -30,10 +30,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $start = $_POST['start_time'][$i] ?? null;
         $end = $_POST['end_time'][$i] ?? null;
         $grace = max(0, (int) ($_POST['grace_minutes'][$i] ?? 0));
+        $allowCheckinBefore = max(0, (int) ($_POST['allow_checkin_before_minutes'][$i] ?? 0));
+        $overtimeBefore = max(0, (int) ($_POST['overtime_before_minutes'][$i] ?? 0));
+        $overtimeAfter = max(0, (int) ($_POST['overtime_after_minutes'][$i] ?? 0));
         $off = !empty($_POST['is_off'][$i]) ? 1 : 0;
 
-        $stmt = $db->prepare("INSERT INTO employee_schedule_weekly (user_id, weekday, start_time, end_time, grace_minutes, is_off) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE start_time=VALUES(start_time), end_time=VALUES(end_time), grace_minutes=VALUES(grace_minutes), is_off=VALUES(is_off), updated_at=NOW()");
-        $stmt->execute([$employeeId, $i, $start ?: null, $end ?: null, $grace, $off]);
+        $stmt = $db->prepare("INSERT INTO employee_schedule_weekly (user_id, weekday, start_time, end_time, grace_minutes, allow_checkin_before_minutes, overtime_before_minutes, overtime_after_minutes, is_off) VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE start_time=VALUES(start_time), end_time=VALUES(end_time), grace_minutes=VALUES(grace_minutes), allow_checkin_before_minutes=VALUES(allow_checkin_before_minutes), overtime_before_minutes=VALUES(overtime_before_minutes), overtime_after_minutes=VALUES(overtime_after_minutes), is_off=VALUES(is_off), updated_at=NOW()");
+        $stmt->execute([$employeeId, $i, $start ?: null, $end ?: null, $grace, $allowCheckinBefore, $overtimeBefore, $overtimeAfter, $off]);
       }
       $ok = 'Jadwal mingguan disimpan.';
     } elseif ($action === 'save_override') {
@@ -45,11 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $start = $_POST['start_time'] ?? null;
       $end = $_POST['end_time'] ?? null;
       $grace = max(0, (int) ($_POST['grace_minutes'] ?? 0));
+      $allowCheckinBefore = max(0, (int) ($_POST['allow_checkin_before_minutes'] ?? 0));
+      $overtimeBefore = max(0, (int) ($_POST['overtime_before_minutes'] ?? 0));
+      $overtimeAfter = max(0, (int) ($_POST['overtime_after_minutes'] ?? 0));
       $off = !empty($_POST['is_off']) ? 1 : 0;
       $note = substr(trim((string) ($_POST['note'] ?? '')), 0, 255);
 
-      $stmt = db()->prepare("INSERT INTO employee_schedule_overrides (user_id, schedule_date, start_time, end_time, grace_minutes, is_off, note) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE start_time=VALUES(start_time), end_time=VALUES(end_time), grace_minutes=VALUES(grace_minutes), is_off=VALUES(is_off), note=VALUES(note), updated_at=NOW()");
-      $stmt->execute([$employeeId, $date, $start ?: null, $end ?: null, $grace, $off, $note]);
+      $stmt = db()->prepare("INSERT INTO employee_schedule_overrides (user_id, schedule_date, start_time, end_time, grace_minutes, allow_checkin_before_minutes, overtime_before_minutes, overtime_after_minutes, is_off, note) VALUES (?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE start_time=VALUES(start_time), end_time=VALUES(end_time), grace_minutes=VALUES(grace_minutes), allow_checkin_before_minutes=VALUES(allow_checkin_before_minutes), overtime_before_minutes=VALUES(overtime_before_minutes), overtime_after_minutes=VALUES(overtime_after_minutes), is_off=VALUES(is_off), note=VALUES(note), updated_at=NOW()");
+      $stmt->execute([$employeeId, $date, $start ?: null, $end ?: null, $grace, $allowCheckinBefore, $overtimeBefore, $overtimeAfter, $off, $note]);
       $ok = 'Override disimpan.';
     }
   } catch (Throwable $e) {
@@ -126,7 +132,7 @@ $sidebarHtml = ob_get_clean();
             <input type="hidden" name="action" value="save_weekly">
             <input type="hidden" name="user_id" value="<?php echo e((string) $employeeId); ?>">
             <table class="table">
-              <thead><tr><th>Hari</th><th>Masuk</th><th>Pulang</th><th>Grace</th><th>Libur</th></tr></thead>
+              <thead><tr><th>Hari</th><th>Jam Masuk</th><th>Jam Pulang</th><th>Grace</th><th>Window Absen Datang</th><th>Lembur Sebelum Masuk</th><th>Lembur Sesudah Pulang</th><th>OFF/Libur</th></tr></thead>
               <tbody>
               <?php foreach ($days as $i => $nm): $r = $weekly[$i] ?? []; ?>
                 <tr>
@@ -134,6 +140,9 @@ $sidebarHtml = ob_get_clean();
                   <td><input type="time" name="start_time[<?php echo $i; ?>]" value="<?php echo e((string) ($r['start_time'] ?? '')); ?>"></td>
                   <td><input type="time" name="end_time[<?php echo $i; ?>]" value="<?php echo e((string) ($r['end_time'] ?? '')); ?>"></td>
                   <td><input type="number" min="0" name="grace_minutes[<?php echo $i; ?>]" value="<?php echo e((string) ($r['grace_minutes'] ?? 0)); ?>"></td>
+                  <td><input type="number" min="0" name="allow_checkin_before_minutes[<?php echo $i; ?>]" value="<?php echo e((string) ($r['allow_checkin_before_minutes'] ?? 0)); ?>"></td>
+                  <td><input type="number" min="0" name="overtime_before_minutes[<?php echo $i; ?>]" value="<?php echo e((string) ($r['overtime_before_minutes'] ?? 0)); ?>"></td>
+                  <td><input type="number" min="0" name="overtime_after_minutes[<?php echo $i; ?>]" value="<?php echo e((string) ($r['overtime_after_minutes'] ?? 0)); ?>"></td>
                   <td><input type="checkbox" name="is_off[<?php echo $i; ?>]" value="1" <?php echo !empty($r['is_off']) ? 'checked' : ''; ?>></td>
                 </tr>
               <?php endforeach; ?>
@@ -152,6 +161,9 @@ $sidebarHtml = ob_get_clean();
             <div class="grid cols-2">
               <div class="row"><label>Tanggal</label><input type="date" name="schedule_date" required></div>
               <div class="row"><label>Grace</label><input type="number" min="0" name="grace_minutes" value="0"></div>
+              <div class="row"><label>Window Absen Datang (mnt)</label><input type="number" min="0" name="allow_checkin_before_minutes" value="0"></div>
+              <div class="row"><label>Lembur Sebelum Masuk (mnt)</label><input type="number" min="0" name="overtime_before_minutes" value="0"></div>
+              <div class="row"><label>Lembur Sesudah Pulang (mnt)</label><input type="number" min="0" name="overtime_after_minutes" value="0"></div>
               <div class="row"><label>Masuk</label><input type="time" name="start_time"></div>
               <div class="row"><label>Pulang</label><input type="time" name="end_time"></div>
               <div class="row"><label>Catatan</label><input name="note"></div>
@@ -161,7 +173,7 @@ $sidebarHtml = ob_get_clean();
           </form>
 
           <table class="table">
-            <thead><tr><th>Tanggal</th><th>Masuk</th><th>Pulang</th><th>Grace</th><th>Libur</th><th>Catatan</th></tr></thead>
+            <thead><tr><th>Tanggal</th><th>Masuk</th><th>Pulang</th><th>Grace</th><th>Window</th><th>Lembur Sebelum</th><th>Lembur Sesudah</th><th>Libur</th><th>Catatan</th></tr></thead>
             <tbody>
             <?php foreach ($overrides as $o): ?>
               <tr>
@@ -169,6 +181,9 @@ $sidebarHtml = ob_get_clean();
                 <td><?php echo e((string) $o['start_time']); ?></td>
                 <td><?php echo e((string) $o['end_time']); ?></td>
                 <td><?php echo e((string) $o['grace_minutes']); ?></td>
+                <td><?php echo e((string) ($o['allow_checkin_before_minutes'] ?? 0)); ?></td>
+                <td><?php echo e((string) ($o['overtime_before_minutes'] ?? 0)); ?></td>
+                <td><?php echo e((string) ($o['overtime_after_minutes'] ?? 0)); ?></td>
                 <td><?php echo !empty($o['is_off']) ? 'Ya' : 'Tidak'; ?></td>
                 <td><?php echo e((string) $o['note']); ?></td>
               </tr>

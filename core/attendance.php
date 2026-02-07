@@ -25,7 +25,7 @@ function attendance_upload_dir(string $dateYmd): string {
 }
 
 function resolve_schedule_for_date(int $userId, string $date): array {
-  $stmt = db()->prepare("SELECT user_id, schedule_date, start_time, end_time, grace_minutes, is_off FROM employee_schedule_overrides WHERE user_id=? AND schedule_date=? LIMIT 1");
+  $stmt = db()->prepare("SELECT user_id, schedule_date, start_time, end_time, grace_minutes, is_off, allow_checkin_before_minutes, overtime_before_minutes, overtime_after_minutes FROM employee_schedule_overrides WHERE user_id=? AND schedule_date=? LIMIT 1");
   $stmt->execute([$userId, $date]);
   $override = $stmt->fetch();
   if ($override) {
@@ -33,14 +33,14 @@ function resolve_schedule_for_date(int $userId, string $date): array {
   }
 
   $weekday = (int)(new DateTimeImmutable($date, new DateTimeZone('Asia/Jakarta')))->format('N');
-  $stmt = db()->prepare("SELECT user_id, weekday, start_time, end_time, grace_minutes, is_off FROM employee_schedule_weekly WHERE user_id=? AND weekday=? LIMIT 1");
+  $stmt = db()->prepare("SELECT user_id, weekday, start_time, end_time, grace_minutes, is_off, allow_checkin_before_minutes, overtime_before_minutes, overtime_after_minutes FROM employee_schedule_weekly WHERE user_id=? AND weekday=? LIMIT 1");
   $stmt->execute([$userId, $weekday]);
   $weekly = $stmt->fetch();
   if ($weekly) {
     return ['source' => 'weekly'] + $weekly;
   }
 
-  return ['source' => 'none', 'start_time' => null, 'end_time' => null, 'grace_minutes' => 0, 'is_off' => 0];
+  return ['source' => 'none', 'start_time' => null, 'end_time' => null, 'grace_minutes' => 0, 'is_off' => 0, 'allow_checkin_before_minutes' => 0, 'overtime_before_minutes' => 0, 'overtime_after_minutes' => 0];
 }
 
 function getScheduleForDate(int $userId, string $date): array {

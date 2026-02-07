@@ -9,6 +9,13 @@ function start_session(): void {
 
 function require_login(): void {
   start_session();
+  if (!empty($_SESSION['user']) && !empty($_SESSION['login_date']) && (string)$_SESSION['login_date'] < app_today_jakarta()) {
+    $_SESSION = [];
+    session_destroy();
+    start_session();
+    $_SESSION['flash_error'] = 'Session berakhir karena pergantian hari. Silakan login kembali.';
+    redirect(base_url('adm.php'));
+  }
   if (empty($_SESSION['user'])) {
     redirect(base_url('adm.php'));
   }
@@ -73,6 +80,7 @@ function login_attempt(string $username, string $password): bool {
     $u['role'] = 'owner';
   }
   $_SESSION['user'] = $u;
+  $_SESSION['login_date'] = app_today_jakarta();
   login_clear_failed_attempts();
   return true;
 }
