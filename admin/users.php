@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       $id = (int)($_POST['id'] ?? 0);
       $role = $_POST['role'] ?? 'user';
-      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai'], true)) $role = 'user';
+      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai', 'pegawai_pos', 'pegawai_non_pos'], true)) $role = 'user';
       if ($id > 0 && $id !== (int)($me['id'] ?? 0)) {
         $stmt = db()->prepare("UPDATE users SET role=? WHERE id=?");
         $stmt->execute([$role, $id]);
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         throw new Exception('Email tidak valid.');
       }
-      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai'], true)) $role = 'user';
+      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai', 'pegawai_pos', 'pegawai_non_pos'], true)) $role = 'user';
 
       $token = bin2hex(random_bytes(16));
       $tokenHash = hash('sha256', $token);
@@ -156,6 +156,8 @@ $mailCfg = mail_settings();
                   <option value="user" selected>user</option>
                   <option value="owner">owner</option>
                   <option value="pegawai">pegawai</option>
+                  <option value="pegawai_pos">pegawai_pos</option>
+                  <option value="pegawai_non_pos">pegawai_non_pos</option>
                 </select>
               </div>
               <button class="btn" type="submit">Kirim Undangan</button>
@@ -179,6 +181,8 @@ $mailCfg = mail_settings();
                     'admin' => 'admin',
                     'user' => 'user',
                     'pegawai' => 'pegawai',
+                    'pegawai_pos' => 'pegawai_pos',
+                    'pegawai_non_pos' => 'pegawai_non_pos',
                   ];
                   $roleValue = (string)($u['role'] ?? '');
                   $roleValueNormalized = $roleValue === 'superadmin' ? 'owner' : $roleValue;
@@ -200,6 +204,8 @@ $mailCfg = mail_settings();
                           <option value="admin" <?php echo ($roleValueNormalized === 'admin') ? 'selected' : ''; ?>>admin</option>
                           <option value="user" <?php echo ($roleValueNormalized === 'user') ? 'selected' : ''; ?>>user</option>
                           <option value="pegawai" <?php echo ($roleValueNormalized === 'pegawai') ? 'selected' : ''; ?>>pegawai</option>
+                          <option value="pegawai_pos" <?php echo ($roleValueNormalized === 'pegawai_pos') ? 'selected' : ''; ?>>pegawai_pos</option>
+                          <option value="pegawai_non_pos" <?php echo ($roleValueNormalized === 'pegawai_non_pos') ? 'selected' : ''; ?>>pegawai_non_pos</option>
                         </select>
                         <button class="btn" type="submit">Simpan</button>
                       </form>

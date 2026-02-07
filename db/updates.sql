@@ -96,3 +96,56 @@ CREATE TABLE IF NOT EXISTS loyalty_rewards (
   KEY idx_points (points_required),
   FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
+
+-- Attendance + employee role POS/non-POS + schedule
+ALTER TABLE users
+  MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos') NOT NULL DEFAULT 'admin';
+
+CREATE TABLE IF NOT EXISTS employee_attendance (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  attend_date DATE NOT NULL,
+  checkin_time DATETIME NULL,
+  checkout_time DATETIME NULL,
+  checkin_photo_path VARCHAR(255) NULL,
+  checkout_photo_path VARCHAR(255) NULL,
+  checkin_device_info VARCHAR(255) NULL,
+  checkout_device_info VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_user_date (user_id, attend_date),
+  KEY idx_attend_date (attend_date),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS employee_schedule_weekly (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  weekday TINYINT NOT NULL,
+  start_time TIME NULL,
+  end_time TIME NULL,
+  grace_minutes INT NOT NULL DEFAULT 0,
+  is_off TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_user_weekday (user_id, weekday),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS employee_schedule_overrides (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  schedule_date DATE NOT NULL,
+  start_time TIME NULL,
+  end_time TIME NULL,
+  grace_minutes INT NOT NULL DEFAULT 0,
+  is_off TINYINT(1) NOT NULL DEFAULT 0,
+  note VARCHAR(255) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_user_date (user_id, schedule_date),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+ALTER TABLE orders
+  MODIFY status ENUM('pending','processing','completed','cancelled','pending_payment','unpaid') NOT NULL DEFAULT 'pending';

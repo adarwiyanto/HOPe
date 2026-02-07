@@ -23,5 +23,10 @@ function db(): PDO {
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
   ]);
+  try {
+    $pdo->exec("SET time_zone = '+07:00'");
+  } catch (Throwable $e) {
+    // Abaikan jika server DB tidak mengizinkan set timezone.
+  }
   return $pdo;
 }

@@ -18,7 +18,7 @@ function require_admin(): void {
   require_login();
   ensure_owner_role();
   $u = current_user();
-  if (($u['role'] ?? '') === 'pegawai') {
+  if (is_employee_role($u['role'] ?? '')) {
     redirect(base_url('pos/index.php'));
   }
   if (!in_array($u['role'] ?? '', ['admin', 'owner', 'superadmin'], true)) {
