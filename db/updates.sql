@@ -1,10 +1,48 @@
 -- Tambahan kolom untuk pembayaran & retur transaksi
-ALTER TABLE sales
-  ADD COLUMN transaction_code VARCHAR(40) NULL AFTER id,
-  ADD COLUMN payment_method VARCHAR(20) NOT NULL DEFAULT 'cash' AFTER total,
-  ADD COLUMN payment_proof_path VARCHAR(255) NULL AFTER payment_method,
-  ADD COLUMN return_reason VARCHAR(255) NULL AFTER payment_proof_path,
-  ADD COLUMN returned_at TIMESTAMP NULL DEFAULT NULL AFTER return_reason;
+-- Idempotent add column: sales.transaction_code
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'sales' AND column_name = 'transaction_code'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE sales ADD COLUMN transaction_code VARCHAR(40) NULL AFTER id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add column: sales.payment_method
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'sales' AND column_name = 'payment_method'
+);
+SET @sql := IF(@exists = 0, "ALTER TABLE sales ADD COLUMN payment_method VARCHAR(20) NOT NULL DEFAULT 'cash' AFTER total", 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add column: sales.payment_proof_path
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'sales' AND column_name = 'payment_proof_path'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE sales ADD COLUMN payment_proof_path VARCHAR(255) NULL AFTER payment_method', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add column: sales.return_reason
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'sales' AND column_name = 'return_reason'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE sales ADD COLUMN return_reason VARCHAR(255) NULL AFTER payment_proof_path', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add column: sales.returned_at
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'sales' AND column_name = 'returned_at'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE sales ADD COLUMN returned_at TIMESTAMP NULL DEFAULT NULL AFTER return_reason', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Perubahan role superadmin menjadi owner + undangan user
 UPDATE users SET role='owner' WHERE role='superadmin';
@@ -23,9 +61,23 @@ CREATE TABLE IF NOT EXISTS user_invites (
   KEY idx_email (email)
 ) ENGINE=InnoDB;
 
-ALTER TABLE users
-  ADD COLUMN email VARCHAR(190) NULL AFTER username,
-  ADD COLUMN avatar_path VARCHAR(255) NULL AFTER role;
+-- Idempotent add column: users.email
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'users' AND column_name = 'email'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE users ADD COLUMN email VARCHAR(190) NULL AFTER username', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add column: users.avatar_path
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'users' AND column_name = 'avatar_path'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE users ADD COLUMN avatar_path VARCHAR(255) NULL AFTER role', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS password_resets (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -47,12 +99,41 @@ CREATE TABLE IF NOT EXISTS customers (
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
-ALTER TABLE customers
-  ADD COLUMN phone VARCHAR(30) NULL AFTER name,
-  ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone,
-  ADD COLUMN loyalty_remainder INT NOT NULL DEFAULT 0 AFTER loyalty_points;
-ALTER TABLE customers
-  ADD UNIQUE KEY uniq_phone (phone);
+-- Idempotent add column: customers.phone
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'customers' AND column_name = 'phone'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE customers ADD COLUMN phone VARCHAR(30) NULL AFTER name', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add column: customers.loyalty_points
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'customers' AND column_name = 'loyalty_points'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE customers ADD COLUMN loyalty_points INT NOT NULL DEFAULT 0 AFTER phone', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add column: customers.loyalty_remainder
+SET @db := DATABASE();
+SET @exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = @db AND table_name = 'customers' AND column_name = 'loyalty_remainder'
+);
+SET @sql := IF(@exists = 0, 'ALTER TABLE customers ADD COLUMN loyalty_remainder INT NOT NULL DEFAULT 0 AFTER loyalty_points', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Idempotent add index: customers.uniq_phone
+SET @db := DATABASE();
+SET @idx_exists := (
+  SELECT COUNT(*) FROM information_schema.statistics
+  WHERE table_schema = @db AND table_name = 'customers' AND index_name = 'uniq_phone'
+);
+SET @sql := IF(@idx_exists = 0, 'ALTER TABLE customers ADD UNIQUE KEY uniq_phone (phone)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS orders (
   id INT AUTO_INCREMENT PRIMARY KEY,
