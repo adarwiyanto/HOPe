@@ -111,16 +111,17 @@ $sidebarHtml = ob_get_clean();
         <h3>Jadwal Kerja Pegawai</h3>
         <?php if ($err): ?><div class="card" style="background:rgba(251,113,133,.12)"><?php echo e($err); ?></div><?php endif; ?>
         <?php if ($ok): ?><div class="card" style="background:rgba(52,211,153,.12)"><?php echo e($ok); ?></div><?php endif; ?>
-        <form method="get">
+        <form method="get" action="">
           <div class="row">
             <label>Pegawai</label>
-            <select name="user_id" onchange="this.form.submit()">
+            <select name="user_id" required>
               <option value="">- pilih -</option>
               <?php foreach ($employees as $u): ?>
                 <option value="<?php echo e((string) $u['id']); ?>" <?php echo $employeeId === (int) $u['id'] ? 'selected' : ''; ?>><?php echo e($u['name'] . ' (' . $u['role'] . ')'); ?></option>
               <?php endforeach; ?>
             </select>
           </div>
+          <button class="btn" type="submit">Tampilkan</button>
         </form>
       </div>
 
