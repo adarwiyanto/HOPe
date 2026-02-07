@@ -33,15 +33,6 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
       </button>
     </div>
     <div class="submenu profile-submenu" id="profile-menu">
-      <?php if ($isManagerToko): ?>
-        <button type="button" data-toggle-submenu="#profile-management-store">
-          <div class="label">Management Store</div>
-          <div class="chev">▾</div>
-        </button>
-        <div class="submenu" id="profile-management-store">
-          <a class="<?php echo (basename($_SERVER['PHP_SELF'])==='schedule.php')?'active':''; ?>" href="<?php echo e(base_url('admin/schedule.php')); ?>">Jadwal Pegawai</a>
-        </div>
-      <?php endif; ?>
       <a href="<?php echo e(base_url('profile.php')); ?>">Edit Profil</a>
       <a href="<?php echo e(base_url('password.php')); ?>">Ubah Password</a>
     </div>
@@ -49,6 +40,11 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
 
   <div class="nav">
     <?php if ($isManagerToko): ?>
+      <div class="item">
+        <a class="<?php echo (basename($_SERVER['PHP_SELF'])==='schedule.php')?'active':''; ?>" href="<?php echo e(base_url('admin/schedule.php')); ?>">
+          <div class="mi">📅</div><div class="label">Jadwal Pegawai</div>
+        </a>
+      </div>
       <div class="item">
         <a class="<?php echo (basename($_SERVER['PHP_SELF'])==='attendance.php')?'active':''; ?>" href="<?php echo e(base_url('admin/attendance.php')); ?>">
           <div class="mi">🕒</div><div class="label">Rekap Absensi</div>
