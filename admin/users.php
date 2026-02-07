@@ -41,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Hanya owner yang bisa mengubah role user.');
       }
       $id = (int)($_POST['id'] ?? 0);
-      $role = $_POST['role'] ?? 'user';
-      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai', 'pegawai_pos', 'pegawai_non_pos', 'manager_toko'], true)) $role = 'user';
+      $role = $_POST['role'] ?? 'pegawai';
+      if (!in_array($role, ['admin', 'owner', 'pegawai', 'pegawai_pos', 'pegawai_non_pos', 'manager_toko'], true)) $role = 'pegawai';
       if ($id > 0 && $id !== (int)($me['id'] ?? 0)) {
         $stmt = db()->prepare("UPDATE users SET role=? WHERE id=?");
         $stmt->execute([$role, $id]);
@@ -55,11 +55,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Hanya owner yang bisa mengundang user.');
       }
       $email = trim($_POST['email'] ?? '');
-      $role = $_POST['role'] ?? 'user';
+      $role = $_POST['role'] ?? 'pegawai';
       if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         throw new Exception('Email tidak valid.');
       }
-      if (!in_array($role, ['admin', 'user', 'owner', 'pegawai', 'pegawai_pos', 'pegawai_non_pos', 'manager_toko'], true)) $role = 'user';
+      if (!in_array($role, ['admin', 'owner', 'pegawai', 'pegawai_pos', 'pegawai_non_pos', 'manager_toko'], true)) $role = 'pegawai';
 
       $token = bin2hex(random_bytes(16));
       $tokenHash = hash('sha256', $token);
@@ -153,9 +153,8 @@ $mailCfg = mail_settings();
                 <label>Role</label>
                 <select name="role">
                   <option value="admin">admin</option>
-                  <option value="user" selected>user</option>
                   <option value="owner">owner</option>
-                  <option value="pegawai">pegawai</option>
+                  <option value="pegawai" selected>pegawai</option>
                   <option value="pegawai_pos">pegawai_pos</option>
                   <option value="pegawai_non_pos">pegawai_non_pos</option>
                   <option value="manager_toko">manager_toko</option>
@@ -180,7 +179,6 @@ $mailCfg = mail_settings();
                     'owner' => 'owner',
                     'superadmin' => 'owner',
                     'admin' => 'admin',
-                    'user' => 'user',
                     'pegawai' => 'pegawai',
                     'pegawai_pos' => 'pegawai_pos',
                     'pegawai_non_pos' => 'pegawai_non_pos',
@@ -204,7 +202,6 @@ $mailCfg = mail_settings();
                         <select name="role">
                           <option value="owner" <?php echo ($roleValueNormalized === 'owner') ? 'selected' : ''; ?>>owner</option>
                           <option value="admin" <?php echo ($roleValueNormalized === 'admin') ? 'selected' : ''; ?>>admin</option>
-                          <option value="user" <?php echo ($roleValueNormalized === 'user') ? 'selected' : ''; ?>>user</option>
                           <option value="pegawai" <?php echo ($roleValueNormalized === 'pegawai') ? 'selected' : ''; ?>>pegawai</option>
                           <option value="pegawai_pos" <?php echo ($roleValueNormalized === 'pegawai_pos') ? 'selected' : ''; ?>>pegawai_pos</option>
                           <option value="pegawai_non_pos" <?php echo ($roleValueNormalized === 'pegawai_non_pos') ? 'selected' : ''; ?>>pegawai_non_pos</option>
