@@ -7,7 +7,7 @@ require_once __DIR__ . '/../core/csrf.php';
 require_once __DIR__ . '/../core/attendance.php';
 
 start_secure_session();
-require_admin();
+require_schedule_or_attendance_admin();
 ensure_employee_roles();
 ensure_employee_attendance_tables();
 
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 
-$employees = db()->query("SELECT id,name,role FROM users WHERE role IN ('pegawai','pegawai_pos','pegawai_non_pos') ORDER BY name")->fetchAll();
+$employees = db()->query("SELECT id,name,role FROM users WHERE role IN ('pegawai','pegawai_pos','pegawai_non_pos','manager_toko') ORDER BY name")->fetchAll();
 $weekly = [];
 $overrides = [];
 if ($employeeId > 0) {

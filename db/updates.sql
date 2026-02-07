@@ -329,3 +329,31 @@ SET @exists := (
 );
 SET @sql := IF(@exists = 0, 'ALTER TABLE employee_attendance ADD COLUMN early_checkout_reason VARCHAR(255) NULL AFTER work_minutes', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+
+-- Add manager_toko role + attendance index (idempotent)
+SET @has_manager_toko := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'users'
+    AND column_name = 'role'
+    AND column_type LIKE "%manager_toko%"
+);
+SET @sql := IF(@has_manager_toko = 0,
+  "ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'",
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @idx_exists := (
+  SELECT COUNT(*) FROM information_schema.statistics
+  WHERE table_schema = DATABASE()
+    AND table_name = 'employee_attendance'
+    AND index_name = 'idx_user_attend_date'
+);
+SET @sql := IF(@idx_exists = 0,
+  'ALTER TABLE employee_attendance ADD INDEX idx_user_attend_date (user_id, attend_date)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

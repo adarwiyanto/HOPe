@@ -27,11 +27,11 @@ function asset_url(string $path = ''): string {
 
 
 function is_employee_role(?string $role): bool {
-  return in_array((string)$role, ['pegawai', 'pegawai_pos', 'pegawai_non_pos'], true);
+  return in_array((string)$role, ['pegawai', 'pegawai_pos', 'pegawai_non_pos', 'manager_toko'], true);
 }
 
 function employee_can_process_payment(?string $role): bool {
-  return in_array((string)$role, ['pegawai', 'pegawai_pos', 'admin', 'owner', 'superadmin'], true);
+  return in_array((string)$role, ['pegawai', 'pegawai_pos', 'manager_toko', 'admin', 'owner', 'superadmin'], true);
 }
 
 function app_now_jakarta(string $format = 'Y-m-d H:i:s'): string {
@@ -425,7 +425,7 @@ function ensure_owner_role(): void {
     $type = (string)($column['Type'] ?? '');
     if (strpos($type, "'owner'") === false || strpos($type, "'superadmin'") !== false) {
       db()->exec("UPDATE users SET role='owner' WHERE role='superadmin'");
-      db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos') NOT NULL DEFAULT 'admin'");
+      db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'");
     }
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
@@ -530,7 +530,7 @@ function ensure_employee_roles(): void {
   $ensured = true;
 
   try {
-    db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos') NOT NULL DEFAULT 'admin'");
+    db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'");
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
   }

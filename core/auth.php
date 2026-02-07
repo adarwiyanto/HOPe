@@ -25,10 +25,31 @@ function require_admin(): void {
   require_login();
   ensure_owner_role();
   $u = current_user();
-  if (is_employee_role($u['role'] ?? '')) {
+  $role = (string)($u['role'] ?? '');
+  if (is_employee_role($role)) {
+    if ($role === 'manager_toko') {
+      $allowedPages = ['schedule.php', 'attendance.php'];
+      $currentPage = basename((string)($_SERVER['PHP_SELF'] ?? ''));
+      if (!in_array($currentPage, $allowedPages, true)) {
+        $_SESSION['flash_error'] = 'Akses dibatasi untuk manager_toko.';
+        redirect(base_url('admin/schedule.php'));
+      }
+      return;
+    }
     redirect(base_url('pos/index.php'));
   }
-  if (!in_array($u['role'] ?? '', ['admin', 'owner', 'superadmin'], true)) {
+  if (!in_array($role, ['admin', 'owner', 'superadmin'], true)) {
+    http_response_code(403);
+    exit('Forbidden');
+  }
+}
+
+function require_schedule_or_attendance_admin(): void {
+  require_login();
+  ensure_owner_role();
+  $u = current_user();
+  $role = (string)($u['role'] ?? '');
+  if (!in_array($role, ['admin', 'owner', 'superadmin', 'manager_toko'], true)) {
     http_response_code(403);
     exit('Forbidden');
   }
