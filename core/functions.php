@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Jakarta');
 function e(string $s): string {
   return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
@@ -22,6 +23,24 @@ function asset_url(string $path = ''): string {
   if ($path === '') return $url;
   $version = app_cache_bust();
   return "{$url}?v={$version}";
+}
+
+
+function is_employee_role(?string $role): bool {
+  return in_array((string)$role, ['pegawai', 'pegawai_pos', 'pegawai_non_pos'], true);
+}
+
+function employee_can_process_payment(?string $role): bool {
+  return in_array((string)$role, ['pegawai', 'pegawai_pos', 'admin', 'owner', 'superadmin'], true);
+}
+
+function app_now_jakarta(string $format = 'Y-m-d H:i:s'): string {
+  $tz = new DateTimeZone('Asia/Jakarta');
+  return (new DateTimeImmutable('now', $tz))->format($format);
+}
+
+function app_today_jakarta(): string {
+  return app_now_jakarta('Y-m-d');
 }
 
 function upload_is_legacy_path(string $path): bool {
@@ -280,7 +299,7 @@ function ensure_landing_order_tables(): void {
         id INT AUTO_INCREMENT PRIMARY KEY,
         order_code VARCHAR(40) NOT NULL,
         customer_id INT NOT NULL,
-        status ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
+        status ENUM('pending','processing','completed','cancelled','pending_payment','unpaid') NOT NULL DEFAULT 'pending',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP NULL DEFAULT NULL,
         KEY idx_status (status),
@@ -362,6 +381,11 @@ function ensure_landing_order_tables(): void {
     } catch (Throwable $e) {
       // abaikan jika tidak bisa mengubah kolom.
     }
+    try {
+      $db->exec("ALTER TABLE orders MODIFY status ENUM('pending','processing','completed','cancelled','pending_payment','unpaid') NOT NULL DEFAULT 'pending'");
+    } catch (Throwable $e) {
+      // abaikan jika tidak bisa mengubah kolom.
+    }
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
   }
@@ -401,11 +425,96 @@ function ensure_owner_role(): void {
     $type = (string)($column['Type'] ?? '');
     if (strpos($type, "'owner'") === false || strpos($type, "'superadmin'") !== false) {
       db()->exec("UPDATE users SET role='owner' WHERE role='superadmin'");
-      db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai') NOT NULL DEFAULT 'admin'");
+      db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos') NOT NULL DEFAULT 'admin'");
     }
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
   }
+}
+
+
+function ensure_employee_attendance_tables(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    $db = db();
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS employee_attendance (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        attend_date DATE NOT NULL,
+        checkin_time DATETIME NULL DEFAULT NULL,
+        checkout_time DATETIME NULL DEFAULT NULL,
+        checkin_photo_path VARCHAR(255) NULL,
+        checkout_photo_path VARCHAR(255) NULL,
+        checkin_device_info VARCHAR(255) NULL,
+        checkout_device_info VARCHAR(255) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_user_date (user_id, attend_date),
+        KEY idx_attend_date (attend_date),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS employee_schedule_weekly (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        weekday TINYINT NOT NULL,
+        start_time TIME NULL DEFAULT NULL,
+        end_time TIME NULL DEFAULT NULL,
+        grace_minutes INT NOT NULL DEFAULT 0,
+        is_off TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_user_weekday (user_id, weekday),
+        KEY idx_user_weekday (user_id, weekday),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+
+    $db->exec("
+      CREATE TABLE IF NOT EXISTS employee_schedule_overrides (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        schedule_date DATE NOT NULL,
+        start_time TIME NULL DEFAULT NULL,
+        end_time TIME NULL DEFAULT NULL,
+        grace_minutes INT NOT NULL DEFAULT 0,
+        is_off TINYINT(1) NOT NULL DEFAULT 0,
+        note VARCHAR(255) NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_user_date (user_id, schedule_date),
+        KEY idx_user_date (user_id, schedule_date),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB
+    ");
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function ensure_employee_roles(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos') NOT NULL DEFAULT 'admin'");
+  } catch (Throwable $e) {
+    // Diamkan jika gagal agar tidak mengganggu halaman.
+  }
+}
+
+function attendance_photo_url(?string $path): string {
+  if (empty($path)) {
+    return '';
+  }
+  return base_url('download.php?type=attendance&f=' . urlencode($path));
 }
 
 function ensure_upload_dir(string $dir): void {

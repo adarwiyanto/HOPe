@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         id INT(11) NOT NULL AUTO_INCREMENT,
         order_code VARCHAR(40) NOT NULL,
         customer_id INT(11) NOT NULL,
-        status ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
+        status ENUM('pending','processing','completed','cancelled','pending_payment','unpaid') NOT NULL DEFAULT 'pending',
         created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP NULL DEFAULT NULL,
         PRIMARY KEY (id),

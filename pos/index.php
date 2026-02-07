@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../core/attendance.php';
 require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
@@ -12,6 +13,8 @@ ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 ensure_sales_transaction_code_column();
 ensure_sales_user_column();
+ensure_employee_roles();
+ensure_employee_attendance_tables();
 
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
@@ -28,6 +31,21 @@ $cart = $_SESSION['pos_cart'] ?? [];
 $rewardCart = $_SESSION['pos_reward_cart'] ?? [];
 $activeOrderId = $_SESSION['pos_order_id'] ?? null;
 
+$role = (string)($me['role'] ?? '');
+$isEmployee = is_employee_role($role);
+$canProcessPayment = employee_can_process_payment($role);
+$attendanceToday = $isEmployee ? attendance_today_for_user((int)($me['id'] ?? 0)) : null;
+$hasCheckinToday = !empty($attendanceToday['checkin_time']);
+$hasCheckoutToday = !empty($attendanceToday['checkout_time']);
+
+if ($isEmployee && !$hasCheckinToday && ($_GET['attendance_confirm'] ?? '') === 'belum') {
+  redirect(base_url('pos/absen.php?type=in'));
+}
+if ($isEmployee && !$hasCheckinToday && ($_GET['attendance_confirm'] ?? '') !== 'sudah') {
+  $_SESSION['pos_err'] = 'Sudah absensi hari ini? Pilih "Belum" untuk absen masuk terlebih dahulu.';
+}
+
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   csrf_check();
   $action = $_POST['action'] ?? '';
@@ -35,6 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $rewardId = (int)($_POST['reward_id'] ?? 0);
 
   try {
+    if ($isEmployee && !$hasCheckinToday && in_array($action, ['add','inc','dec','remove','load_order','claim_reward','remove_reward','checkout'], true)) {
+      throw new Exception('Silakan absen masuk terlebih dahulu sebelum menggunakan POS.');
+    }
     if (in_array($action, ['add','inc','dec','remove'], true)) {
       if ($productId <= 0 || empty($productsById[$productId])) {
         throw new Exception('Produk tidak ditemukan.');
@@ -187,11 +208,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($action === 'checkout') {
       if (empty($cart) && empty($rewardCart)) throw new Exception('Keranjang masih kosong.');
       $paymentMethod = $_POST['payment_method'] ?? '';
-      if (!in_array($paymentMethod, ['cash', 'qris'], true)) {
-        throw new Exception('Pilih metode pembayaran.');
+      if ($canProcessPayment) {
+        if (!in_array($paymentMethod, ['cash', 'qris'], true)) {
+          throw new Exception('Pilih metode pembayaran.');
+        }
+      } else {
+        $paymentMethod = 'unpaid';
       }
       $paymentProofPath = null;
-      if ($paymentMethod === 'qris') {
+      if ($canProcessPayment && $paymentMethod === 'qris') {
         if (empty($_FILES['payment_proof']['name'] ?? '')) {
           throw new Exception('Bukti pembayaran QRIS wajib diunggah.');
         }
@@ -264,8 +289,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $db->commit();
       if (!empty($_SESSION['pos_order_id'])) {
         $orderId = (int)$_SESSION['pos_order_id'];
-        $stmt = $db->prepare("UPDATE orders SET status='completed', completed_at=NOW() WHERE id=?");
-        $stmt->execute([$orderId]);
+        $orderStatus = $canProcessPayment ? 'completed' : 'pending_payment';
+        $stmt = $db->prepare("UPDATE orders SET status=?, completed_at=NOW() WHERE id=?");
+        $stmt->execute([$orderStatus, $orderId]);
         $stmt = $db->prepare("
           SELECT c.id, c.loyalty_remainder
           FROM orders o
@@ -458,10 +484,22 @@ if (!empty($rewardCart)) {
           <a href="<?php echo e(base_url('password.php')); ?>">Ubah Password</a>
         </div>
       </div>
+      <?php if ($isEmployee): ?>
+        <?php if (!$hasCheckinToday): ?>
+          <a class="btn" href="<?php echo e(base_url('pos/absen.php?type=in')); ?>">Absen Masuk</a>
+        <?php elseif (!$hasCheckoutToday): ?>
+          <a class="btn" href="<?php echo e(base_url('pos/absen.php?type=out')); ?>">Absen Pulang</a>
+        <?php else: ?>
+          <button class="btn" type="button" disabled>Absen Lengkap</button>
+        <?php endif; ?>
+      <?php endif; ?>
       <a class="btn pos-logout" href="<?php echo e(base_url('pos/logout.php')); ?>">Logout</a>
     </div>
 
     <div class="pos-wrap">
+      <?php if ($isEmployee && !$hasCheckinToday): ?>
+        <div class="pos-panel pos-alert pos-alert-error">Sudah absensi hari ini? <a href="<?php echo e(base_url('pos/index.php?attendance_confirm=sudah')); ?>">Sudah</a> · <a href="<?php echo e(base_url('pos/index.php?attendance_confirm=belum')); ?>">Belum</a></div>
+      <?php endif; ?>
       <?php if ($notice): ?>
         <div class="pos-panel pos-alert pos-alert-success"><?php echo e($notice); ?></div>
       <?php endif; ?>
@@ -719,6 +757,7 @@ if (!empty($rewardCart)) {
                 <form method="post" enctype="multipart/form-data">
                   <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
                   <input type="hidden" name="action" value="checkout">
+                  <?php if ($canProcessPayment): ?>
                   <div class="pos-payment">
                     <label>Metode Pembayaran</label>
                     <div class="pos-payment-options">
@@ -742,6 +781,9 @@ if (!empty($rewardCart)) {
                     </div>
                     <small>Pastikan foto bukti pembayaran jelas sebelum checkout.</small>
                   </div>
+                  <?php else: ?>
+                    <div class="pos-alert" style="margin-bottom:10px">Role pegawai non-POS: pembayaran dinonaktifkan, transaksi disimpan sebagai unpaid.</div>
+                  <?php endif; ?>
                   <button class="btn pos-checkout" type="submit">Checkout</button>
                 </form>
               </div>
