@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $type = $postedType;
   $attendDate = trim((string)($_POST['attend_date'] ?? ''));
   $attendTime = trim((string)($_POST['attend_time'] ?? ''));
-  $photoData = (string)($_POST['photo_data'] ?? '');
   $deviceInfo = substr(trim((string)($_POST['device_info'] ?? '')), 0, 255);
 
   try {
@@ -39,20 +38,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!preg_match('/^\d{2}:\d{2}$/', $attendTime)) {
       throw new Exception('Waktu absen tidak valid.');
     }
-    if (!preg_match('#^data:image/(jpeg|png);base64,#i', $photoData, $m)) {
+    if (empty($_FILES['attendance_photo']['name'] ?? '')) {
       throw new Exception('Foto wajib dari kamera.');
     }
-    $raw = base64_decode(substr($photoData, strpos($photoData, ',') + 1), true);
-    if ($raw === false) {
-      throw new Exception('Foto tidak valid.');
+
+    $photo = $_FILES['attendance_photo'];
+    if (($photo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+      throw new Exception('Upload foto gagal.');
     }
-    if (strlen($raw) <= 0 || strlen($raw) > 2 * 1024 * 1024) {
+    if (($photo['size'] ?? 0) <= 0 || ($photo['size'] ?? 0) > 2 * 1024 * 1024) {
       throw new Exception('Ukuran foto maksimal 2MB.');
     }
+
+    $tmpPath = (string)($photo['tmp_name'] ?? '');
+    if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
+      throw new Exception('File foto tidak valid.');
+    }
+
     $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime = $finfo->buffer($raw) ?: '';
+    $mime = $finfo->file($tmpPath) ?: '';
     if (!in_array($mime, ['image/jpeg', 'image/png'], true)) {
       throw new Exception('MIME foto tidak valid.');
+    }
+
+    $raw = @file_get_contents($tmpPath);
+    if ($raw === false || $raw === '') {
+      throw new Exception('Foto tidak valid.');
     }
 
     $timeFull = $attendDate . ' ' . $attendTime . ':00';
@@ -81,7 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $dir = attendance_upload_dir($today);
     $uniq = bin2hex(random_bytes(5));
-    $fileName = 'user_' . (int)$me['id'] . '_' . str_replace('-', '', $today) . '_' . $type . '_' . $uniq . '.jpg';
+    $ext = $mime === 'image/png' ? '.png' : '.jpg';
+    $fileName = 'user_' . (int)$me['id'] . '_' . str_replace('-', '', $today) . '_' . $type . '_' . $uniq . $ext;
     $fullPath = $dir . $fileName;
     if (@file_put_contents($fullPath, $raw, LOCK_EX) === false) {
       throw new Exception('Gagal menyimpan foto.');
@@ -128,64 +140,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <h3>Absensi <?php echo $type === 'in' ? 'Masuk' : 'Pulang'; ?></h3>
     <?php if ($err): ?><div class="card" style="background:rgba(251,113,133,.12)"><?php echo e($err); ?></div><?php endif; ?>
     <?php if ($ok): ?><div class="card" style="background:rgba(52,211,153,.12)"><?php echo e($ok); ?></div><?php endif; ?>
-    <form method="post" id="absen-form">
+    <form method="post" id="absen-form" enctype="multipart/form-data">
       <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
       <input type="hidden" name="type" value="<?php echo e($type); ?>">
-      <input type="hidden" name="photo_data" id="photo_data" required>
       <input type="hidden" name="device_info" id="device_info">
       <div class="row"><label>Tanggal</label><input name="attend_date" value="<?php echo e($today); ?>" readonly></div>
       <div class="row"><label>Waktu</label><input type="time" name="attend_time" value="<?php echo e(app_now_jakarta('H:i')); ?>" required></div>
-      <video id="camera" autoplay playsinline style="width:100%;border-radius:12px;background:#111"></video>
-      <canvas id="canvas" style="display:none"></canvas>
-      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
-        <button class="btn" type="button" id="capture">Ambil Foto</button>
-        <button class="btn" type="submit">Simpan Absen</button>
-        <a class="btn" href="<?php echo e(base_url('pos/index.php')); ?>">Kembali POS</a>
+      <div class="row">
+        <label>Foto Absensi</label>
+        <input type="file" name="attendance_photo" id="attendance_photo" accept="image/jpeg,image/png" capture="user" required>
+        <small>Gunakan kamera HP untuk mengambil foto absensi.</small>
       </div>
-      <img id="preview" alt="Preview" style="width:100%;margin-top:10px;display:none;border-radius:12px">
-      <div id="cam_err" style="margin-top:10px;color:#fb7185"></div>
+      <div id="photo_preview_wrap" style="margin-top:10px;display:none">
+        <img id="photo_preview" alt="Preview foto absensi" style="max-width:100%;border-radius:12px">
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" type="submit">Simpan</button>
+        <a class="btn" href="<?php echo e(base_url('pos/index.php')); ?>">Kembali ke POS</a>
+      </div>
     </form>
   </div>
 </div>
 <script>
-(async function() {
-  const video = document.getElementById('camera');
-  const canvas = document.getElementById('canvas');
-  const capture = document.getElementById('capture');
-  const photoInput = document.getElementById('photo_data');
-  const preview = document.getElementById('preview');
-  const camErr = document.getElementById('cam_err');
   document.getElementById('device_info').value = navigator.userAgent || '';
 
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}, audio: false});
-    video.srcObject = stream;
-  } catch (err) {
-    camErr.textContent = 'Kamera tidak tersedia/ditolak. Absensi tidak dapat diproses tanpa kamera.';
-    capture.disabled = true;
-    return;
-  }
+  const fileInput = document.getElementById('attendance_photo');
+  const previewWrap = document.getElementById('photo_preview_wrap');
+  const previewImg = document.getElementById('photo_preview');
 
-  capture.addEventListener('click', () => {
-    const w = video.videoWidth || 640;
-    const h = video.videoHeight || 480;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, w, h);
-    const data = canvas.toDataURL('image/jpeg', 0.9);
-    photoInput.value = data;
-    preview.src = data;
-    preview.style.display = 'block';
-  });
-
-  document.getElementById('absen-form').addEventListener('submit', (ev) => {
-    if (!photoInput.value) {
-      ev.preventDefault();
-      camErr.textContent = 'Silakan ambil foto dari kamera terlebih dahulu.';
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) {
+      previewImg.src = '';
+      previewWrap.style.display = 'none';
+      return;
     }
+    previewImg.src = URL.createObjectURL(file);
+    previewWrap.style.display = 'block';
   });
-})();
 </script>
 </body>
 </html>

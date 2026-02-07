@@ -38,11 +38,8 @@ $attendanceToday = $isEmployee ? attendance_today_for_user((int)($me['id'] ?? 0)
 $hasCheckinToday = !empty($attendanceToday['checkin_time']);
 $hasCheckoutToday = !empty($attendanceToday['checkout_time']);
 
-if ($isEmployee && !$hasCheckinToday && ($_GET['attendance_confirm'] ?? '') === 'belum') {
-  redirect(base_url('pos/absen.php?type=in'));
-}
 if ($isEmployee && !$hasCheckinToday && ($_GET['attendance_confirm'] ?? '') !== 'sudah') {
-  $_SESSION['pos_err'] = 'Sudah absensi hari ini? Pilih "Belum" untuk absen masuk terlebih dahulu.';
+  redirect(base_url('pos/attendance_confirm.php'));
 }
 
 
@@ -497,9 +494,6 @@ if (!empty($rewardCart)) {
     </div>
 
     <div class="pos-wrap">
-      <?php if ($isEmployee && !$hasCheckinToday): ?>
-        <div class="pos-panel pos-alert pos-alert-error">Sudah absensi hari ini? <a href="<?php echo e(base_url('pos/index.php?attendance_confirm=sudah')); ?>">Sudah</a> · <a href="<?php echo e(base_url('pos/index.php?attendance_confirm=belum')); ?>">Belum</a></div>
-      <?php endif; ?>
       <?php if ($notice): ?>
         <div class="pos-panel pos-alert pos-alert-success"><?php echo e($notice); ?></div>
       <?php endif; ?>
