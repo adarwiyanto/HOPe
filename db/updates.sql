@@ -46,8 +46,9 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Perubahan role superadmin menjadi owner + undangan user
 UPDATE users SET role='owner' WHERE role='superadmin';
+UPDATE users SET role='pegawai' WHERE role='user';
 ALTER TABLE users
-  MODIFY role ENUM('owner','admin','user','pegawai') NOT NULL DEFAULT 'admin';
+  MODIFY role ENUM('owner','admin','pegawai') NOT NULL DEFAULT 'admin';
 
 CREATE TABLE IF NOT EXISTS user_invites (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -180,7 +181,7 @@ CREATE TABLE IF NOT EXISTS loyalty_rewards (
 
 -- Attendance + employee role POS/non-POS + schedule
 ALTER TABLE users
-  MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos') NOT NULL DEFAULT 'admin';
+  MODIFY role ENUM('owner','admin','pegawai','pegawai_pos','pegawai_non_pos') NOT NULL DEFAULT 'admin';
 
 CREATE TABLE IF NOT EXISTS employee_attendance (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -341,10 +342,11 @@ SET @has_manager_toko := (
     AND column_type LIKE "%manager_toko%"
 );
 SET @sql := IF(@has_manager_toko = 0,
-  "ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'",
+  "ALTER TABLE users MODIFY role ENUM('owner','admin','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'",
   'SELECT 1'
 );
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+UPDATE users SET role='pegawai' WHERE role='user';
 
 SET @idx_exists := (
   SELECT COUNT(*) FROM information_schema.statistics

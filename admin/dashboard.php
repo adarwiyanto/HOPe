@@ -16,7 +16,7 @@ $customCss = setting('custom_css', '');
 $u = current_user();
 $role = $u['role'] ?? '';
 
-if ($role === 'user' || is_employee_role($role) || $role === '' || $role === null) {
+if (is_employee_role($role) || $role === '' || $role === null) {
   redirect(base_url('pos/index.php'));
   exit;
 }

@@ -425,7 +425,8 @@ function ensure_owner_role(): void {
     $type = (string)($column['Type'] ?? '');
     if (strpos($type, "'owner'") === false || strpos($type, "'superadmin'") !== false) {
       db()->exec("UPDATE users SET role='owner' WHERE role='superadmin'");
-      db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'");
+      db()->exec("UPDATE users SET role='pegawai' WHERE role='user'");
+      db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'");
     }
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
@@ -530,7 +531,8 @@ function ensure_employee_roles(): void {
   $ensured = true;
 
   try {
-    db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','user','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'");
+    db()->exec("UPDATE users SET role='pegawai' WHERE role='user'");
+    db()->exec("ALTER TABLE users MODIFY role ENUM('owner','admin','pegawai','pegawai_pos','pegawai_non_pos','manager_toko') NOT NULL DEFAULT 'admin'");
   } catch (Throwable $e) {
     // Diamkan jika gagal agar tidak mengganggu halaman.
   }
