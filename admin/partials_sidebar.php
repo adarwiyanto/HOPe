@@ -58,6 +58,9 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
       <div class="submenu" id="m-produk">
         <a href="<?php echo e(base_url('admin/products.php')); ?>">Produk</a>
         <a href="<?php echo e(base_url('admin/product_categories.php')); ?>">Kategori Produk</a>
+        <a href="<?php echo e(base_url('admin/bom.php')); ?>">BOM Produk</a>
+        <a href="<?php echo e(base_url('admin/production.php')); ?>">Produksi</a>
+        <a href="<?php echo e(base_url('admin/inventory_reports.php')); ?>">Laporan Inventory</a>
       </div>
     </div>
 
@@ -69,6 +72,8 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
       <div class="submenu" id="m-transaksi">
         <a href="<?php echo e(base_url('admin/sales.php')); ?>">Penjualan</a>
         <a href="<?php echo e(base_url('admin/customers.php')); ?>">Pelanggan</a>
+        <a href="<?php echo e(base_url('admin/purchase_raw_material.php')); ?>">Pembelian Bahan Baku</a>
+        <a href="<?php echo e(base_url('admin/suppliers.php')); ?>">Master Supplier</a>
       </div>
     </div>
 
@@ -89,6 +94,7 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
           <a href="<?php echo e(base_url('admin/store.php')); ?>">Profil Toko</a>
           <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a>
           <a href="<?php echo e(base_url('admin/loyalty.php')); ?>">Loyalti Point</a>
+          <a href="<?php echo e(base_url('admin/inventory_settings.php')); ?>">Setting Produksi/Inventory</a>
           <?php if (($u['role'] ?? '') === 'owner'): ?>
             <a href="<?php echo e(base_url('admin/backup.php')); ?>">Backup Database</a>
           <?php endif; ?>

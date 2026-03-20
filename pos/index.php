@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../core/inventory.php';
 require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
@@ -12,12 +13,13 @@ ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 ensure_sales_transaction_code_column();
 ensure_sales_user_column();
+ensure_inventory_module_schema();
 
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', '');
 $me = current_user();
-$products = db()->query("SELECT id, name, price, image_path FROM products ORDER BY name ASC")->fetchAll();
+$products = db()->query("SELECT id, name, price, image_path, product_type, track_stock, allow_bom FROM products ORDER BY name ASC")->fetchAll();
 $hasProducts = !empty($products);
 $productsById = [];
 foreach ($products as $p) {
@@ -203,10 +205,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
       $db = db();
       $db->beginTransaction();
+      $branchId = active_branch_id();
       $transactionCode = 'TRX-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(2)));
       $stmt = $db->prepare("INSERT INTO sales (transaction_code, product_id, qty, price_each, total, payment_method, payment_proof_path, created_by) VALUES (?,?,?,?,?,?,?,?)");
       $receiptItems = [];
       $receiptTotal = 0.0;
+      $autoProductionIds = [];
+
+      foreach ($cart as $pid => $qty) {
+        if (empty($productsById[$pid])) continue;
+        $product = $productsById[$pid];
+        $qty = (float)$qty;
+        if ($qty <= 0) continue;
+        if ((string)($product['product_type'] ?? 'finished_good') !== 'finished_good' || (int)($product['track_stock'] ?? 1) !== 1) {
+          continue;
+        }
+
+        $stmtLock = $db->prepare("SELECT id FROM products WHERE id=? FOR UPDATE");
+        $stmtLock->execute([(int)$pid]);
+        $currentFgStock = branch_stock($branchId, (int)$pid);
+        if ($currentFgStock >= $qty) {
+          continue;
+        }
+        $shortage = $qty - $currentFgStock;
+        if (setting('pos_autoproduction_enabled', '1') !== '1') {
+          throw new Exception('Stok barang jadi tidak cukup dan auto-production POS nonaktif.');
+        }
+        $bom = get_active_bom_for_product((int)$pid, $branchId);
+        if (!$bom) {
+          throw new Exception('Stok barang jadi tidak cukup dan BOM aktif tidak ditemukan.');
+        }
+        $requirements = explode_bom_requirements((int)$bom['id'], $shortage);
+        foreach ($requirements as $req) {
+          $stmtLock->execute([(int)$req['material_product_id']]);
+          $materialStock = branch_stock($branchId, (int)$req['material_product_id']);
+          if ($materialStock < (float)$req['required_qty']) {
+            throw new Exception('Stok barang jadi kurang dan bahan baku auto-production tidak mencukupi.');
+          }
+        }
+        $productionId = create_production_with_items($db, [
+          'production_no' => 'APR-' . date('YmdHis') . '-' . strtoupper(bin2hex(random_bytes(2))),
+          'branch_id' => $branchId,
+          'bom_id' => (int)$bom['id'],
+          'finished_product_id' => (int)$pid,
+          'production_date' => date('Y-m-d'),
+          'qty_to_produce' => $shortage,
+          'status' => 'draft',
+          'mode_source' => 'pos_auto',
+          'notes' => 'Auto production from POS checkout',
+          'created_by' => (int)($me['id'] ?? 0),
+        ], $requirements);
+        post_production($productionId, (int)($me['id'] ?? 0), 'pos_sale_autoproduction_consume', 'pos_sale_autoproduction_output');
+        $autoProductionIds[] = $productionId;
+      }
+
       foreach ($cart as $pid => $qty) {
         if (empty($productsById[$pid])) {
           throw new Exception('Produk tidak ditemukan saat checkout.');
@@ -218,6 +270,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $price = (float)$productsById[$pid]['price'];
         $total = $price * $qty;
         $stmt->execute([$transactionCode, (int)$pid, $qty, $price, $total, $paymentMethod, $paymentProofPath, (int)($me['id'] ?? 0)]);
+        $stmtUpdateBranch = $db->prepare("UPDATE sales SET branch_id=? WHERE id=?");
+        $saleId = (int)$db->lastInsertId();
+        $stmtUpdateBranch->execute([$branchId, $saleId]);
+
+        if ((string)($productsById[$pid]['product_type'] ?? 'finished_good') !== 'service' && (int)($productsById[$pid]['track_stock'] ?? 1) === 1) {
+          $stockNow = branch_stock($branchId, (int)$pid);
+          if ($stockNow < $qty && setting('pos_autoproduction_allow_negative', '0') !== '1') {
+            throw new Exception('Stok tidak cukup untuk menyelesaikan penjualan POS.');
+          }
+          add_stock_ledger([
+            'branch_id' => $branchId,
+            'product_id' => (int)$pid,
+            'trans_type' => 'pos_sale',
+            'ref_table' => 'sales',
+            'ref_id' => $saleId,
+            'qty_in' => 0,
+            'qty_out' => $qty,
+            'unit_cost' => null,
+            'note' => 'Penjualan POS',
+            'created_by' => (int)($me['id'] ?? 0),
+          ]);
+        }
         $receiptItems[] = [
           'name' => $productsById[$pid]['name'],
           'qty' => $qty,
@@ -252,6 +326,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
           }
           $stmt->execute([$transactionCode, $pid, $qty, 0, 0, $paymentMethod, $paymentProofPath, (int)($me['id'] ?? 0)]);
+          $saleId = (int)$db->lastInsertId();
+          $stmtUpdateBranch = $db->prepare("UPDATE sales SET branch_id=? WHERE id=?");
+          $stmtUpdateBranch->execute([$branchId, $saleId]);
+          add_stock_ledger([
+            'branch_id' => $branchId,
+            'product_id' => $pid,
+            'trans_type' => 'pos_sale',
+            'ref_table' => 'sales',
+            'ref_id' => $saleId,
+            'qty_in' => 0,
+            'qty_out' => $qty,
+            'unit_cost' => null,
+            'note' => 'Penjualan POS reward',
+            'created_by' => (int)($me['id'] ?? 0),
+          ]);
           $receiptItems[] = [
             'name' => $reward['name'],
             'qty' => $qty,
@@ -259,6 +348,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'subtotal' => 0,
             'is_reward' => true,
           ];
+        }
+      }
+      if (!empty($autoProductionIds)) {
+        $stmtLink = $db->prepare("INSERT INTO sales_production_links (transaction_code, production_id, branch_id) VALUES (?,?,?)");
+        foreach ($autoProductionIds as $productionId) {
+          $stmtLink->execute([$transactionCode, (int)$productionId, $branchId]);
         }
       }
       $db->commit();

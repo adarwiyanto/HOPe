@@ -4,6 +4,7 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../core/inventory.php';
 require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
@@ -13,12 +14,19 @@ $id = (int)($_GET['id'] ?? 0);
 ensure_products_category_column();
 ensure_product_categories_table();
 ensure_products_best_seller_column();
-$product = ['name'=>'','category'=>'','price'=>'0','image_path'=>null,'is_best_seller'=>0];
+ensure_inventory_module_schema();
+$product = ['name'=>'','category'=>'','price'=>'0','image_path'=>null,'is_best_seller'=>0,'product_type'=>'finished_good','track_stock'=>1,'allow_direct_purchase'=>0,'allow_bom'=>0];
 
 if ($id) {
   $stmt = db()->prepare("SELECT * FROM products WHERE id=?");
   $stmt->execute([$id]);
   $product = $stmt->fetch() ?: $product;
+}
+$bomStatus = null;
+if ($id > 0) {
+  $stmt = db()->prepare("SELECT COUNT(*) AS total FROM bom_headers WHERE finished_product_id=? AND is_active=1");
+  $stmt->execute([$id]);
+  $bomStatus = (int)($stmt->fetch()['total'] ?? 0);
 }
 
 $err = '';
@@ -31,9 +39,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $category = trim($_POST['category'] ?? '');
   $price = normalize_money($_POST['price'] ?? '0');
   $isBestSeller = isset($_POST['is_best_seller']) ? 1 : 0;
+  $productType = (string)($_POST['product_type'] ?? 'finished_good');
+  $trackStock = isset($_POST['track_stock']) ? 1 : 0;
+  $allowDirectPurchase = isset($_POST['allow_direct_purchase']) ? 1 : 0;
+  $allowBom = isset($_POST['allow_bom']) ? 1 : 0;
 
   try {
     if ($name === '') throw new Exception('Nama produk wajib diisi.');
+    if (!in_array($productType, ['finished_good','raw_material','service'], true)) {
+      throw new Exception('Tipe produk tidak valid.');
+    }
+    if ($productType === 'raw_material') {
+      $allowBom = 0;
+      $allowDirectPurchase = 1;
+    }
+    if ($productType === 'service') {
+      $trackStock = 0;
+      $allowBom = 0;
+      $allowDirectPurchase = 0;
+    }
     if (!empty($categories)) {
       $categoryNames = array_map(static function ($cat) {
         return $cat['name'];
@@ -63,11 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($id) {
-      $stmt = db()->prepare("UPDATE products SET name=?, category=?, is_best_seller=?, price=?, image_path=? WHERE id=?");
-      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $id]);
+      $stmt = db()->prepare("UPDATE products SET name=?, category=?, is_best_seller=?, price=?, image_path=?, product_type=?, track_stock=?, allow_direct_purchase=?, allow_bom=? WHERE id=?");
+      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $productType, $trackStock, $allowDirectPurchase, $allowBom, $id]);
     } else {
-      $stmt = db()->prepare("INSERT INTO products (name, category, is_best_seller, price, image_path) VALUES (?,?,?,?,?)");
-      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath]);
+      $stmt = db()->prepare("INSERT INTO products (name, category, is_best_seller, price, image_path, product_type, track_stock, allow_direct_purchase, allow_bom) VALUES (?,?,?,?,?,?,?,?,?)");
+      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $productType, $trackStock, $allowDirectPurchase, $allowBom]);
     }
 
     redirect(base_url('admin/products.php'));
@@ -111,6 +135,15 @@ $customCss = setting('custom_css', '');
             <input name="name" value="<?php echo e($_POST['name'] ?? $product['name']); ?>" required>
           </div>
           <div class="grid cols-2">
+            <div class="row">
+              <label>Tipe Produk</label>
+              <?php $selectedType = $_POST['product_type'] ?? $product['product_type']; ?>
+              <select name="product_type">
+                <option value="finished_good" <?php echo $selectedType === 'finished_good' ? 'selected' : ''; ?>>Finished Good</option>
+                <option value="raw_material" <?php echo $selectedType === 'raw_material' ? 'selected' : ''; ?>>Raw Material</option>
+                <option value="service" <?php echo $selectedType === 'service' ? 'selected' : ''; ?>>Service</option>
+              </select>
+            </div>
             <div class="row">
               <label>Kategori</label>
               <?php
@@ -161,7 +194,29 @@ $customCss = setting('custom_css', '');
               Tandai sebagai best seller (tampil di paling atas)
             </label>
           </div>
+          <div class="grid cols-2">
+            <div class="row">
+              <label class="checkbox-row">
+                <input type="checkbox" name="track_stock" value="1" <?php echo !empty($_POST) ? (isset($_POST['track_stock']) ? 'checked' : '') : ((int)$product['track_stock'] === 1 ? 'checked' : ''); ?>>
+                Track stok produk ini
+              </label>
+            </div>
+            <div class="row">
+              <label class="checkbox-row">
+                <input type="checkbox" name="allow_direct_purchase" value="1" <?php echo !empty($_POST) ? (isset($_POST['allow_direct_purchase']) ? 'checked' : '') : ((int)$product['allow_direct_purchase'] === 1 ? 'checked' : ''); ?>>
+                Boleh dibeli langsung (raw material)
+              </label>
+              <label class="checkbox-row">
+                <input type="checkbox" name="allow_bom" value="1" <?php echo !empty($_POST) ? (isset($_POST['allow_bom']) ? 'checked' : '') : ((int)$product['allow_bom'] === 1 ? 'checked' : ''); ?>>
+                Gunakan BOM untuk produksi
+              </label>
+            </div>
+          </div>
           <button class="btn" type="submit">Simpan</button>
+          <?php if ($id > 0): ?>
+            <a class="btn" href="<?php echo e(base_url('admin/bom.php')); ?>">Kelola BOM</a>
+            <small>Status BOM aktif: <?php echo $bomStatus > 0 ? 'Ada' : 'Belum ada'; ?></small>
+          <?php endif; ?>
         </form>
       </div>
     </div>
