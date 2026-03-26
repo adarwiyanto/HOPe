@@ -4,12 +4,14 @@ require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
 require_once __DIR__ . '/../core/csrf.php';
+require_once __DIR__ . '/../core/inventory.php';
 require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
 require_admin();
 ensure_products_category_column();
 ensure_products_best_seller_column();
+ensure_inventory_module_schema();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete') {
   csrf_check();
@@ -62,7 +64,7 @@ $customCss = setting('custom_css', '');
         <table class="table">
           <thead>
             <tr>
-              <th>Foto</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Best Seller</th><th>Aksi</th>
+              <th>Foto</th><th>Nama</th><th>Tipe</th><th>Kategori</th><th>Harga</th><th>BOM</th><th>Best Seller</th><th>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -76,8 +78,10 @@ $customCss = setting('custom_css', '');
                   <?php endif; ?>
                 </td>
                 <td><?php echo e($p['name']); ?></td>
+                <td><?php echo e((string)($p['product_type'] ?? 'finished_good')); ?></td>
                 <td><?php echo e($p['category'] ?: 'Tanpa kategori'); ?></td>
                 <td>Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></td>
+                <td><?php echo !empty($p['allow_bom']) ? 'Aktif' : '-'; ?></td>
                 <td><?php echo !empty($p['is_best_seller']) ? '⭐' : '-'; ?></td>
                 <td style="display:flex;gap:8px;align-items:center">
                   <a class="btn" href="<?php echo e(base_url('admin/product_form.php?id=' . (int)$p['id'])); ?>">Edit</a>
