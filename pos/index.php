@@ -19,6 +19,7 @@ $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', '');
 $me = current_user();
+$isOwner = (string)($me['role'] ?? '') === 'owner';
 $products = db()->query("SELECT id, name, price, image_path, product_type, track_stock, allow_bom FROM products ORDER BY name ASC")->fetchAll();
 $hasProducts = !empty($products);
 $productsById = [];
@@ -28,6 +29,7 @@ foreach ($products as $p) {
 
 $cart = $_SESSION['pos_cart'] ?? [];
 $rewardCart = $_SESSION['pos_reward_cart'] ?? [];
+$bypassItems = $_SESSION['pos_bypass_items'] ?? [];
 $activeOrderId = $_SESSION['pos_order_id'] ?? null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -37,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $rewardId = (int)($_POST['reward_id'] ?? 0);
 
   try {
-    if (in_array($action, ['add','inc','dec','remove'], true)) {
+    if (in_array($action, ['add','inc','dec','remove','toggle_bypass'], true)) {
       if ($productId <= 0 || empty($productsById[$productId])) {
         throw new Exception('Produk tidak ditemukan.');
       }
@@ -54,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'new_transaction') {
       $cart = [];
       $rewardCart = [];
+      $bypassItems = [];
       unset($_SESSION['pos_receipt']);
       if (!empty($_SESSION['pos_order_id'])) {
         $orderId = (int)$_SESSION['pos_order_id'];
@@ -72,13 +75,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $current = (int)($cart[$productId] ?? 1);
       if ($current <= 1) {
         unset($cart[$productId]);
+        unset($bypassItems[$productId]);
       } else {
         $cart[$productId] = $current - 1;
       }
       $_SESSION['pos_notice'] = 'Jumlah produk dikurangi.';
     } elseif ($action === 'remove') {
       unset($cart[$productId]);
+      unset($bypassItems[$productId]);
       $_SESSION['pos_notice'] = 'Produk dihapus dari keranjang.';
+    } elseif ($action === 'toggle_bypass') {
+      if (!$isOwner) {
+        throw new Exception('Hanya owner yang dapat bypass BOM/stok.');
+      }
+      if ($productId <= 0 || empty($productsById[$productId]) || !isset($cart[$productId])) {
+        throw new Exception('Produk tidak ditemukan di keranjang.');
+      }
+      if (!empty($bypassItems[$productId])) {
+        unset($bypassItems[$productId]);
+        $_SESSION['pos_notice'] = 'Bypass BOM/Stok dinonaktifkan.';
+      } else {
+        $bypassItems[$productId] = 1;
+        $_SESSION['pos_notice'] = 'Bypass BOM/Stok diaktifkan.';
+      }
     } elseif ($action === 'load_order') {
       $orderId = (int)($_POST['order_id'] ?? 0);
       if ($orderId <= 0) {
@@ -116,6 +135,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pid > 0 && $qty > 0) {
           $cart[$pid] = $qty;
         }
+      }
+      foreach (array_keys($bypassItems) as $bypassPid) {
+        if (empty($cart[(int)$bypassPid])) unset($bypassItems[(int)$bypassPid]);
       }
       $stmt = $db->prepare("UPDATE orders SET status='processing' WHERE id=?");
       $stmt->execute([$orderId]);
@@ -217,6 +239,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $product = $productsById[$pid];
         $qty = (float)$qty;
         if ($qty <= 0) continue;
+        $isBypass = $isOwner && !empty($bypassItems[(int)$pid]);
+        if ($isBypass) {
+          continue;
+        }
         if ((string)($product['product_type'] ?? 'finished_good') !== 'finished_good' || (int)($product['track_stock'] ?? 1) !== 1) {
           continue;
         }
@@ -263,6 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($productsById[$pid])) {
           throw new Exception('Produk tidak ditemukan saat checkout.');
         }
+        $isBypass = $isOwner && !empty($bypassItems[(int)$pid]);
         $qty = (int)$qty;
         if ($qty <= 0) {
           throw new Exception('Jumlah produk tidak valid.');
@@ -276,7 +303,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ((string)($productsById[$pid]['product_type'] ?? 'finished_good') !== 'service' && (int)($productsById[$pid]['track_stock'] ?? 1) === 1) {
           $stockNow = branch_stock($branchId, (int)$pid);
-          if ($stockNow < $qty && setting('pos_autoproduction_allow_negative', '0') !== '1') {
+          if (!$isBypass && $stockNow < $qty && setting('pos_autoproduction_allow_negative', '0') !== '1') {
             throw new Exception('Stok tidak cukup untuk menyelesaikan penjualan POS.');
           }
           add_stock_ledger([
@@ -399,6 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ];
       $cart = [];
       $rewardCart = [];
+      $bypassItems = [];
       $_SESSION['pos_notice'] = 'Transaksi berhasil disimpan.';
     }
   } catch (Throwable $e) {
@@ -408,8 +436,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['pos_err'] = $e->getMessage();
   }
 
+  foreach (array_keys($bypassItems) as $bypassPid) {
+    if (empty($cart[(int)$bypassPid])) unset($bypassItems[(int)$bypassPid]);
+  }
   $_SESSION['pos_cart'] = $cart;
   $_SESSION['pos_reward_cart'] = $rewardCart;
+  $_SESSION['pos_bypass_items'] = $bypassItems;
   redirect(base_url('pos/index.php'));
 }
 
@@ -499,6 +531,7 @@ foreach ($cart as $pid => $qty) {
     'qty' => $qty,
     'subtotal' => $subtotal,
     'is_reward' => false,
+    'is_bypass' => $isOwner && !empty($bypassItems[(int)$pid]),
   ];
 }
 if (!empty($rewardCart)) {
@@ -746,6 +779,8 @@ if (!empty($rewardCart)) {
                         <?php echo e($item['name']); ?>
                         <?php if (!empty($item['is_reward'])): ?>
                           <span class="pos-reward-badge">Reward</span>
+                        <?php elseif (!empty($item['is_bypass'])): ?>
+                          <span class="pos-bypass-badge">Bypass BOM/Stok</span>
                         <?php endif; ?>
                       </div>
                       <div class="pos-cart-item-price">
@@ -782,6 +817,14 @@ if (!empty($rewardCart)) {
                         <div class="pos-cart-subtotal">Rp <?php echo e(number_format($item['subtotal'], 0, '.', ',')); ?></div>
                       <?php endif; ?>
                     </div>
+                    <?php if (empty($item['is_reward']) && $isOwner): ?>
+                      <form method="post" class="pos-bypass-form">
+                        <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                        <input type="hidden" name="action" value="toggle_bypass">
+                        <input type="hidden" name="product_id" value="<?php echo e((string)$item['id']); ?>">
+                        <label class="pos-bypass-toggle"><input type="checkbox" <?php echo !empty($item['is_bypass']) ? 'checked' : ''; ?> onchange="this.form.submit()"> Lewati BOM &amp; stok</label>
+                      </form>
+                    <?php endif; ?>
                     <?php if (!empty($item['is_reward'])): ?>
                       <form method="post" class="pos-remove-form">
                         <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
