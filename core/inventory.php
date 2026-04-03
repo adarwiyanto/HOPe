@@ -11,6 +11,7 @@ function ensure_inventory_module_schema(): void {
   ensure_products_inventory_columns();
   ensure_suppliers_table();
   ensure_purchase_tables();
+  ensure_purchase_revision_audit_table();
   ensure_bom_tables();
   ensure_production_tables();
   ensure_stock_ledger_table();
@@ -107,6 +108,25 @@ function ensure_purchase_tables(): void {
       KEY idx_purchase_items_product (product_id),
       CONSTRAINT fk_purchase_items_purchase FOREIGN KEY (purchase_id) REFERENCES purchase_headers(id) ON DELETE CASCADE,
       CONSTRAINT fk_purchase_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+    ) ENGINE=InnoDB");
+  } catch (Throwable $e) {
+  }
+}
+
+function ensure_purchase_revision_audit_table(): void {
+  try {
+    db()->exec("CREATE TABLE IF NOT EXISTS purchase_revision_audit (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      purchase_id INT NOT NULL,
+      purchase_no VARCHAR(50) NOT NULL,
+      edited_by INT NULL,
+      edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      edit_reason TEXT NULL,
+      snapshot_before LONGTEXT NULL,
+      snapshot_after LONGTEXT NULL,
+      change_summary LONGTEXT NULL,
+      KEY idx_purchase_revision_purchase (purchase_id, edited_at),
+      KEY idx_purchase_revision_no (purchase_no)
     ) ENGINE=InnoDB");
   } catch (Throwable $e) {
   }

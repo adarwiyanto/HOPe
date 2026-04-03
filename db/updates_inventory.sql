@@ -66,6 +66,20 @@ CREATE TABLE IF NOT EXISTS purchase_items (
   CONSTRAINT fk_purchase_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS purchase_revision_audit (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  purchase_id INT NOT NULL,
+  purchase_no VARCHAR(50) NOT NULL,
+  edited_by INT NULL,
+  edited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  edit_reason TEXT NULL,
+  snapshot_before LONGTEXT NULL,
+  snapshot_after LONGTEXT NULL,
+  change_summary LONGTEXT NULL,
+  KEY idx_purchase_revision_purchase (purchase_id, edited_at),
+  KEY idx_purchase_revision_no (purchase_no)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS bom_headers (
   id INT AUTO_INCREMENT PRIMARY KEY,
   branch_id INT NULL,
