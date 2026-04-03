@@ -222,7 +222,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
                       <span class="landing-product-highlight">Best Seller</span>
                     <?php endif; ?>
                   </span>
-                  <span class="badge">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></span>
+                  <span class="badge">Rp <?php echo e(format_number_id((float)$p['price'])); ?></span>
                 </span>
               </span>
             </button>
@@ -244,7 +244,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
                       <span class="landing-product-highlight">Best Seller</span>
                     <?php endif; ?>
                   </span>
-                  <span class="badge">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></span>
+                  <span class="badge">Rp <?php echo e(format_number_id((float)$p['price'])); ?></span>
                 </span>
               </span>
             </div>
@@ -278,7 +278,7 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
               <div class="landing-cart-item">
                 <div>
                   <div class="landing-cart-name"><?php echo e($item['name']); ?></div>
-                  <div class="landing-cart-price">Rp <?php echo e(number_format((float)$item['price'], 0, '.', ',')); ?></div>
+                  <div class="landing-cart-price">Rp <?php echo e(format_number_id((float)$item['price'])); ?></div>
                 </div>
                 <div class="landing-cart-actions">
                   <form method="post">
@@ -301,13 +301,13 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
                     <button class="btn btn-ghost" type="submit">Hapus</button>
                   </form>
                 </div>
-                <div class="landing-cart-subtotal">Rp <?php echo e(number_format((float)$item['subtotal'], 0, '.', ',')); ?></div>
+                <div class="landing-cart-subtotal">Rp <?php echo e(format_number_id((float)$item['subtotal'])); ?></div>
               </div>
             <?php endforeach; ?>
           </div>
           <div class="landing-cart-summary">
             <div>Total (<?php echo e((string)$cartCount); ?> item)</div>
-            <strong>Rp <?php echo e(number_format((float)$cartTotal, 0, '.', ',')); ?></strong>
+            <strong>Rp <?php echo e(format_number_id((float)$cartTotal)); ?></strong>
           </div>
           <?php if (!$customer): ?>
             <div class="card landing-alert" style="margin-top:12px">

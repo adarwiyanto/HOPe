@@ -654,7 +654,7 @@ if (!empty($rewardCart)) {
                     <?php if (!empty($item['is_reward'])): ?>
                       Gratis
                     <?php else: ?>
-                      Rp <?php echo e(number_format((float)$item['price'], 0, '.', ',')); ?>
+                      Rp <?php echo e(format_number_id((float)$item['price'])); ?>
                     <?php endif; ?>
                   </div>
                 </div>
@@ -662,7 +662,7 @@ if (!empty($rewardCart)) {
                   <?php if (!empty($item['is_reward'])): ?>
                     Gratis
                   <?php else: ?>
-                    Rp <?php echo e(number_format((float)$item['subtotal'], 0, '.', ',')); ?>
+                    Rp <?php echo e(format_number_id((float)$item['subtotal'])); ?>
                   <?php endif; ?>
                 </div>
               </div>
@@ -671,7 +671,7 @@ if (!empty($rewardCart)) {
 
           <div class="pos-receipt-total">
             <span>Total</span>
-            <strong>Rp <?php echo e(number_format((float)$receipt['total'], 0, '.', ',')); ?></strong>
+            <strong>Rp <?php echo e(format_number_id((float)$receipt['total'])); ?></strong>
           </div>
           <div class="pos-receipt-meta">
             <div>Pembayaran: <?php echo e(strtoupper($receipt['payment'] ?? '-')); ?></div>
@@ -712,7 +712,7 @@ if (!empty($rewardCart)) {
                   </div>
                   <div class="pos-product-info">
                     <div class="pos-product-name"><?php echo e($p['name']); ?></div>
-                    <div class="pos-product-price">Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></div>
+                    <div class="pos-product-price">Rp <?php echo e(format_number_id((float)$p['price'])); ?></div>
                   </div>
                   <form method="post" class="pos-product-action">
                     <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
@@ -787,7 +787,7 @@ if (!empty($rewardCart)) {
                         <?php if (!empty($item['is_reward'])): ?>
                           Gratis
                         <?php else: ?>
-                          Rp <?php echo e(number_format($item['price'], 0, '.', ',')); ?>
+                          Rp <?php echo e(format_number_id($item['price'])); ?>
                         <?php endif; ?>
                       </div>
                     </div>
@@ -814,7 +814,7 @@ if (!empty($rewardCart)) {
                             <button class="btn pos-qty-btn" type="submit">+</button>
                           </form>
                         </div>
-                        <div class="pos-cart-subtotal">Rp <?php echo e(number_format($item['subtotal'], 0, '.', ',')); ?></div>
+                        <div class="pos-cart-subtotal">Rp <?php echo e(format_number_id($item['subtotal'])); ?></div>
                       <?php endif; ?>
                     </div>
                     <?php if (empty($item['is_reward']) && $isOwner): ?>
@@ -847,7 +847,7 @@ if (!empty($rewardCart)) {
               <div class="pos-summary">
                 <div class="pos-summary-row">
                   <span>Total</span>
-                  <strong>Rp <?php echo e(number_format($total, 0, '.', ',')); ?></strong>
+                  <strong>Rp <?php echo e(format_number_id($total)); ?></strong>
                 </div>
                 <form method="post" class="pos-new-transaction-form">
                   <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">

@@ -406,7 +406,7 @@ $customCss = setting('custom_css', '');
                     <strong><?php echo e($displayCode); ?></strong>
                     <span><?php echo e($tx['sold_at']); ?></span>
                   </div>
-                  <div><strong>Rp <?php echo e(number_format((float)$tx['total_amount'], 0, '.', ',')); ?></strong></div>
+                  <div><strong>Rp <?php echo e(format_number_id((float)$tx['total_amount'])); ?></strong></div>
                 </div>
                 <div class="transaction-summary">
                   <span>Kasir: <?php echo e($tx['cashier_name'] ?? '-'); ?></span>
@@ -432,7 +432,7 @@ $customCss = setting('custom_css', '');
                 <?php if (!empty($items)): ?>
                   <ul class="transaction-items">
                     <?php foreach ($items as $item): ?>
-                      <li><?php echo e($item['product_name']); ?> × <?php echo e((string)$item['qty']); ?> (Rp <?php echo e(number_format((float)$item['total'], 0, '.', ',')); ?>)</li>
+                      <li><?php echo e($item['product_name']); ?> × <?php echo e((string)$item['qty']); ?> (Rp <?php echo e(format_number_id((float)$item['total'])); ?>)</li>
                     <?php endforeach; ?>
                   </ul>
                 <?php endif; ?>
