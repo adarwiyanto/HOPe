@@ -424,7 +424,7 @@ if ($role === 'owner') {
 
 function format_rupiah($amount)
 {
-  return 'Rp ' . number_format((float)$amount, 0, '.', ',');
+  return 'Rp ' . format_number_id((float)$amount);
 }
 ?>
 <!doctype html>
@@ -595,8 +595,8 @@ function format_rupiah($amount)
                 $label = str_pad((string)$hour, 2, '0', STR_PAD_LEFT) . ':00';
               ?>
               <div class="hourly-bar">
-                <div class="hourly-bar-value"><?php echo e(number_format($avg, 1)); ?></div>
-                <div class="hourly-bar-fill" style="height:<?php echo e(number_format($height, 2)); ?>px"></div>
+                <div class="hourly-bar-value"><?php echo e(format_number_id($avg)); ?></div>
+                <div class="hourly-bar-fill" style="height:<?php echo e(number_format($height, 2, '.', '')); ?>px"></div>
                 <div class="hourly-bar-label"><?php echo e($label); ?></div>
               </div>
             <?php endforeach; ?>
@@ -645,7 +645,7 @@ function format_rupiah($amount)
                   <?php
                   if ($superStats['sales_last_month'] > 0) {
                     $growth = (($superStats['sales_month'] - $superStats['sales_last_month']) / $superStats['sales_last_month']) * 100;
-                    echo e(number_format($growth, 1)) . '%';
+                    echo e(format_number_id($growth)) . '%';
                   } else {
                     echo 'N/A';
                   }
@@ -772,7 +772,7 @@ function format_rupiah($amount)
               $returnRateDenom = $superStats['returns_month'] + $superStats['tx_month'];
               $returnRate = $returnRateDenom > 0 ? ($superStats['returns_month'] / $returnRateDenom) * 100 : 0;
               ?>
-              <strong><?php echo e(number_format($returnRate, 1)); ?>%</strong>
+              <strong><?php echo e(format_number_id($returnRate)); ?>%</strong>
               (<?php echo e((string)$superStats['returns_month']); ?> retur dari <?php echo e((string)$returnRateDenom); ?> transaksi)
             </p>
           </div>

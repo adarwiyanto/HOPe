@@ -3,6 +3,10 @@ function e(string $s): string {
   return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
+function format_number_id($number, int $decimals = 1): string {
+  return number_format((float)$number, $decimals, ',', '.');
+}
+
 function base_url(string $path = ''): string {
   $cfg = app_config();
   $base = rtrim($cfg['app']['base_url'], '/');

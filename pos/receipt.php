@@ -84,8 +84,8 @@ $receiptValid = $receipt && $receiptId !== '' && $receiptId === ($receipt['id'] 
             <div class="receipt-item">
               <div class="receipt-item-name"><?php echo e($item['name']); ?></div>
               <div class="receipt-item-row">
-                <div class="receipt-item-qty"><?php echo e((string)$item['qty']); ?> x Rp <?php echo e(number_format((float)$item['price'], 0, '.', ',')); ?></div>
-                <div class="receipt-item-subtotal">Rp <?php echo e(number_format((float)$item['subtotal'], 0, '.', ',')); ?></div>
+                <div class="receipt-item-qty"><?php echo e((string)$item['qty']); ?> x Rp <?php echo e(format_number_id((float)$item['price'])); ?></div>
+                <div class="receipt-item-subtotal">Rp <?php echo e(format_number_id((float)$item['subtotal'])); ?></div>
               </div>
             </div>
           <?php endforeach; ?>
@@ -94,15 +94,15 @@ $receiptValid = $receipt && $receiptId !== '' && $receiptId === ($receipt['id'] 
         <div class="receipt-summary">
           <div class="receipt-line">
             <span>Total</span>
-            <span>Rp <?php echo e(number_format((float)$receipt['total'], 0, '.', ',')); ?></span>
+            <span>Rp <?php echo e(format_number_id((float)$receipt['total'])); ?></span>
           </div>
           <div class="receipt-line">
             <span>Bayar</span>
-            <span>Rp <?php echo e(number_format((float)$receipt['total'], 0, '.', ',')); ?></span>
+            <span>Rp <?php echo e(format_number_id((float)$receipt['total'])); ?></span>
           </div>
           <div class="receipt-line">
             <span>Kembalian</span>
-            <span>Rp <?php echo e(number_format(0, 0, '.', ',')); ?></span>
+            <span>Rp <?php echo e(format_number_id(0)); ?></span>
           </div>
           <div class="receipt-line">
             <span>Pembayaran</span>
