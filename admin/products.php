@@ -80,7 +80,7 @@ $customCss = setting('custom_css', '');
                 <td><?php echo e($p['name']); ?></td>
                 <td><?php echo e((string)($p['product_type'] ?? 'finished_good')); ?></td>
                 <td><?php echo e($p['category'] ?: 'Tanpa kategori'); ?></td>
-                <td>Rp <?php echo e(number_format((float)$p['price'], 0, '.', ',')); ?></td>
+                <td>Rp <?php echo e(format_number_id((float)$p['price'])); ?></td>
                 <td><?php echo !empty($p['allow_bom']) ? 'Aktif' : '-'; ?></td>
                 <td><?php echo !empty($p['is_best_seller']) ? '⭐' : '-'; ?></td>
                 <td style="display:flex;gap:8px;align-items:center">
