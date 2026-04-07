@@ -20,7 +20,7 @@ $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', '');
 $me = current_user();
 $isOwner = (string)($me['role'] ?? '') === 'owner';
-$products = db()->query("SELECT id, name, price, image_path, product_type, track_stock, allow_bom FROM products ORDER BY name ASC")->fetchAll();
+$products = db()->query("SELECT id, name, price, image_path, product_type, track_stock, allow_bom FROM products WHERE show_on_pos = 1 ORDER BY name ASC")->fetchAll();
 $hasProducts = !empty($products);
 $productsById = [];
 foreach ($products as $p) {
