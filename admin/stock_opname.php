@@ -35,7 +35,10 @@ $branchId = (int)($_GET['branch_id'] ?? active_branch_id());
 $status = trim((string)($_GET['status'] ?? ''));
 $branches = inventory_branches();
 $params = [$branchId];
-$sql = "SELECT h.*, b.branch_name, u.name creator_name FROM stock_opname_headers h
+$sql = "SELECT h.*, b.branch_name, u.name creator_name,
+  (SELECT COUNT(*) FROM stock_opname_items soi WHERE soi.opname_id=h.id) AS total_items,
+  (SELECT COUNT(*) FROM stock_opname_items soi WHERE soi.opname_id=h.id AND ABS(soi.variance_qty) > 0.00001) AS total_variance_items
+  FROM stock_opname_headers h
   JOIN branches b ON b.id=h.branch_id
   LEFT JOIN users u ON u.id=h.created_by
   WHERE h.branch_id=?";
@@ -80,13 +83,14 @@ function opname_status_badge(string $status): string {
   <div class="row" style="align-self:end"><a class="btn" href="<?php echo e(base_url('admin/stock_opname_form.php?branch_id=' . $branchId)); ?>">Buat Draft Opname</a></div>
 </form>
 </div>
-<div class="card"><table class="table"><thead><tr><th>No Opname</th><th>Tanggal</th><th>Cabang</th><th>Petugas</th><th>Status</th><th>Aksi</th></tr></thead><tbody>
-<?php if(empty($rows)): ?><tr><td colspan="6" style="text-align:center;color:#94a3b8">Belum ada data.</td></tr><?php else: foreach($rows as $r): ?>
+<div class="card"><table class="table"><thead><tr><th>No Opname</th><th>Tanggal</th><th>Cabang</th><th>Petugas</th><th>Ringkasan</th><th>Status</th><th>Aksi</th></tr></thead><tbody>
+<?php if(empty($rows)): ?><tr><td colspan="7" style="text-align:center;color:#94a3b8">Belum ada data.</td></tr><?php else: foreach($rows as $r): ?>
 <tr>
   <td><?php echo e((string)$r['opname_no']); ?></td>
   <td><?php echo e((string)$r['opname_date']); ?></td>
   <td><?php echo e((string)$r['branch_name']); ?></td>
   <td><?php echo e((string)($r['creator_name'] ?? '-')); ?></td>
+  <td><?php echo e((string)((int)($r['total_items'] ?? 0))); ?> item / selisih <?php echo e((string)((int)($r['total_variance_items'] ?? 0))); ?></td>
   <td><span class="badge" style="<?php echo opname_status_badge((string)$r['status']); ?>"><?php echo e((string)$r['status']); ?></span></td>
   <td style="display:flex;gap:6px;flex-wrap:wrap">
     <a class="btn btn-light" href="<?php echo e(base_url('admin/stock_opname_form.php?id=' . (int)$r['id'])); ?>">Detail</a>
