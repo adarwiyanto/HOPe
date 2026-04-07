@@ -15,6 +15,8 @@ function ensure_inventory_module_schema(): void {
   ensure_bom_tables();
   ensure_production_tables();
   ensure_stock_ledger_table();
+  ensure_products_reorder_level_column();
+  ensure_stock_opname_tables();
   ensure_sales_inventory_columns();
   ensure_sales_production_links_table();
   ensure_inventory_settings_defaults();
@@ -240,6 +242,60 @@ function ensure_sales_inventory_columns(): void {
   }
 }
 
+function ensure_products_reorder_level_column(): void {
+  try {
+    db()->exec("ALTER TABLE products ADD COLUMN reorder_level DECIMAL(18,4) NOT NULL DEFAULT 0 AFTER track_stock");
+  } catch (Throwable $e) {
+    // no-op
+  }
+}
+
+function ensure_stock_opname_tables(): void {
+  try {
+    db()->exec("CREATE TABLE IF NOT EXISTS stock_opname_headers (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      opname_no VARCHAR(80) NOT NULL,
+      branch_id INT NOT NULL,
+      opname_date DATE NOT NULL,
+      status ENUM('draft','waiting_approval','approved','rejected','cancelled') NOT NULL DEFAULT 'draft',
+      notes TEXT NULL,
+      approval_note TEXT NULL,
+      created_by INT NOT NULL,
+      approved_by INT NULL,
+      approved_at TIMESTAMP NULL DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_stock_opname_no (opname_no),
+      KEY idx_stock_opname_branch_status_date (branch_id,status,opname_date),
+      KEY idx_stock_opname_created_by (created_by),
+      KEY idx_stock_opname_approved_by (approved_by)
+    ) ENGINE=InnoDB");
+  } catch (Throwable $e) {
+  }
+
+  try {
+    db()->exec("CREATE TABLE IF NOT EXISTS stock_opname_items (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      opname_id BIGINT NOT NULL,
+      product_id INT NOT NULL,
+      system_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
+      physical_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
+      variance_qty DECIMAL(18,4) NOT NULL DEFAULT 0,
+      variance_type ENUM('plus','minus','zero') NOT NULL DEFAULT 'zero',
+      reason_note VARCHAR(255) NULL,
+      line_note VARCHAR(255) NULL,
+      warning_flag TINYINT(1) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uniq_stock_opname_item (opname_id,product_id),
+      KEY idx_stock_opname_item_product (product_id),
+      CONSTRAINT fk_stock_opname_items_header FOREIGN KEY (opname_id) REFERENCES stock_opname_headers(id) ON DELETE CASCADE,
+      CONSTRAINT fk_stock_opname_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
+    ) ENGINE=InnoDB");
+  } catch (Throwable $e) {
+  }
+}
+
 function ensure_sales_production_links_table(): void {
   try {
     db()->exec("CREATE TABLE IF NOT EXISTS sales_production_links (
@@ -424,4 +480,256 @@ function post_production(int $productionId, int $userId, string $consumeTransTyp
 
   $stmt = $db->prepare("UPDATE production_headers SET status='posted', posted_by=?, posted_at=NOW() WHERE id=?");
   $stmt->execute([$userId, $productionId]);
+}
+
+function inventory_is_owner(array $user): bool {
+  return ($user['role'] ?? '') === 'owner';
+}
+
+function inventory_require_stock_role(): array {
+  require_admin();
+  $u = current_user() ?? [];
+  if (!in_array(($u['role'] ?? ''), ['owner', 'admin'], true)) {
+    http_response_code(403);
+    exit('Forbidden');
+  }
+  return $u;
+}
+
+function stock_opname_warning_threshold(): float {
+  return 10.0;
+}
+
+function stock_variance_needs_warning(float $varianceQty): bool {
+  return abs($varianceQty) > stock_opname_warning_threshold();
+}
+
+function stock_variance_reason_required(float $varianceQty): bool {
+  return abs($varianceQty) > 0.00001;
+}
+
+function stock_status_label(float $stockQty, float $reorderLevel): string {
+  if ($stockQty <= 0) return 'Habis';
+  if ($reorderLevel > 0 && $stockQty <= $reorderLevel) return 'Menipis';
+  return 'Aman';
+}
+
+function generate_stock_opname_no(PDO $db): string {
+  $prefix = 'SO-' . date('Ymd-His');
+  for ($i = 0; $i < 10; $i++) {
+    $suffix = strtoupper(bin2hex(random_bytes(2)));
+    $no = $prefix . '-' . $suffix;
+    $stmt = $db->prepare("SELECT id FROM stock_opname_headers WHERE opname_no=? LIMIT 1");
+    $stmt->execute([$no]);
+    if (!$stmt->fetch()) return $no;
+  }
+  return $prefix . '-' . strtoupper(bin2hex(random_bytes(4)));
+}
+
+function stock_products_for_opname(int $branchId, string $search = '', string $category = '', string $productType = ''): array {
+  $params = [$branchId];
+  $sql = "SELECT p.id, p.name, p.category, p.product_type, p.track_stock, p.reorder_level,
+      COALESCE(SUM(sl.qty_in - sl.qty_out),0) AS current_stock
+    FROM products p
+    LEFT JOIN stock_ledger sl ON sl.product_id=p.id AND sl.branch_id=?
+    WHERE p.track_stock=1 AND p.product_type IN ('raw_material','finished_good')";
+
+  if ($search !== '') {
+    $sql .= " AND (p.name LIKE ? OR COALESCE(p.category,'') LIKE ? OR CAST(p.id AS CHAR) LIKE ?)";
+    $term = '%' . $search . '%';
+    $params[] = $term;
+    $params[] = $term;
+    $params[] = $term;
+  }
+  if ($category !== '') {
+    $sql .= " AND COALESCE(p.category,'') = ?";
+    $params[] = $category;
+  }
+  if ($productType !== '' && in_array($productType, ['raw_material', 'finished_good', 'service'], true)) {
+    $sql .= " AND p.product_type = ?";
+    $params[] = $productType;
+  }
+  $sql .= " GROUP BY p.id ORDER BY p.name ASC";
+
+  $stmt = db()->prepare($sql);
+  $stmt->execute($params);
+  return $stmt->fetchAll();
+}
+
+function stock_categories(): array {
+  $stmt = db()->query("SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category<>'' ORDER BY category ASC");
+  return $stmt->fetchAll();
+}
+
+function create_stock_opname_draft(PDO $db, array $header, array $products): int {
+  if (empty($products)) throw new Exception('Tidak ada produk untuk opname.');
+  $opnameNo = generate_stock_opname_no($db);
+  $stmt = $db->prepare("INSERT INTO stock_opname_headers (opname_no,branch_id,opname_date,status,notes,created_by) VALUES (?,?,?,?,?,?)");
+  $stmt->execute([
+    $opnameNo,
+    (int)$header['branch_id'],
+    (string)$header['opname_date'],
+    'draft',
+    $header['notes'] ?? null,
+    (int)$header['created_by'],
+  ]);
+  $opnameId = (int)$db->lastInsertId();
+
+  $itemStmt = $db->prepare("INSERT INTO stock_opname_items
+    (opname_id,product_id,system_qty,physical_qty,variance_qty,variance_type,reason_note,line_note,warning_flag)
+    VALUES (?,?,?,?,?,?,?,?,?)");
+  foreach ($products as $p) {
+    $systemQty = (float)($p['current_stock'] ?? 0);
+    $itemStmt->execute([$opnameId, (int)$p['id'], $systemQty, $systemQty, 0, 'zero', null, null, 0]);
+  }
+  return $opnameId;
+}
+
+function get_stock_opname_header(int $id): ?array {
+  $stmt = db()->prepare("SELECT h.*, b.branch_name, u.name AS creator_name, ua.name AS approver_name
+    FROM stock_opname_headers h
+    LEFT JOIN branches b ON b.id=h.branch_id
+    LEFT JOIN users u ON u.id=h.created_by
+    LEFT JOIN users ua ON ua.id=h.approved_by
+    WHERE h.id=? LIMIT 1");
+  $stmt->execute([$id]);
+  $row = $stmt->fetch();
+  return $row ?: null;
+}
+
+function get_stock_opname_items(int $opnameId): array {
+  $stmt = db()->prepare("SELECT i.*, p.name product_name, p.category, p.product_type, p.reorder_level
+    FROM stock_opname_items i
+    JOIN products p ON p.id=i.product_id
+    WHERE i.opname_id=?
+    ORDER BY p.name ASC");
+  $stmt->execute([$opnameId]);
+  return $stmt->fetchAll();
+}
+
+function save_stock_opname_items(PDO $db, int $opnameId, array $rows): void {
+  $header = get_stock_opname_header($opnameId);
+  if (!$header) throw new Exception('Dokumen opname tidak ditemukan.');
+  if (($header['status'] ?? '') !== 'draft') throw new Exception('Hanya draft yang dapat diedit.');
+  if (empty($rows)) throw new Exception('Item opname wajib ada.');
+
+  $stmt = $db->prepare("UPDATE stock_opname_items
+    SET physical_qty=?, variance_qty=?, variance_type=?, reason_note=?, line_note=?, warning_flag=?, updated_at=NOW()
+    WHERE id=? AND opname_id=?");
+
+  foreach ($rows as $row) {
+    $itemId = (int)($row['id'] ?? 0);
+    $physicalQty = (float)($row['physical_qty'] ?? 0);
+    if ($physicalQty < 0) throw new Exception('Physical qty tidak boleh negatif.');
+    $reason = trim((string)($row['reason_note'] ?? ''));
+    $lineNote = trim((string)($row['line_note'] ?? ''));
+    $systemQty = (float)($row['system_qty'] ?? 0);
+    $variance = round($physicalQty - $systemQty, 4);
+    $type = 'zero';
+    if ($variance > 0) $type = 'plus';
+    if ($variance < 0) $type = 'minus';
+    if (stock_variance_reason_required($variance) && $reason === '') {
+      throw new Exception('Alasan selisih wajib diisi untuk variance tidak nol.');
+    }
+    $stmt->execute([
+      $physicalQty,
+      $variance,
+      $type,
+      $reason !== '' ? $reason : null,
+      $lineNote !== '' ? $lineNote : null,
+      stock_variance_needs_warning($variance) ? 1 : 0,
+      $itemId,
+      $opnameId,
+    ]);
+  }
+}
+
+function submit_stock_opname(PDO $db, int $opnameId): void {
+  $header = get_stock_opname_header($opnameId);
+  if (!$header) throw new Exception('Dokumen opname tidak ditemukan.');
+  if (($header['status'] ?? '') !== 'draft') throw new Exception('Hanya draft yang bisa disubmit.');
+  $items = get_stock_opname_items($opnameId);
+  if (empty($items)) throw new Exception('Item opname kosong.');
+  foreach ($items as $it) {
+    $physical = (float)$it['physical_qty'];
+    if ($physical < 0) throw new Exception('Physical qty tidak boleh negatif.');
+    $variance = (float)$it['variance_qty'];
+    if (stock_variance_reason_required($variance) && trim((string)($it['reason_note'] ?? '')) === '') {
+      throw new Exception('Masih ada item selisih tanpa alasan.');
+    }
+  }
+  $stmt = $db->prepare("UPDATE stock_opname_headers SET status='waiting_approval', updated_at=NOW() WHERE id=?");
+  $stmt->execute([$opnameId]);
+}
+
+function approve_stock_opname(PDO $db, int $opnameId, int $userId, string $note = ''): void {
+  $stmt = $db->prepare("SELECT * FROM stock_opname_headers WHERE id=? LIMIT 1 FOR UPDATE");
+  $stmt->execute([$opnameId]);
+  $header = $stmt->fetch();
+  if (!$header) throw new Exception('Dokumen opname tidak ditemukan.');
+  if (($header['status'] ?? '') !== 'waiting_approval') throw new Exception('Hanya status menunggu approval yang bisa diapprove.');
+
+  $items = get_stock_opname_items($opnameId);
+  if (empty($items)) throw new Exception('Item opname kosong.');
+  foreach ($items as $it) {
+    $variance = (float)$it['variance_qty'];
+    if (abs($variance) < 0.00001) continue;
+    $transType = $variance > 0 ? 'stock_opname_adjustment_plus' : 'stock_opname_adjustment_minus';
+    add_stock_ledger([
+      'branch_id' => (int)$header['branch_id'],
+      'product_id' => (int)$it['product_id'],
+      'trans_type' => $transType,
+      'ref_table' => 'stock_opname_headers',
+      'ref_id' => $opnameId,
+      'qty_in' => $variance > 0 ? abs($variance) : 0,
+      'qty_out' => $variance < 0 ? abs($variance) : 0,
+      'unit_cost' => null,
+      'note' => 'Adjustment stok opname ' . (string)$header['opname_no'],
+      'created_by' => $userId,
+    ]);
+  }
+
+  $stmt = $db->prepare("UPDATE stock_opname_headers
+    SET status='approved', approved_by=?, approved_at=NOW(), approval_note=?, updated_at=NOW()
+    WHERE id=?");
+  $stmt->execute([$userId, $note !== '' ? $note : null, $opnameId]);
+}
+
+function reject_stock_opname(PDO $db, int $opnameId, int $userId, string $note = ''): void {
+  if ($note === '') throw new Exception('Catatan reject wajib diisi.');
+  $stmt = $db->prepare("UPDATE stock_opname_headers
+    SET status='rejected', approved_by=?, approved_at=NOW(), approval_note=?, updated_at=NOW()
+    WHERE id=? AND status='waiting_approval'");
+  $stmt->execute([$userId, $note, $opnameId]);
+  if ($stmt->rowCount() <= 0) throw new Exception('Dokumen tidak bisa direject.');
+}
+
+function cancel_stock_opname(PDO $db, int $opnameId): void {
+  $stmt = $db->prepare("UPDATE stock_opname_headers SET status='cancelled', updated_at=NOW()
+    WHERE id=? AND status IN ('draft','waiting_approval')");
+  $stmt->execute([$opnameId]);
+  if ($stmt->rowCount() <= 0) throw new Exception('Hanya draft/menunggu approval yang bisa dibatalkan.');
+}
+
+function stock_card_rows(int $branchId, int $productId, string $dateFrom = '', string $dateTo = ''): array {
+  $params = [$branchId, $productId];
+  $sql = "SELECT sl.*, u.name AS user_name, soh.opname_no, ph.purchase_no, pr.production_no
+    FROM stock_ledger sl
+    LEFT JOIN users u ON u.id=sl.created_by
+    LEFT JOIN stock_opname_headers soh ON soh.id=sl.ref_id AND sl.ref_table='stock_opname_headers'
+    LEFT JOIN purchase_headers ph ON ph.id=sl.ref_id AND sl.ref_table='purchase_headers'
+    LEFT JOIN production_headers pr ON pr.id=sl.ref_id AND sl.ref_table='production_headers'
+    WHERE sl.branch_id=? AND sl.product_id=?";
+  if ($dateFrom !== '') {
+    $sql .= " AND DATE(sl.created_at) >= ?";
+    $params[] = $dateFrom;
+  }
+  if ($dateTo !== '') {
+    $sql .= " AND DATE(sl.created_at) <= ?";
+    $params[] = $dateTo;
+  }
+  $sql .= " ORDER BY sl.created_at ASC, sl.id ASC";
+  $stmt = db()->prepare($sql);
+  $stmt->execute($params);
+  return $stmt->fetchAll();
 }
