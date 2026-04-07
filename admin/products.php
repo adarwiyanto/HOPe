@@ -64,7 +64,7 @@ $customCss = setting('custom_css', '');
         <table class="table">
           <thead>
             <tr>
-              <th>Foto</th><th>Nama</th><th>Tipe</th><th>Kategori</th><th>Harga</th><th>BOM</th><th>Best Seller</th><th>Aksi</th>
+              <th>Foto</th><th>Nama</th><th>Tipe</th><th>Kategori</th><th>Harga</th><th>BOM</th><th>POS</th><th>Landing</th><th>Best Seller</th><th>Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -83,6 +83,8 @@ $customCss = setting('custom_css', '');
                 <?php $unitMeta = product_unit_fallback($p); ?>
                 <td>Rp <?php echo e(format_money((float)$p['price'])); ?><br><small><?php echo e($unitMeta['base_unit']); ?> | beli <?php echo e($unitMeta['purchase_unit']); ?> (x<?php echo e(format_number_custom($unitMeta['purchase_to_base_factor'], 2)); ?>)</small></td>
                 <td><?php echo !empty($p['allow_bom']) ? 'Aktif' : '-'; ?></td>
+                <td><?php echo !empty($p['show_on_pos'] ?? 1) ? 'Tampil' : '-'; ?></td>
+                <td><?php echo !empty($p['show_on_landing'] ?? 1) ? 'Tampil' : '-'; ?></td>
                 <td><?php echo !empty($p['is_best_seller']) ? '⭐' : '-'; ?></td>
                 <td style="display:flex;gap:8px;align-items:center">
                   <a class="btn" href="<?php echo e(base_url('admin/product_form.php?id=' . (int)$p['id'])); ?>">Edit</a>

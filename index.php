@@ -6,12 +6,14 @@ require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/csrf.php';
 require_once __DIR__ . '/core/customer_auth.php';
+require_once __DIR__ . '/core/inventory.php';
 
 try {
   ensure_products_category_column();
   ensure_products_best_seller_column();
   ensure_landing_order_tables();
-  $products = db()->query("SELECT * FROM products ORDER BY is_best_seller DESC, id DESC")->fetchAll();
+  ensure_inventory_module_schema();
+  $products = db()->query("SELECT * FROM products WHERE show_on_landing = 1 ORDER BY is_best_seller DESC, id DESC")->fetchAll();
 } catch (Throwable $e) {
   header('Location: install/index.php');
   exit;

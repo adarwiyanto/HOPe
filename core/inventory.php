@@ -47,6 +47,8 @@ function ensure_products_inventory_columns(): void {
     "ALTER TABLE products ADD COLUMN track_stock TINYINT(1) NOT NULL DEFAULT 1 AFTER product_type",
     "ALTER TABLE products ADD COLUMN allow_direct_purchase TINYINT(1) NOT NULL DEFAULT 0 AFTER track_stock",
     "ALTER TABLE products ADD COLUMN allow_bom TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_direct_purchase",
+    "ALTER TABLE products ADD COLUMN show_on_pos TINYINT(1) NOT NULL DEFAULT 1 AFTER allow_bom",
+    "ALTER TABLE products ADD COLUMN show_on_landing TINYINT(1) NOT NULL DEFAULT 1 AFTER show_on_pos",
     "ALTER TABLE products ADD KEY idx_product_type (product_type)",
   ];
   foreach ($defs as $sql) {
@@ -68,9 +70,11 @@ function ensure_products_inventory_columns(): void {
     db()->exec("UPDATE products SET sale_unit=base_unit WHERE sale_unit IS NULL OR TRIM(sale_unit)=''");
     db()->exec("UPDATE products SET purchase_to_base_factor=1.000000 WHERE purchase_to_base_factor<=0 OR purchase_to_base_factor IS NULL");
     db()->exec("UPDATE products SET sale_to_base_factor=1.000000 WHERE sale_to_base_factor<=0 OR sale_to_base_factor IS NULL");
+    db()->exec("UPDATE products SET show_on_pos=0, show_on_landing=0 WHERE product_type='raw_material' AND show_on_pos=1 AND show_on_landing=1");
   } catch (Throwable $e) {
   }
 }
+
 
 function ensure_suppliers_table(): void {
   try {
