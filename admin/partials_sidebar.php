@@ -77,6 +77,21 @@ $initial = strtoupper(substr((string)($u['name'] ?? 'U'), 0, 1));
       </div>
     </div>
 
+    <?php if (in_array($u['role'] ?? '', ['admin', 'owner'], true)): ?>
+      <div class="item">
+        <button type="button" data-toggle-submenu="#m-stok">
+          <div class="mi">📊</div><div class="label">Stok</div>
+          <div class="chev">▾</div>
+        </button>
+        <div class="submenu" id="m-stok">
+          <a href="<?php echo e(base_url('admin/stocks.php')); ?>">Daftar Stok</a>
+          <a href="<?php echo e(base_url('admin/stock_opname.php')); ?>">Stok Opname</a>
+          <a href="<?php echo e(base_url('admin/stock_opname_approval.php')); ?>">Approval Opname</a>
+          <a href="<?php echo e(base_url('admin/stock_card.php')); ?>">Kartu Stok</a>
+        </div>
+      </div>
+    <?php endif; ?>
+
     <div class="item">
       <a href="<?php echo e(base_url('pos/index.php')); ?>" target="_blank" rel="noopener">
         <div class="mi">🧾</div><div class="label">POS Kasir</div>
