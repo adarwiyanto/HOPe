@@ -3,8 +3,107 @@ function e(string $s): string {
   return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
+function get_number_setting(string $key, $default = null) {
+  $defaults = [
+    'number_decimal_places_qty' => '2',
+    'number_decimal_places_money' => '2',
+    'number_decimal_separator' => '.',
+    'number_thousand_separator' => ',',
+    'number_trim_trailing_zero' => '0',
+    'number_show_unit_after_qty' => '1',
+  ];
+  $fallback = array_key_exists($key, $defaults) ? $defaults[$key] : $default;
+  return setting($key, $fallback);
+}
+
+function append_unit(string $formatted, ?string $unit): string {
+  $unit = trim((string)$unit);
+  if ($unit === '') return $formatted;
+  return $formatted . ' ' . $unit;
+}
+
+function format_number_custom($value, $decimals = null, array $options = []): string {
+  $decimals = $decimals !== null ? (int)$decimals : (int)get_number_setting('number_decimal_places_qty', 2);
+  if ($decimals < 0) $decimals = 0;
+
+  $decimalSeparator = (string)($options['decimal_separator'] ?? get_number_setting('number_decimal_separator', '.'));
+  $thousandSeparator = (string)($options['thousand_separator'] ?? get_number_setting('number_thousand_separator', ','));
+  $trimTrailing = array_key_exists('trim_trailing_zero', $options)
+    ? (bool)$options['trim_trailing_zero']
+    : ((string)get_number_setting('number_trim_trailing_zero', '0') === '1');
+
+  $formatted = number_format((float)$value, $decimals, $decimalSeparator, $thousandSeparator);
+  if ($trimTrailing && $decimals > 0) {
+    $negative = strpos($formatted, '-') === 0;
+    $raw = $negative ? substr($formatted, 1) : $formatted;
+    $parts = explode($decimalSeparator, $raw, 2);
+    if (count($parts) === 2) {
+      $parts[1] = rtrim($parts[1], '0');
+      $raw = $parts[0] . ($parts[1] !== '' ? $decimalSeparator . $parts[1] : '');
+    }
+    $formatted = $negative ? '-' . $raw : $raw;
+  }
+  return $formatted;
+}
+
+function format_qty($value, $unit = null, array $options = []): string {
+  $decimals = array_key_exists('decimals', $options)
+    ? (int)$options['decimals']
+    : (int)get_number_setting('number_decimal_places_qty', 2);
+  $formatted = format_number_custom($value, $decimals, $options);
+  $showUnit = array_key_exists('show_unit', $options)
+    ? (bool)$options['show_unit']
+    : ((string)get_number_setting('number_show_unit_after_qty', '1') === '1');
+  return $showUnit ? append_unit($formatted, (string)$unit) : $formatted;
+}
+
+function format_money($value, array $options = []): string {
+  $decimals = array_key_exists('decimals', $options)
+    ? (int)$options['decimals']
+    : (int)get_number_setting('number_decimal_places_money', 2);
+  return format_number_custom($value, $decimals, $options);
+}
+
+function parse_number_input($raw): float {
+  if (is_numeric($raw)) return (float)$raw;
+  $s = trim((string)$raw);
+  if ($s === '') return 0.0;
+  $decimalSeparator = (string)get_number_setting('number_decimal_separator', '.');
+  $thousandSeparator = (string)get_number_setting('number_thousand_separator', ',');
+  if ($thousandSeparator !== '') {
+    $s = str_replace($thousandSeparator, '', $s);
+  }
+  if ($decimalSeparator !== '.') {
+    $s = str_replace($decimalSeparator, '.', $s);
+  }
+  $s = str_replace([' ', ','], ['', '.'], $s);
+  return is_numeric($s) ? (float)$s : 0.0;
+}
+
 function format_number_id($number, int $decimals = 1): string {
-  return number_format((float)$number, $decimals, ',', '.');
+  return format_number_custom($number, $decimals, ['decimal_separator' => ',', 'thousand_separator' => '.']);
+}
+
+function product_unit_fallback(array $product): array {
+  $base = trim((string)($product['base_unit'] ?? ''));
+  if ($base === '') {
+    $base = (($product['product_type'] ?? '') === 'raw_material') ? 'pcs' : 'pcs';
+  }
+  $purchase = trim((string)($product['purchase_unit'] ?? ''));
+  if ($purchase === '') $purchase = $base;
+  $sale = trim((string)($product['sale_unit'] ?? ''));
+  if ($sale === '') $sale = $base;
+  $purchaseFactor = (float)($product['purchase_to_base_factor'] ?? 1);
+  if ($purchaseFactor <= 0) $purchaseFactor = 1.0;
+  $saleFactor = (float)($product['sale_to_base_factor'] ?? 1);
+  if ($saleFactor <= 0) $saleFactor = 1.0;
+  return [
+    'base_unit' => $base,
+    'purchase_unit' => $purchase,
+    'purchase_to_base_factor' => $purchaseFactor,
+    'sale_unit' => $sale,
+    'sale_to_base_factor' => $saleFactor,
+  ];
 }
 
 function base_url(string $path = ''): string {
@@ -417,10 +516,7 @@ function ensure_upload_dir(string $dir): void {
 }
 
 function normalize_money(string $s): float {
-  // menerima "12.500" atau "12500"
-  $s = trim($s);
-  $s = str_replace([' ', ','], ['', ''], $s);
-  return (float)$s;
+  return parse_number_input($s);
 }
 
 function verify_recaptcha_response(

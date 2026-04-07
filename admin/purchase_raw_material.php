@@ -15,7 +15,7 @@ $u = current_user();
 $isOwner = (($u['role'] ?? '') === 'owner');
 $branches = inventory_branches();
 $suppliers = db()->query("SELECT id,supplier_name FROM suppliers WHERE is_active=1 ORDER BY supplier_name ASC")->fetchAll();
-$materials = db()->query("SELECT id,name FROM products WHERE product_type='raw_material' ORDER BY name ASC")->fetchAll();
+$materials = db()->query("SELECT id,name,base_unit,purchase_unit,purchase_to_base_factor,sale_unit,sale_to_base_factor FROM products WHERE product_type='raw_material' ORDER BY name ASC")->fetchAll();
 
 function purchase_collect_items(array $src, bool $forEdit = false): array {
   $productIds = $src['item_product_id'] ?? [];
@@ -34,8 +34,8 @@ function purchase_collect_items(array $src, bool $forEdit = false): array {
   $max = max(count($productIds), count($qtys), count($costs), count($notes));
   for ($i = 0; $i < $max; $i++) {
     $productId = (int)($productIds[$i] ?? 0);
-    $qty = (float)($qtys[$i] ?? 0);
-    $unitCost = (float)($costs[$i] ?? 0);
+    $qty = parse_number_input($qtys[$i] ?? 0);
+    $unitCost = parse_number_input($costs[$i] ?? 0);
     $note = trim((string)($notes[$i] ?? ''));
     $itemId = (int)($itemIds[$i] ?? 0);
     if ($productId <= 0 && $qty <= 0 && $unitCost <= 0 && $note === '') continue;
@@ -46,6 +46,7 @@ function purchase_collect_items(array $src, bool $forEdit = false): array {
       'id' => $forEdit ? $itemId : 0,
       'product_id' => $productId,
       'qty' => $qty,
+      'qty_base' => 0,
       'unit_cost' => $unitCost,
       'line_total' => $qty * $unitCost,
       'notes' => $note,
@@ -54,6 +55,27 @@ function purchase_collect_items(array $src, bool $forEdit = false): array {
 
   if (empty($items)) {
     throw new Exception('Minimal 1 item pembelian wajib diisi.');
+  }
+
+  if (!empty($items)) {
+    $ids = array_map(static function ($it) { return (int)$it['product_id']; }, $items);
+    $ids = array_values(array_unique(array_filter($ids)));
+    $products = [];
+    if (!empty($ids)) {
+      $in = implode(',', array_fill(0, count($ids), '?'));
+      $stmt = db()->prepare("SELECT * FROM products WHERE id IN ($in)");
+      $stmt->execute($ids);
+      foreach ($stmt->fetchAll() as $p) {
+        $products[(int)$p['id']] = $p;
+      }
+    }
+    foreach ($items as $idx => $it) {
+      $meta = product_unit_fallback($products[(int)$it['product_id']] ?? []);
+      $items[$idx]['purchase_unit'] = $meta['purchase_unit'];
+      $items[$idx]['base_unit'] = $meta['base_unit'];
+      $items[$idx]['purchase_to_base_factor'] = (float)$meta['purchase_to_base_factor'];
+      $items[$idx]['qty_base'] = (float)$it['qty'] * (float)$meta['purchase_to_base_factor'];
+    }
   }
 
   return $items;
@@ -65,7 +87,7 @@ function purchase_snapshot(PDO $db, int $purchaseId): array {
   $header = $stmt->fetch();
   if (!$header) throw new Exception('Dokumen tidak ditemukan.');
 
-  $stmt = $db->prepare("SELECT pi.*, p.name product_name FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id ASC");
+  $stmt = $db->prepare("SELECT pi.*, p.name product_name, p.base_unit, p.purchase_unit, p.purchase_to_base_factor, p.sale_unit, p.sale_to_base_factor FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id ASC");
   $stmt->execute([$purchaseId]);
   $items = $stmt->fetchAll();
 
@@ -174,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (!$oldHeader) throw new Exception('Dokumen tidak ditemukan.');
       if (($oldHeader['status'] ?? '') === 'cancelled') throw new Exception('Dokumen cancelled tidak bisa diedit.');
 
-      $stmt = $db->prepare("SELECT pi.*, p.product_type FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id ASC");
+      $stmt = $db->prepare("SELECT pi.*, p.product_type, p.purchase_to_base_factor FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id ASC");
       $stmt->execute([$id]);
       $oldItems = $stmt->fetchAll();
       if (empty($oldItems)) throw new Exception('Item dokumen lama kosong.');
@@ -217,7 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ref_table' => 'purchase_headers',
             'ref_id' => $id,
             'qty_in' => 0,
-            'qty_out' => (float)$it['qty'],
+            'qty_out' => (float)($it['qty_base'] ?? ((float)$it['qty'] * max(0.000001, (float)($it['purchase_to_base_factor'] ?? 1)))),
             'unit_cost' => (float)$it['unit_cost'],
             'note' => 'Rollback stok edit purchase posted',
             'created_by' => (int)($u['id'] ?? 0),
@@ -242,7 +264,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtIns->execute([$id, $it['product_id'], $it['qty'], $it['unit_cost'], $it['line_total'], $it['notes']]);
       }
 
-      $stmt = $db->prepare("SELECT * FROM purchase_items WHERE purchase_id=? ORDER BY id ASC");
+      $stmt = $db->prepare("SELECT pi.*, p.purchase_to_base_factor, p.base_unit, p.purchase_unit, p.sale_unit, p.sale_to_base_factor FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id ASC");
       $stmt->execute([$id]);
       $savedItems = $stmt->fetchAll();
 
@@ -254,7 +276,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'trans_type' => 'purchase_edit_apply',
             'ref_table' => 'purchase_headers',
             'ref_id' => $id,
-            'qty_in' => (float)$it['qty'],
+            'qty_in' => (float)($it['qty_base'] ?? ((float)$it['qty'] * max(0.000001, (float)($it['purchase_to_base_factor'] ?? 1)))),
             'qty_out' => 0,
             'unit_cost' => (float)$it['unit_cost'],
             'note' => 'Apply stok hasil edit purchase',
@@ -308,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $h = $stmt->fetch();
       if (!$h) throw new Exception('Dokumen tidak ditemukan.');
       if ($h['status'] !== 'draft') throw new Exception('Hanya draft yang bisa diposting.');
-      $stmt = $db->prepare("SELECT pi.*, p.product_type FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=?");
+      $stmt = $db->prepare("SELECT pi.*, p.product_type, p.purchase_to_base_factor FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=?");
       $stmt->execute([$id]);
       $items = $stmt->fetchAll();
       if (empty($items)) throw new Exception('Item kosong.');
@@ -320,7 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           'trans_type' => 'purchase_post',
           'ref_table' => 'purchase_headers',
           'ref_id' => $id,
-          'qty_in' => (float)$it['qty'],
+          'qty_in' => (float)($it['qty_base'] ?? ((float)$it['qty'] * max(0.000001, (float)($it['purchase_to_base_factor'] ?? 1)))),
           'qty_out' => 0,
           'unit_cost' => (float)$it['unit_cost'],
           'note' => 'Posting pembelian',
@@ -343,7 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       if (!$h) throw new Exception('Dokumen tidak ditemukan.');
       if ($h['status'] === 'cancelled') throw new Exception('Sudah cancelled.');
       if ($h['status'] === 'posted') {
-        $stmt = $db->prepare("SELECT * FROM purchase_items WHERE purchase_id=?");
+        $stmt = $db->prepare("SELECT pi.*, p.purchase_to_base_factor FROM purchase_items pi JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=?");
         $stmt->execute([$id]);
         foreach ($stmt->fetchAll() as $it) {
           add_stock_ledger([
@@ -353,7 +375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'ref_table' => 'purchase_headers',
             'ref_id' => $id,
             'qty_in' => 0,
-            'qty_out' => (float)$it['qty'],
+            'qty_out' => (float)($it['qty_base'] ?? ((float)$it['qty'] * max(0.000001, (float)($it['purchase_to_base_factor'] ?? 1)))),
             'unit_cost' => (float)$it['unit_cost'],
             'note' => 'Reversal cancel pembelian',
             'created_by' => (int)($u['id'] ?? 0),
@@ -422,8 +444,9 @@ $customCss = setting('custom_css', '');
 <input type="hidden" name="item_id[]" value="<?php echo e((string)($it['id'] ?? 0)); ?>">
 <select name="item_product_id[]" required>
 <option value="">- pilih material -</option>
-<?php foreach($materials as $m): ?><option value="<?php echo e((string)$m['id']); ?>" <?php echo ((int)$m['id'] === (int)($it['product_id'] ?? 0)) ? 'selected' : ''; ?>><?php echo e($m['name']); ?></option><?php endforeach; ?>
+<?php foreach($materials as $m): $metaM = product_unit_fallback($m); ?><option value="<?php echo e((string)$m['id']); ?>" data-purchase-unit="<?php echo e($metaM['purchase_unit']); ?>" data-base-unit="<?php echo e($metaM['base_unit']); ?>" data-factor="<?php echo e((string)$metaM['purchase_to_base_factor']); ?>" <?php echo ((int)$m['id'] === (int)($it['product_id'] ?? 0)) ? 'selected' : ''; ?>><?php echo e($m['name']); ?></option><?php endforeach; ?>
 </select>
+<small class="unit-hint"></small>
 </td>
 <td><input type="number" min="0.0001" step="0.0001" name="item_qty[]" value="<?php echo e((string)($it['qty'] ?? 1)); ?>" required></td>
 <td><input type="number" min="0" step="0.01" name="item_unit_cost[]" value="<?php echo e((string)($it['unit_cost'] ?? 0)); ?>" required <?php echo $editLockedCost ? 'readonly' : ''; ?>></td>
@@ -438,7 +461,7 @@ $customCss = setting('custom_css', '');
 <button class="btn" type="submit"><?php echo $editDoc ? 'Simpan Edit' : 'Simpan Draft'; ?></button>
 <?php if ($editDoc): ?><a class="btn" href="<?php echo e(base_url('admin/purchase_raw_material.php')); ?>">Batal Edit</a><?php endif; ?>
 </form></div>
-<div class="card"><table class="table"><thead><tr><th>No</th><th>Tanggal</th><th>Cabang</th><th>Supplier</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody><?php foreach($docs as $d): ?><tr><td><?php echo e($d['purchase_no']); ?></td><td><?php echo e($d['purchase_date']); ?></td><td><?php echo e($d['branch_name']); ?></td><td><?php echo e($d['supplier_name']); ?></td><td><?php echo e(format_number_id((float)$d['grand_total'])); ?></td><td><?php echo e($d['status']); ?></td><td style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn" href="<?php echo e(base_url('admin/purchase_raw_material.php?edit_id=' . (int)$d['id'])); ?>">Edit</a><?php if($d['status']==='draft'): ?><form method="post"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="post"><input type="hidden" name="id" value="<?php echo e((string)$d['id']); ?>"><button class="btn" type="submit">Post</button></form><?php endif; ?><?php if($d['status']!=='cancelled'): ?><form method="post"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="cancel"><input type="hidden" name="id" value="<?php echo e((string)$d['id']); ?>"><button class="btn danger" type="submit">Cancel</button></form><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div>
+<div class="card"><table class="table"><thead><tr><th>No</th><th>Tanggal</th><th>Cabang</th><th>Supplier</th><th>Total</th><th>Status</th><th>Aksi</th></tr></thead><tbody><?php foreach($docs as $d): ?><tr><td><?php echo e($d['purchase_no']); ?></td><td><?php echo e($d['purchase_date']); ?></td><td><?php echo e($d['branch_name']); ?></td><td><?php echo e($d['supplier_name']); ?></td><td><?php echo e(format_money((float)$d['grand_total'])); ?></td><td><?php echo e($d['status']); ?></td><td style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn" href="<?php echo e(base_url('admin/purchase_raw_material.php?edit_id=' . (int)$d['id'])); ?>">Edit</a><?php if($d['status']==='draft'): ?><form method="post"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="post"><input type="hidden" name="id" value="<?php echo e((string)$d['id']); ?>"><button class="btn" type="submit">Post</button></form><?php endif; ?><?php if($d['status']!=='cancelled'): ?><form method="post"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="cancel"><input type="hidden" name="id" value="<?php echo e((string)$d['id']); ?>"><button class="btn danger" type="submit">Cancel</button></form><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div>
 </div></div></div></div>
 <script>
 (function(){
@@ -464,6 +487,20 @@ $customCss = setting('custom_css', '');
 
   function bindRow(row){
     row.querySelectorAll('input[name="item_qty[]"],input[name="item_unit_cost[]"]').forEach((el)=>el.addEventListener('input', recalc));
+    const productSel = row.querySelector('select[name="item_product_id[]"]');
+    const hintEl = row.querySelector('.unit-hint');
+    const updateHint = () => {
+      if (!hintEl || !productSel) return;
+      const opt = productSel.options[productSel.selectedIndex];
+      const purchaseUnit = opt?.getAttribute('data-purchase-unit') || 'unit';
+      const baseUnit = opt?.getAttribute('data-base-unit') || purchaseUnit;
+      const factor = parseFloat(opt?.getAttribute('data-factor') || '1');
+      hintEl.textContent = `Input dalam ${purchaseUnit}. 1 ${purchaseUnit} = ${factor} ${baseUnit}.`;
+    };
+    if (productSel) {
+      productSel.addEventListener('change', updateHint);
+      updateHint();
+    }
     const delBtn = row.querySelector('.btn-remove-item');
     if (delBtn) {
       delBtn.addEventListener('click', ()=>{

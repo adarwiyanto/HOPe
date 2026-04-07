@@ -80,7 +80,8 @@ $customCss = setting('custom_css', '');
                 <td><?php echo e($p['name']); ?></td>
                 <td><?php echo e((string)($p['product_type'] ?? 'finished_good')); ?></td>
                 <td><?php echo e($p['category'] ?: 'Tanpa kategori'); ?></td>
-                <td>Rp <?php echo e(format_number_id((float)$p['price'])); ?></td>
+                <?php $unitMeta = product_unit_fallback($p); ?>
+                <td>Rp <?php echo e(format_money((float)$p['price'])); ?><br><small><?php echo e($unitMeta['base_unit']); ?> | beli <?php echo e($unitMeta['purchase_unit']); ?> (x<?php echo e(format_number_custom($unitMeta['purchase_to_base_factor'], 2)); ?>)</small></td>
                 <td><?php echo !empty($p['allow_bom']) ? 'Aktif' : '-'; ?></td>
                 <td><?php echo !empty($p['is_best_seller']) ? '⭐' : '-'; ?></td>
                 <td style="display:flex;gap:8px;align-items:center">
