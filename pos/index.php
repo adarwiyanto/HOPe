@@ -13,6 +13,7 @@ ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 ensure_sales_transaction_code_column();
 ensure_sales_user_column();
+ensure_pos_print_jobs_table();
 ensure_inventory_module_schema();
 
 $appName = app_config()['app']['name'];
@@ -423,7 +424,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'payment' => $paymentMethod,
         'items' => $receiptItems,
         'total' => $receiptTotal,
+        'paid_amount' => $receiptTotal,
       ];
+
+      $printPayload = build_pos_receipt_payload($_SESSION['pos_receipt'], [
+        'store_name' => $storeName,
+        'store_subtitle' => $storeSubtitle,
+        'store_address' => setting('store_address', ''),
+        'store_phone' => setting('store_phone', ''),
+        'footer' => setting('receipt_footer', ''),
+        'store_logo' => setting('store_logo', ''),
+        'paid_amount' => $receiptTotal,
+      ]);
+      $printJob = create_pos_print_job($printPayload, [
+        'sale_id' => isset($saleId) ? (int)$saleId : null,
+        'created_by' => (int)($me['id'] ?? 0),
+        'device_hint' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 100),
+        'notes' => 'POS receipt bridge job',
+      ]);
+      if ($printJob && !empty($printJob['job_token'])) {
+        $_SESSION['pos_receipt']['print_job_token'] = (string)$printJob['job_token'];
+      }
+
       $cart = [];
       $rewardCart = [];
       $bypassItems = [];
