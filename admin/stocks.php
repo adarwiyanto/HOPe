@@ -78,6 +78,7 @@ function stock_status_badge_class(string $status): string {
           <?php if (empty($pagedRows)): ?>
             <tr><td colspan="9" style="text-align:center;color:#94a3b8">Tidak ada data.</td></tr>
           <?php else: foreach($pagedRows as $idx => $r): ?>
+            <?php $unitMeta = product_unit_fallback($r); ?>
             <tr>
               <td><?php echo e((string)($offset + $idx + 1)); ?></td>
               <td><?php echo e((string)$r['name']); ?></td>
@@ -85,7 +86,7 @@ function stock_status_badge_class(string $status): string {
               <td><?php echo e((string)($r['category'] ?? '-')); ?></td>
               <td><?php echo e((string)$r['product_type']); ?></td>
               <td><?php echo (int)$r['track_stock']===1 ? 'Ya' : 'Tidak'; ?></td>
-              <td><?php echo e(format_number_id((float)$r['current_stock'], 4)); ?></td>
+              <td><?php echo e(format_qty((float)$r['current_stock'], $unitMeta['base_unit'])); ?></td>
               <td><span class="badge" style="<?php echo stock_status_badge_class((string)$r['stock_status']); ?>"><?php echo e((string)$r['stock_status']); ?></span></td>
               <td><a class="btn btn-light" href="<?php echo e(base_url('admin/stock_card.php?branch_id=' . $branchId . '&product_id=' . (int)$r['id'])); ?>">Kartu Stok</a></td>
             </tr>

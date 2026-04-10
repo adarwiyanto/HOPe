@@ -49,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       foreach ($itemIds as $idx => $itemId) {
         $rows[] = [
           'id' => (int)$itemId,
-          'system_qty' => (float)($systemQtys[$idx] ?? 0),
-          'physical_qty' => (float)($physicalQtys[$idx] ?? 0),
+          'system_qty' => parse_number_input($systemQtys[$idx] ?? 0),
+          'physical_qty' => parse_number_input($physicalQtys[$idx] ?? 0),
           'reason_note' => trim((string)($reasonNotes[$idx] ?? '')),
           'line_note' => trim((string)($lineNotes[$idx] ?? '')),
         ];
@@ -80,8 +80,8 @@ $items = $id > 0 ? get_stock_opname_items($id) : [];
 $isDraft = (($header['status'] ?? '') === 'draft');
 
 function variance_badge(float $variance): string {
-  if ($variance > 0) return '+'.format_number_id($variance,4);
-  if ($variance < 0) return format_number_id($variance,4);
+  if ($variance > 0) return '+'.format_qty($variance, null);
+  if ($variance < 0) return format_qty($variance, null);
   return '0';
 }
 ?>
@@ -123,6 +123,7 @@ function variance_badge(float $variance): string {
 <?php foreach($items as $idx => $it):
   $variance = (float)$it['variance_qty'];
   $needsWarning = stock_variance_needs_warning($variance);
+  $unitMeta = product_unit_fallback($it);
 ?>
 <tr>
   <td>
@@ -130,10 +131,10 @@ function variance_badge(float $variance): string {
     <input type="hidden" name="item_id[]" value="<?php echo e((string)$it['id']); ?>">
     <input type="hidden" name="system_qty[]" value="<?php echo e((string)$it['system_qty']); ?>">
   </td>
-  <td><?php echo e(format_number_id((float)$it['system_qty'],4)); ?></td>
-  <td><input type="number" step="0.0001" min="0" name="physical_qty[]" value="<?php echo e((string)$it['physical_qty']); ?>" <?php echo !$isDraft?'readonly':''; ?> required></td>
-  <td><span class="badge"><?php echo e(variance_badge($variance)); ?></span></td>
-  <td><?php if($needsWarning): ?><span class="badge" style="background:#fff7ed;border-color:#fdba74;color:#9a3412">Selisih > <?php echo e((string)stock_opname_warning_threshold()); ?></span><?php else: ?>-<?php endif; ?></td>
+  <td><?php echo e(format_qty((float)$it['system_qty'], $unitMeta['base_unit'])); ?></td>
+  <td><input type="number" step="0.0001" min="0" name="physical_qty[]" value="<?php echo e((string)$it['physical_qty']); ?>" <?php echo !$isDraft?'readonly':''; ?> required><small><?php echo e('Input dalam ' . $unitMeta['base_unit']); ?></small></td>
+  <td><span class="badge"><?php echo e(format_qty((float)$variance, $unitMeta['base_unit'])); ?></span></td>
+  <td><?php if($needsWarning): ?><span class="badge" style="background:#fff7ed;border-color:#fdba74;color:#9a3412">Selisih > <?php echo e(format_qty(stock_opname_warning_threshold(), $unitMeta['base_unit'])); ?></span><?php else: ?>-<?php endif; ?></td>
   <td><input type="text" name="reason_note[]" value="<?php echo e((string)($it['reason_note'] ?? '')); ?>" <?php echo !$isDraft?'readonly':''; ?> placeholder="Wajib jika variance != 0"></td>
   <td><input type="text" name="line_note[]" value="<?php echo e((string)($it['line_note'] ?? '')); ?>" <?php echo !$isDraft?'readonly':''; ?>></td>
 </tr>

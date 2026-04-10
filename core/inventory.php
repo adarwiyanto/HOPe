@@ -47,12 +47,34 @@ function ensure_products_inventory_columns(): void {
     "ALTER TABLE products ADD COLUMN track_stock TINYINT(1) NOT NULL DEFAULT 1 AFTER product_type",
     "ALTER TABLE products ADD COLUMN allow_direct_purchase TINYINT(1) NOT NULL DEFAULT 0 AFTER track_stock",
     "ALTER TABLE products ADD COLUMN allow_bom TINYINT(1) NOT NULL DEFAULT 0 AFTER allow_direct_purchase",
+    "ALTER TABLE products ADD COLUMN show_on_pos TINYINT(1) NOT NULL DEFAULT 1 AFTER allow_bom",
+    "ALTER TABLE products ADD COLUMN show_on_landing TINYINT(1) NOT NULL DEFAULT 1 AFTER show_on_pos",
     "ALTER TABLE products ADD KEY idx_product_type (product_type)",
   ];
   foreach ($defs as $sql) {
     try { db()->exec($sql); } catch (Throwable $e) { /* no-op */ }
   }
+  $unitDefs = [
+    "ALTER TABLE products ADD COLUMN base_unit VARCHAR(50) NULL AFTER allow_bom",
+    "ALTER TABLE products ADD COLUMN purchase_unit VARCHAR(50) NULL AFTER base_unit",
+    "ALTER TABLE products ADD COLUMN purchase_to_base_factor DECIMAL(18,6) NOT NULL DEFAULT 1.000000 AFTER purchase_unit",
+    "ALTER TABLE products ADD COLUMN sale_unit VARCHAR(50) NULL AFTER purchase_to_base_factor",
+    "ALTER TABLE products ADD COLUMN sale_to_base_factor DECIMAL(18,6) NOT NULL DEFAULT 1.000000 AFTER sale_unit",
+  ];
+  foreach ($unitDefs as $sql) {
+    try { db()->exec($sql); } catch (Throwable $e) { /* no-op */ }
+  }
+  try {
+    db()->exec("UPDATE products SET base_unit='pcs' WHERE (base_unit IS NULL OR TRIM(base_unit)='') AND product_type='raw_material'");
+    db()->exec("UPDATE products SET purchase_unit=base_unit WHERE purchase_unit IS NULL OR TRIM(purchase_unit)=''");
+    db()->exec("UPDATE products SET sale_unit=base_unit WHERE sale_unit IS NULL OR TRIM(sale_unit)=''");
+    db()->exec("UPDATE products SET purchase_to_base_factor=1.000000 WHERE purchase_to_base_factor<=0 OR purchase_to_base_factor IS NULL");
+    db()->exec("UPDATE products SET sale_to_base_factor=1.000000 WHERE sale_to_base_factor<=0 OR sale_to_base_factor IS NULL");
+    db()->exec("UPDATE products SET show_on_pos=0, show_on_landing=0 WHERE product_type='raw_material' AND show_on_pos=1 AND show_on_landing=1");
+  } catch (Throwable $e) {
+  }
 }
+
 
 function ensure_suppliers_table(): void {
   try {
@@ -319,6 +341,12 @@ function ensure_inventory_settings_defaults(): void {
     'bom_require_exact_material_stock' => '1',
     'purchase_raw_material_only' => '1',
     'active_branch_id' => '1',
+    'number_decimal_places_qty' => '2',
+    'number_decimal_places_money' => '2',
+    'number_decimal_separator' => '.',
+    'number_thousand_separator' => ',',
+    'number_trim_trailing_zero' => '0',
+    'number_show_unit_after_qty' => '1',
   ];
   foreach ($defaults as $k => $v) {
     set_setting($k, setting($k, $v));
@@ -370,7 +398,7 @@ function get_active_bom_for_product(int $productId, int $branchId): ?array {
 }
 
 function explode_bom_requirements(int $bomId, float $qtyToProduce): array {
-  $stmt = db()->prepare("SELECT bi.*, p.name AS material_name, p.product_type
+  $stmt = db()->prepare("SELECT bi.*, p.name AS material_name, p.product_type, p.base_unit, p.purchase_unit, p.purchase_to_base_factor, p.sale_unit, p.sale_to_base_factor
     FROM bom_items bi
     JOIN products p ON p.id = bi.material_product_id
     WHERE bi.bom_id=?
@@ -528,7 +556,7 @@ function generate_stock_opname_no(PDO $db): string {
 
 function stock_products_for_opname(int $branchId, string $search = '', string $category = '', string $productType = ''): array {
   $params = [$branchId];
-  $sql = "SELECT p.id, p.name, p.category, p.product_type, p.track_stock, p.reorder_level,
+  $sql = "SELECT p.id, p.name, p.category, p.product_type, p.track_stock, p.reorder_level, p.base_unit, p.purchase_unit, p.purchase_to_base_factor, p.sale_unit, p.sale_to_base_factor,
       COALESCE(SUM(sl.qty_in - sl.qty_out),0) AS current_stock
     FROM products p
     LEFT JOIN stock_ledger sl ON sl.product_id=p.id AND sl.branch_id=?
@@ -598,7 +626,7 @@ function get_stock_opname_header(int $id): ?array {
 }
 
 function get_stock_opname_items(int $opnameId): array {
-  $stmt = db()->prepare("SELECT i.*, p.name product_name, p.category, p.product_type, p.reorder_level
+  $stmt = db()->prepare("SELECT i.*, p.name product_name, p.category, p.product_type, p.reorder_level, p.base_unit, p.purchase_unit, p.purchase_to_base_factor, p.sale_unit, p.sale_to_base_factor
     FROM stock_opname_items i
     JOIN products p ON p.id=i.product_id
     WHERE i.opname_id=?

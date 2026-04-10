@@ -18,7 +18,11 @@ $branches = inventory_branches();
 $products = stock_products_for_opname($branchId);
 $rows = [];
 $opening = 0.0;
+$product = null;
 if ($productId > 0) {
+  $stmt = db()->prepare("SELECT * FROM products WHERE id=? LIMIT 1");
+  $stmt->execute([$productId]);
+  $product = $stmt->fetch() ?: null;
   if ($dateFrom !== '') {
     $stmt = db()->prepare("SELECT COALESCE(SUM(qty_in-qty_out),0) AS opening_qty FROM stock_ledger WHERE branch_id=? AND product_id=? AND DATE(created_at) < ?");
     $stmt->execute([$branchId, $productId, $dateFrom]);
@@ -28,6 +32,7 @@ if ($productId > 0) {
 }
 
 $customCss = setting('custom_css', '');
+$unitMeta = $product ? product_unit_fallback($product) : ['base_unit' => null];
 ?>
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kartu Stok</title><link rel="icon" href="<?php echo e(favicon_url()); ?>"><link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>"><style><?php echo $customCss; ?></style></head>
 <body><div class="container"><?php include __DIR__ . '/partials_sidebar.php'; ?><div class="main"><div class="topbar"><button class="btn" data-toggle-sidebar type="button">Menu</button></div>
@@ -42,7 +47,7 @@ $customCss = setting('custom_css', '');
 <?php if($productId<=0): ?><tr><td colspan="8" style="text-align:center;color:#94a3b8">Pilih barang terlebih dulu.</td></tr><?php else:
   $running = $opening;
 ?>
-<tr><td colspan="5"><strong>Saldo Awal</strong></td><td><strong><?php echo e(format_number_id($opening,4)); ?></strong></td><td colspan="2"></td></tr>
+<tr><td colspan="5"><strong>Saldo Awal</strong></td><td><strong><?php echo e(format_qty($opening, $unitMeta['base_unit'])); ?></strong></td><td colspan="2"></td></tr>
 <?php if(empty($rows)): ?><tr><td colspan="8" style="text-align:center;color:#94a3b8">Tidak ada mutasi.</td></tr><?php else: foreach($rows as $r):
   $running += (float)$r['qty_in'] - (float)$r['qty_out'];
   $ref = (string)$r['ref_table'] . '#' . (string)$r['ref_id'];
@@ -54,9 +59,9 @@ $customCss = setting('custom_css', '');
 <td><?php echo e((string)$r['created_at']); ?></td>
 <td><?php echo e((string)$r['trans_type']); ?></td>
 <td><?php echo e($ref); ?></td>
-<td><?php echo e(format_number_id((float)$r['qty_in'],4)); ?></td>
-<td><?php echo e(format_number_id((float)$r['qty_out'],4)); ?></td>
-<td><?php echo e(format_number_id((float)$running,4)); ?></td>
+<td><?php echo e(format_qty((float)$r['qty_in'], $unitMeta['base_unit'])); ?></td>
+<td><?php echo e(format_qty((float)$r['qty_out'], $unitMeta['base_unit'])); ?></td>
+<td><?php echo e(format_qty((float)$running, $unitMeta['base_unit'])); ?></td>
 <td><?php echo e((string)($r['note'] ?? '')); ?></td>
 <td><?php echo e((string)($r['user_name'] ?? '-')); ?></td>
 </tr>

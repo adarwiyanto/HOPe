@@ -15,7 +15,7 @@ ensure_products_category_column();
 ensure_product_categories_table();
 ensure_products_best_seller_column();
 ensure_inventory_module_schema();
-$product = ['name'=>'','category'=>'','price'=>'0','image_path'=>null,'is_best_seller'=>0,'product_type'=>'finished_good','track_stock'=>1,'allow_direct_purchase'=>0,'allow_bom'=>0];
+$product = ['name'=>'','category'=>'','price'=>'0','image_path'=>null,'is_best_seller'=>0,'product_type'=>'finished_good','track_stock'=>1,'allow_direct_purchase'=>0,'allow_bom'=>0,'show_on_pos'=>1,'show_on_landing'=>1,'base_unit'=>'pcs','purchase_unit'=>'pcs','purchase_to_base_factor'=>'1','sale_unit'=>'pcs','sale_to_base_factor'=>'1'];
 
 if ($id) {
   $stmt = db()->prepare("SELECT * FROM products WHERE id=?");
@@ -43,6 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $trackStock = isset($_POST['track_stock']) ? 1 : 0;
   $allowDirectPurchase = isset($_POST['allow_direct_purchase']) ? 1 : 0;
   $allowBom = isset($_POST['allow_bom']) ? 1 : 0;
+  $showOnPos = isset($_POST['show_on_pos']) ? 1 : 0;
+  $showOnLanding = isset($_POST['show_on_landing']) ? 1 : 0;
+  $baseUnit = trim((string)($_POST['base_unit'] ?? ''));
+  $purchaseUnit = trim((string)($_POST['purchase_unit'] ?? ''));
+  $purchaseToBaseFactor = parse_number_input($_POST['purchase_to_base_factor'] ?? '1');
+  $saleUnit = trim((string)($_POST['sale_unit'] ?? ''));
+  $saleToBaseFactor = parse_number_input($_POST['sale_to_base_factor'] ?? '1');
 
   try {
     if ($name === '') throw new Exception('Nama produk wajib diisi.');
@@ -58,6 +65,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $allowBom = 0;
       $allowDirectPurchase = 0;
     }
+    if ($id === 0) {
+      if (!isset($_POST['show_on_pos'])) {
+        $showOnPos = $productType === 'raw_material' ? 0 : 1;
+      }
+      if (!isset($_POST['show_on_landing'])) {
+        $showOnLanding = $productType === 'raw_material' ? 0 : 1;
+      }
+    }
     if (!empty($categories)) {
       $categoryNames = array_map(static function ($cat) {
         return $cat['name'];
@@ -67,6 +82,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Kategori tidak valid. Silakan pilih dari daftar.');
       }
     }
+    if ($trackStock === 1 && $baseUnit === '') {
+      throw new Exception('Base unit wajib diisi untuk produk yang track stock.');
+    }
+    if ($purchaseToBaseFactor <= 0 || $saleToBaseFactor <= 0) {
+      throw new Exception('Faktor konversi harus lebih besar dari 0.');
+    }
+    if ($baseUnit === '') $baseUnit = 'pcs';
+    if ($purchaseUnit === '') $purchaseUnit = $baseUnit;
+    if ($saleUnit === '') $saleUnit = $baseUnit;
 
     // Upload foto (opsional)
     $imagePath = $product['image_path'];
@@ -87,11 +111,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($id) {
-      $stmt = db()->prepare("UPDATE products SET name=?, category=?, is_best_seller=?, price=?, image_path=?, product_type=?, track_stock=?, allow_direct_purchase=?, allow_bom=? WHERE id=?");
-      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $productType, $trackStock, $allowDirectPurchase, $allowBom, $id]);
+      $stmt = db()->prepare("UPDATE products SET name=?, category=?, is_best_seller=?, price=?, image_path=?, product_type=?, track_stock=?, allow_direct_purchase=?, allow_bom=?, show_on_pos=?, show_on_landing=?, base_unit=?, purchase_unit=?, purchase_to_base_factor=?, sale_unit=?, sale_to_base_factor=? WHERE id=?");
+      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $productType, $trackStock, $allowDirectPurchase, $allowBom, $showOnPos, $showOnLanding, $baseUnit, $purchaseUnit, $purchaseToBaseFactor, $saleUnit, $saleToBaseFactor, $id]);
     } else {
-      $stmt = db()->prepare("INSERT INTO products (name, category, is_best_seller, price, image_path, product_type, track_stock, allow_direct_purchase, allow_bom) VALUES (?,?,?,?,?,?,?,?,?)");
-      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $productType, $trackStock, $allowDirectPurchase, $allowBom]);
+      $stmt = db()->prepare("INSERT INTO products (name, category, is_best_seller, price, image_path, product_type, track_stock, allow_direct_purchase, allow_bom, show_on_pos, show_on_landing, base_unit, purchase_unit, purchase_to_base_factor, sale_unit, sale_to_base_factor) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+      $stmt->execute([$name, $category, $isBestSeller, $price, $imagePath, $productType, $trackStock, $allowDirectPurchase, $allowBom, $showOnPos, $showOnLanding, $baseUnit, $purchaseUnit, $purchaseToBaseFactor, $saleUnit, $saleToBaseFactor]);
     }
 
     redirect(base_url('admin/products.php'));
@@ -138,7 +162,7 @@ $customCss = setting('custom_css', '');
             <div class="row">
               <label>Tipe Produk</label>
               <?php $selectedType = $_POST['product_type'] ?? $product['product_type']; ?>
-              <select name="product_type">
+              <select name="product_type" id="product_type">
                 <option value="finished_good" <?php echo $selectedType === 'finished_good' ? 'selected' : ''; ?>>Finished Good</option>
                 <option value="raw_material" <?php echo $selectedType === 'raw_material' ? 'selected' : ''; ?>>Raw Material</option>
                 <option value="service" <?php echo $selectedType === 'service' ? 'selected' : ''; ?>>Service</option>
@@ -177,7 +201,36 @@ $customCss = setting('custom_css', '');
               <input type="number" name="price" inputmode="numeric" min="0" step="1" value="<?php echo e($_POST['price'] ?? (string)$product['price']); ?>" required>
               <small>Gunakan angka, contoh: 12500</small>
             </div>
+            <?php
+              $unitOptions = ['pcs','pack','box','dus','sachet','botol','cup','kaleng','tray','gram','kg','ons','ml','liter','cm','meter'];
+              $baseUnitVal = $_POST['base_unit'] ?? ($product['base_unit'] ?? 'pcs');
+              $purchaseUnitVal = $_POST['purchase_unit'] ?? ($product['purchase_unit'] ?? $baseUnitVal);
+              $saleUnitVal = $_POST['sale_unit'] ?? ($product['sale_unit'] ?? $baseUnitVal);
+            ?>
+            <div class="row">
+              <label>Base Unit</label>
+              <input list="unit-options" name="base_unit" value="<?php echo e((string)$baseUnitVal); ?>" placeholder="contoh: pcs / gram">
+            </div>
+            <div class="row">
+              <label>Purchase Unit</label>
+              <input list="unit-options" name="purchase_unit" value="<?php echo e((string)$purchaseUnitVal); ?>" placeholder="contoh: dus / kg">
+            </div>
+            <div class="row">
+              <label>Konversi Purchase ke Base</label>
+              <input type="number" min="0.000001" step="0.000001" name="purchase_to_base_factor" value="<?php echo e((string)($_POST['purchase_to_base_factor'] ?? ($product['purchase_to_base_factor'] ?? '1'))); ?>" required>
+            </div>
+            <div class="row">
+              <label>Sale Unit</label>
+              <input list="unit-options" name="sale_unit" value="<?php echo e((string)$saleUnitVal); ?>" placeholder="contoh: pack / liter">
+            </div>
+            <div class="row">
+              <label>Konversi Sale ke Base</label>
+              <input type="number" min="0.000001" step="0.000001" name="sale_to_base_factor" value="<?php echo e((string)($_POST['sale_to_base_factor'] ?? ($product['sale_to_base_factor'] ?? '1'))); ?>" required>
+            </div>
           </div>
+          <datalist id="unit-options">
+            <?php foreach($unitOptions as $opt): ?><option value="<?php echo e($opt); ?>"><?php endforeach; ?>
+          </datalist>
             <div class="row">
               <label>Foto Produk (opsional, max 2MB)</label>
             <input type="file" name="image" accept=".jpg,.jpeg,.png">
@@ -211,6 +264,18 @@ $customCss = setting('custom_css', '');
                 Gunakan BOM untuk produksi
               </label>
             </div>
+            <div class="row">
+              <label class="checkbox-row">
+                <input id="show_on_pos" type="checkbox" name="show_on_pos" value="1" <?php echo !empty($_POST) ? (isset($_POST['show_on_pos']) ? 'checked' : '') : ((int)($product['show_on_pos'] ?? 1) === 1 ? 'checked' : ''); ?>>
+                Tampilkan di POS
+              </label>
+            </div>
+            <div class="row">
+              <label class="checkbox-row">
+                <input id="show_on_landing" type="checkbox" name="show_on_landing" value="1" <?php echo !empty($_POST) ? (isset($_POST['show_on_landing']) ? 'checked' : '') : ((int)($product['show_on_landing'] ?? 1) === 1 ? 'checked' : ''); ?>>
+                Tampilkan di Landing Page
+              </label>
+            </div>
           </div>
           <button class="btn" type="submit">Simpan</button>
           <?php if ($id > 0): ?>
@@ -223,5 +288,25 @@ $customCss = setting('custom_css', '');
   </div>
 </div>
 <script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
+<script>
+(function(){
+  var typeEl = document.getElementById('product_type');
+  var posEl = document.getElementById('show_on_pos');
+  var landingEl = document.getElementById('show_on_landing');
+  if (!typeEl || !posEl || !landingEl) return;
+
+  function syncVisibilityDefault() {
+    if (typeEl.value === 'raw_material') {
+      posEl.checked = false;
+      landingEl.checked = false;
+    } else {
+      posEl.checked = true;
+      landingEl.checked = true;
+    }
+  }
+
+  typeEl.addEventListener('change', syncVisibilityDefault);
+})();
+</script>
 </body>
 </html>
