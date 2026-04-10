@@ -186,3 +186,56 @@ body {
     padding: 0;
   }
 }
+
+.btn-secondary {
+  background: #fff;
+  color: #111;
+}
+
+.btn-muted {
+  background: #4b5563;
+  border-color: #4b5563;
+}
+
+.receipt-notice {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.receipt-notice.is-warn {
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
+.receipt-notice.is-ok {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.receipt-status-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.receipt-status-pending {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.receipt-status-printed {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.receipt-status-expired,
+.receipt-status-cancelled {
+  background: #fef2f2;
+  color: #991b1b;
+}

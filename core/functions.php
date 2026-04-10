@@ -620,3 +620,166 @@ function landing_default_html(): string {
 </div>
 HTML;
 }
+
+function ensure_pos_print_jobs_table(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("\n      CREATE TABLE IF NOT EXISTS pos_print_jobs (\n        id BIGINT AUTO_INCREMENT PRIMARY KEY,\n        job_token VARCHAR(100) NOT NULL UNIQUE,\n        sale_id BIGINT NULL,\n        receipt_payload LONGTEXT NOT NULL,\n        payload_hash VARCHAR(64) NOT NULL,\n        status ENUM('pending','printed','expired','cancelled') NOT NULL DEFAULT 'pending',\n        created_at DATETIME NOT NULL,\n        expires_at DATETIME NOT NULL,\n        printed_at DATETIME NULL,\n        created_by INT NULL,\n        device_hint VARCHAR(100) NULL,\n        notes VARCHAR(255) NULL,\n        KEY idx_status_expires (status, expires_at),\n        KEY idx_sale_id (sale_id)\n      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4\n    ");
+  } catch (Throwable $e) {
+    // Diamkan agar modul lain tidak ikut gagal.
+  }
+}
+
+function expire_old_pos_print_jobs(): void {
+  try {
+    $stmt = db()->prepare("\n      UPDATE pos_print_jobs\n      SET status = 'expired'\n      WHERE status = 'pending' AND expires_at < NOW()\n    ");
+    $stmt->execute();
+  } catch (Throwable $e) {
+    // Diamkan.
+  }
+}
+
+function build_pos_receipt_payload(array $receipt, array $opts = []): array {
+  $storeName = (string)($opts['store_name'] ?? setting('store_name', app_config()['app']['name']));
+  $storeSubtitle = (string)($opts['store_subtitle'] ?? setting('store_subtitle', ''));
+  $storeAddress = (string)($opts['store_address'] ?? setting('store_address', ''));
+  $storePhone = (string)($opts['store_phone'] ?? setting('store_phone', ''));
+  $footer = (string)($opts['footer'] ?? setting('receipt_footer', ''));
+  $storeLogo = (string)($opts['store_logo'] ?? setting('store_logo', ''));
+  $paidAmount = (float)($opts['paid_amount'] ?? ($receipt['paid_amount'] ?? $receipt['total'] ?? 0));
+  $total = (float)($receipt['total'] ?? 0);
+
+  $items = [];
+  foreach (($receipt['items'] ?? []) as $item) {
+    $items[] = [
+      'name' => (string)($item['name'] ?? ''),
+      'qty' => (float)($item['qty'] ?? 0),
+      'price' => (float)($item['price'] ?? 0),
+      'subtotal' => (float)($item['subtotal'] ?? 0),
+    ];
+  }
+
+  return [
+    'receipt_id' => (string)($receipt['id'] ?? ''),
+    'tanggal_jam' => (string)($receipt['time'] ?? date('d/m/Y H:i')),
+    'cashier' => (string)($receipt['cashier'] ?? 'Kasir'),
+    'store_name' => $storeName,
+    'store_subtitle' => $storeSubtitle,
+    'store_address' => $storeAddress,
+    'store_phone' => $storePhone,
+    'footer' => $footer,
+    'payment_method' => (string)($receipt['payment'] ?? 'cash'),
+    'total' => $total,
+    'bayar' => $paidAmount,
+    'kembalian' => max($paidAmount - $total, 0),
+    'items' => $items,
+    'logo_url' => $storeLogo !== '' ? upload_url($storeLogo, 'image') : null,
+    'currency' => [
+      'code' => 'IDR',
+      'symbol' => 'Rp',
+      'total_formatted' => format_number_id($total),
+      'bayar_formatted' => format_number_id($paidAmount),
+      'kembalian_formatted' => format_number_id(max($paidAmount - $total, 0)),
+    ],
+    'paper_width' => 58,
+  ];
+}
+
+function create_pos_print_job(array $payload, array $opts = []): ?array {
+  ensure_pos_print_jobs_table();
+  expire_old_pos_print_jobs();
+
+  $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+  if ($json === false) {
+    return null;
+  }
+
+  $ttlMinutes = (int)($opts['ttl_minutes'] ?? 10);
+  if ($ttlMinutes < 1) $ttlMinutes = 10;
+
+  $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+  $hash = hash('sha256', $json);
+  $createdBy = isset($opts['created_by']) ? (int)$opts['created_by'] : null;
+  $saleId = isset($opts['sale_id']) ? (int)$opts['sale_id'] : null;
+  $deviceHint = isset($opts['device_hint']) ? substr((string)$opts['device_hint'], 0, 100) : null;
+  $notes = isset($opts['notes']) ? substr((string)$opts['notes'], 0, 255) : null;
+
+  try {
+    $stmt = db()->prepare("\n      INSERT INTO pos_print_jobs\n      (job_token, sale_id, receipt_payload, payload_hash, status, created_at, expires_at, printed_at, created_by, device_hint, notes)\n      VALUES (?, ?, ?, ?, 'pending', NOW(), DATE_ADD(NOW(), INTERVAL ? MINUTE), NULL, ?, ?, ?)\n    ");
+    $stmt->execute([$token, $saleId, $json, $hash, $ttlMinutes, $createdBy, $deviceHint, $notes]);
+
+    return [
+      'job_token' => $token,
+      'expires_in_minutes' => $ttlMinutes,
+      'payload_hash' => $hash,
+    ];
+  } catch (Throwable $e) {
+    return null;
+  }
+}
+
+function get_pos_print_job_by_token(string $token, array $options = []): ?array {
+  ensure_pos_print_jobs_table();
+  expire_old_pos_print_jobs();
+
+  $token = trim($token);
+  if ($token === '' || strlen($token) > 100) {
+    return null;
+  }
+
+  $allowPrinted = !empty($options['allow_printed']);
+  $requirePending = !empty($options['require_pending']);
+
+  $sql = "SELECT * FROM pos_print_jobs WHERE job_token = ? LIMIT 1";
+  $stmt = db()->prepare($sql);
+  $stmt->execute([$token]);
+  $job = $stmt->fetch();
+  if (!$job) {
+    return null;
+  }
+
+  if ((string)$job['status'] === 'pending' && strtotime((string)$job['expires_at']) < time()) {
+    $stmtExpire = db()->prepare("UPDATE pos_print_jobs SET status='expired' WHERE id=?");
+    $stmtExpire->execute([(int)$job['id']]);
+    $job['status'] = 'expired';
+  }
+
+  if ($requirePending && (string)$job['status'] !== 'pending') {
+    return null;
+  }
+  if (!$allowPrinted && (string)$job['status'] === 'printed') {
+    return null;
+  }
+
+  $payload = json_decode((string)$job['receipt_payload'], true);
+  if (!is_array($payload)) {
+    return null;
+  }
+
+  $calculatedHash = hash('sha256', (string)$job['receipt_payload']);
+  if (!hash_equals((string)$job['payload_hash'], $calculatedHash)) {
+    return null;
+  }
+
+  $job['payload'] = $payload;
+  return $job;
+}
+
+function mark_pos_print_job_printed(string $token): bool {
+  ensure_pos_print_jobs_table();
+  $token = trim($token);
+  if ($token === '' || strlen($token) > 100) {
+    return false;
+  }
+
+  try {
+    $stmt = db()->prepare("\n      UPDATE pos_print_jobs\n      SET status = 'printed', printed_at = NOW()\n      WHERE job_token = ? AND status = 'pending' AND expires_at >= NOW()\n    ");
+    $stmt->execute([$token]);
+    return $stmt->rowCount() > 0;
+  } catch (Throwable $e) {
+    return false;
+  }
+}
