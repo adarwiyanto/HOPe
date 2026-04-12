@@ -9,14 +9,36 @@
         android:id="@+id/txtCurrent"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Belum ada printer dipilih" />
+        android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/btnReload"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:text="Muat Ulang" />
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnReload"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Muat Ulang" />
+
+        <Button
+            android:id="@+id/btnReconnect"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="Reconnect" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnTestPrint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Test Print" />
 
     <ListView
         android:id="@+id/deviceList"

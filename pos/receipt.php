@@ -88,7 +88,7 @@ if ($receiptValid && $jobToken === '') {
   }
 }
 
-$isAndroid = stripos((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 'Android') !== false;
+$isAndroidApp = is_android_app_request();
 $baseUrl = rtrim(base_url(), '/');
 $apiUrl = base_url('pos/print_job_api.php');
 $logoSrc = '';
@@ -111,7 +111,7 @@ $deepLink = $jobToken !== ''
 <body>
   <div class="receipt-page"
     data-receipt-bridge="1"
-    data-is-android="<?php echo $isAndroid ? '1' : '0'; ?>"
+    data-is-android-app="<?php echo $isAndroidApp ? '1' : '0'; ?>"
     data-print-token="<?php echo e($jobToken); ?>"
     data-bridge-link="<?php echo e($deepLink); ?>"
     data-api-url="<?php echo e($apiUrl); ?>">
@@ -129,8 +129,9 @@ $deepLink = $jobToken !== ''
         <?php endif; ?>
       </div>
       <div class="receipt-toolbar-actions">
-        <button class="btn" type="button" data-print-via-app>Print via App</button>
+        <button class="btn" type="button" data-print-via-app>Cetak</button>
         <button class="btn btn-secondary" type="button" data-print-window>Print Browser</button>
+        <button class="btn btn-muted" type="button" data-open-printer-settings>Pengaturan Printer</button>
         <a class="btn btn-muted" href="<?php echo e(base_url('pos/index.php')); ?>">Kembali</a>
       </div>
     </div>
@@ -143,7 +144,7 @@ $deepLink = $jobToken !== ''
         <p>Silakan kembali ke POS dan ulangi proses cetak.</p>
       </div>
     <?php else: ?>
-      <div class="receipt" role="document">
+      <div class="receipt" id="receipt-print-root" role="document" data-receipt-id="<?php echo e((string)$receipt['id']); ?>" data-cashier="<?php echo e((string)$receipt['cashier']); ?>" data-time="<?php echo e((string)$receipt['time']); ?>" data-store-name="<?php echo e($storeName); ?>" data-logo-src="<?php echo e($logoSrc); ?>">
         <div class="receipt-header">
           <?php if (!empty($storeLogo)): ?>
             <div class="receipt-logo">

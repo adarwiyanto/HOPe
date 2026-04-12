@@ -2,13 +2,10 @@
   const root = document.querySelector('[data-receipt-bridge="1"]');
   if (!root) return;
 
-  const isAndroid = root.getAttribute('data-is-android') === '1';
-  const deepLink = root.getAttribute('data-bridge-link') || '';
-  const token = root.getAttribute('data-print-token') || '';
-  const apiUrl = root.getAttribute('data-api-url') || '';
-
+  const isAndroidApp = root.getAttribute('data-is-android-app') === '1';
   const appBtn = root.querySelector('[data-print-via-app]');
   const browserBtn = root.querySelector('[data-print-window]');
+  const settingsBtn = root.querySelector('[data-open-printer-settings]');
   const notice = root.querySelector('[data-receipt-bridge-notice]');
 
   const showNotice = (message, type) => {
@@ -18,65 +15,62 @@
     notice.textContent = message;
   };
 
-  const openBrowserPrint = () => {
-    window.print();
+  const openBrowserPrint = () => window.print();
+
+  const buildReceiptPayload = () => {
+    const receiptRoot = document.getElementById('receipt-print-root');
+    if (!receiptRoot) return null;
+    return {
+      html: receiptRoot.outerHTML,
+      meta: JSON.stringify({
+        url: window.location.href,
+        receiptId: receiptRoot.dataset.receiptId || '',
+        cashier: receiptRoot.dataset.cashier || '',
+        time: receiptRoot.dataset.time || '',
+        storeName: receiptRoot.dataset.storeName || '',
+        logoUrl: receiptRoot.dataset.logoSrc || ''
+      })
+    };
   };
 
-  if (browserBtn) {
-    browserBtn.addEventListener('click', openBrowserPrint);
-  }
-
-  const tryAppHandoff = () => {
-    if (!isAndroid || !deepLink || !token) {
-      showNotice('Mode app bridge hanya tersedia di Android. Gunakan Print Browser.', 'warn');
+  const tryNativePrint = () => {
+    if (!isAndroidApp) {
+      showNotice('Mode Android app tidak aktif. Gunakan Print Browser.', 'warn');
+      openBrowserPrint();
       return;
     }
 
-    let switchedToApp = false;
-    const start = Date.now();
-    const timer = window.setTimeout(() => {
-      if (!switchedToApp && Date.now() - start < 1800) {
-        showNotice('Aplikasi print belum terpasang / tidak merespons. Gunakan Print Browser.', 'warn');
-      }
-    }, 1400);
+    if (!window.AndroidBridge || typeof window.AndroidBridge.printReceipt !== 'function') {
+      showNotice('Bridge Android tidak ditemukan, fallback ke Print Browser.', 'warn');
+      openBrowserPrint();
+      return;
+    }
 
-    const onVisibility = () => {
-      if (document.hidden) {
-        switchedToApp = true;
-        showNotice('Membuka aplikasi print bridge...', 'ok');
-      }
-    };
+    const payload = buildReceiptPayload();
+    if (!payload) {
+      showNotice('Data receipt tidak ditemukan, fallback ke Print Browser.', 'warn');
+      openBrowserPrint();
+      return;
+    }
 
-    document.addEventListener('visibilitychange', onVisibility, { once: true });
-    window.location.href = deepLink;
-
-    window.setTimeout(() => {
-      window.clearTimeout(timer);
-      if (!switchedToApp) {
-        showNotice('Aplikasi print belum terpasang / tidak merespons. Gunakan Print Browser.', 'warn');
-      }
-    }, 2000);
-  };
-
-  if (appBtn) {
-    appBtn.addEventListener('click', tryAppHandoff);
-  }
-
-  const refreshStatus = async () => {
-    if (!apiUrl || !token) return;
     try {
-      const res = await fetch(`${apiUrl}?action=get&token=${encodeURIComponent(token)}`, {
-        method: 'GET',
-        cache: 'no-store',
-      });
-      if (res.ok) return;
-      if (res.status === 404) {
-        showNotice('Print job tidak lagi pending (mungkin sudah tercetak/expired).', 'warn');
-      }
+      window.AndroidBridge.printReceipt(payload.html, payload.meta);
+      showNotice('Mengirim receipt ke printer native Android...', 'ok');
     } catch (err) {
-      // Ignore network issue on browser preview.
+      showNotice('Gagal mengirim ke Android bridge, fallback ke Print Browser.', 'warn');
+      openBrowserPrint();
     }
   };
 
-  refreshStatus();
+  const openPrinterSettings = () => {
+    if (window.AndroidBridge && typeof window.AndroidBridge.openPrinterSettings === 'function') {
+      window.AndroidBridge.openPrinterSettings();
+      return;
+    }
+    showNotice('Halaman pengaturan printer hanya tersedia di APK Android.', 'warn');
+  };
+
+  if (browserBtn) browserBtn.addEventListener('click', openBrowserPrint);
+  if (appBtn) appBtn.addEventListener('click', tryNativePrint);
+  if (settingsBtn) settingsBtn.addEventListener('click', openPrinterSettings);
 })();

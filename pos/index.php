@@ -19,6 +19,7 @@ ensure_inventory_module_schema();
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', '');
+$isAndroidApp = is_android_app_request();
 $me = current_user();
 $isOwner = (string)($me['role'] ?? '') === 'owner';
 $products = db()->query("SELECT id, name, price, image_path, product_type, track_stock, allow_bom FROM products WHERE show_on_pos = 1 ORDER BY name ASC")->fetchAll();
@@ -590,7 +591,7 @@ if (!empty($rewardCart)) {
   <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <link rel="stylesheet" href="<?php echo e(asset_url('pos/pos.css')); ?>">
 </head>
-<body>
+<body data-android-app="<?php echo $isAndroidApp ? '1' : '0'; ?>">
   <div class="pos-page">
     <div class="topbar pos-topbar">
       <div class="title"><?php echo e($appName); ?> POS</div>

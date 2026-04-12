@@ -9,9 +9,13 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import id.my.hopenoodles.posbridge.bluetooth.BluetoothPrinterManager
 import id.my.hopenoodles.posbridge.data.PrinterPrefs
 import id.my.hopenoodles.posbridge.databinding.ActivityPrinterSettingsBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PrinterSettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivityPrinterSettingsBinding
@@ -33,6 +37,8 @@ class PrinterSettingsActivity : AppCompatActivity() {
         manager = BluetoothPrinterManager(this)
 
         binding.btnReload.setOnClickListener { ensurePermissionsAndLoad() }
+        binding.btnReconnect.setOnClickListener { reconnectCurrent() }
+        binding.btnTestPrint.setOnClickListener { testPrint() }
         ensurePermissionsAndLoad()
     }
 
@@ -52,7 +58,7 @@ class PrinterSettingsActivity : AppCompatActivity() {
 
     private fun loadDevices() {
         if (!manager.isBluetoothEnabled()) {
-            Toast.makeText(this, "Bluetooth belum aktif", Toast.LENGTH_SHORT).show()
+            toast("Bluetooth belum aktif")
         }
         val devices = manager.pairedDevices()
         val labels = devices.map { "${it.name ?: "Unknown"} (${it.address})" }
@@ -60,10 +66,47 @@ class PrinterSettingsActivity : AppCompatActivity() {
         binding.deviceList.setOnItemClickListener { _, _, position, _ ->
             val d = devices[position]
             prefs.savePrinter(d.name ?: "Unknown", d.address)
-            Toast.makeText(this, "Printer dipilih: ${d.address}", Toast.LENGTH_SHORT).show()
-            finish()
+            toast("Printer dipilih: ${d.address}")
+            updateCurrentPrinterText()
         }
-        val current = prefs.printerMac()?.let { mac -> "Printer saat ini: ${prefs.printerName()} ($mac)" } ?: "Belum ada printer dipilih"
+        updateCurrentPrinterText()
+    }
+
+    private fun reconnectCurrent() {
+        val mac = prefs.printerMac()
+        if (mac.isNullOrBlank()) {
+            toast("Belum ada printer dipilih")
+            return
+        }
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) { manager.tryConnect(mac) }
+            toast(if (ok) "Reconnect berhasil" else "Reconnect gagal")
+        }
+    }
+
+    private fun testPrint() {
+        val mac = prefs.printerMac()
+        if (mac.isNullOrBlank()) {
+            toast("Pilih printer dulu")
+            return
+        }
+        lifecycleScope.launch {
+            val error = withContext(Dispatchers.IO) {
+                runCatching {
+                    val bytes = "\u001B@\u001Ba\u0001HOPe POS\nTEST PRINT\n\n\n\u001DVA\u0000".toByteArray()
+                    manager.print(mac, bytes)
+                }.exceptionOrNull()?.message
+            }
+            toast(if (error == null) "Test print berhasil" else "Test print gagal: $error")
+        }
+    }
+
+    private fun updateCurrentPrinterText() {
+        val current = prefs.printerMac()?.let { mac ->
+            "Printer aktif: ${prefs.printerName()} ($mac)"
+        } ?: "Belum ada printer dipilih"
         binding.txtCurrent.text = current
     }
+
+    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
 }
