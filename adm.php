@@ -11,7 +11,11 @@ if ((file_exists(__DIR__ . '/install/install.lock') === false && file_exists(__D
   redirect('install/index.php');
 }
 
+$isAndroidApp = is_android_app_request();
 $me = current_user();
+if ($me && $isAndroidApp) {
+  redirect(base_url('pos/index.php'));
+}
 if ($me && in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
   redirect(base_url('admin/dashboard.php'));
 }
@@ -33,10 +37,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $err = 'Terlalu banyak percobaan login. Silakan coba lagi nanti.';
   } elseif (login_attempt($u, $p)) {
     $me = current_user();
+    rate_limit_clear('admin_login', $rateId);
+    if ($isAndroidApp) {
+      redirect(base_url('pos/index.php'));
+    }
     if (in_array($me['role'] ?? '', ['admin', 'owner'], true)) {
       redirect(base_url('admin/dashboard.php'));
     }
-    rate_limit_clear('admin_login', $rateId);
     redirect(base_url('pos/index.php'));
   } else {
     $failedAttempts = login_record_failed_attempt();

@@ -1,55 +1,32 @@
-# HOPe POS Android Print Bridge (58mm)
+# HOPe POS Android App (WebView + Native Bluetooth Print)
 
-## 1) Apply SQL migration
-Jalankan file berikut ke database production/staging:
+## Ringkasan
+APK Android sekarang berfungsi sebagai host WebView untuk login/POS sekaligus native printer handler (tanpa RTPrinter).
 
-- `db/updates_pos_print_jobs.sql`
-
-Contoh:
-
-```bash
-mysql -u <user> -p <db_name> < db/updates_pos_print_jobs.sql
-```
-
-## 2) Build APK bridge
-Project Android ada di:
-
-- `android/hope-pos-print-bridge/`
-
-Langkah build (di mesin dengan Android SDK):
-
+## Build Android
 ```bash
 cd android/hope-pos-print-bridge
 ./gradlew assembleDebug
 ```
+APK debug:
+`android/hope-pos-print-bridge/app/build/outputs/apk/debug/app-debug.apk`
 
-APK debug akan muncul di:
+## Alur aplikasi
+1. App buka `https://hopenoodles.my.id/adm.php` di WebView.
+2. User login.
+3. Jika request dari APK, server langsung arahkan ke `pos/index.php`.
+4. Saat klik tombol cetak di halaman receipt:
+   - JS cek `window.AndroidBridge`.
+   - Jika ada, kirim HTML receipt ke native (`printReceipt(html, metaJson)`).
+   - Jika tidak ada, fallback ke `window.print()`.
+5. Native print pakai Bluetooth classic ESC/POS ke printer yang dipilih.
 
-- `android/hope-pos-print-bridge/app/build/outputs/apk/debug/app-debug.apk`
+## Pengaturan printer di APK
+- Buka tombol `Pengaturan Printer` dari halaman receipt atau langsung dari app.
+- Pilih printer dari paired devices.
+- Simpan MAC address ke SharedPreferences.
+- Bisa `Reconnect` dan `Test Print` dari halaman settings.
 
-## 3) Install APK ke HP Android
-Aktifkan install from unknown sources, lalu install dengan:
-
-```bash
-adb install -r app-debug.apk
-```
-
-Atau kirim file APK ke HP dan install manual (sideload).
-
-## 4) Pairing printer Panda PRJ-58D
-1. Nyalakan printer Panda PRJ-58D.
-2. Pair printer dari pengaturan Bluetooth Android.
-3. Buka app **HOPe POS Print Bridge**.
-4. Masuk **Pengaturan Printer** dan pilih device Panda (nama + MAC).
-
-## 5) Test end-to-end
-1. Buka POS web di Android dan lakukan transaksi sampai sukses.
-2. Masuk halaman preview `pos/receipt.php`.
-3. Klik **Print via App**.
-4. Browser akan lempar deep link `hopepos://print?...` ke APK.
-5. APK fetch payload via `pos/print_job_api.php?action=get&token=...`.
-6. Preview 58mm muncul, klik **Cetak**.
-7. Setelah sukses, APK call `mark_printed`.
-
-## 6) Fallback bila app belum terpasang
-Di halaman receipt, jika handoff app tidak merespons, user akan mendapatkan notice jelas dan tetap bisa klik **Print Browser** (fallback `window.print()`).
+## Catatan
+- Pairing printer tetap dilakukan di setting Bluetooth Android terlebih dahulu.
+- Jika logo gagal didownload, struk tetap dicetak (tanpa logo).

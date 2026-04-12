@@ -12,6 +12,7 @@ import java.util.UUID
 
 class BluetoothPrinterManager(private val context: Context) {
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    private val spp: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
     fun hasPermissions(): Boolean {
         return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
@@ -27,21 +28,46 @@ class BluetoothPrinterManager(private val context: Context) {
 
     fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
 
+    fun tryConnect(macAddress: String): Boolean {
+        return runCatching {
+            connectSocket(macAddress).use { socket -> socket.isConnected }
+        }.getOrDefault(false)
+    }
+
     fun print(macAddress: String, bytes: ByteArray) {
-        if (!hasPermissions()) throw IllegalStateException("Permission Bluetooth belum diberikan")
-        val device = adapter?.getRemoteDevice(macAddress) ?: throw IllegalStateException("Printer tidak ditemukan")
-        val spp = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        val device = remoteDevice(macAddress)
         var socket: BluetoothSocket? = null
         var out: OutputStream? = null
         try {
-            socket = device.createRfcommSocketToServiceRecord(spp)
-            socket.connect()
+            socket = createConnectedSocket(device)
             out = socket.outputStream
             out.write(bytes)
             out.flush()
         } finally {
-            kotlin.runCatching { out?.close() }
-            kotlin.runCatching { socket?.close() }
+            runCatching { out?.close() }
+            runCatching { socket?.close() }
         }
+    }
+
+    private fun connectSocket(macAddress: String): BluetoothSocket {
+        val device = remoteDevice(macAddress)
+        return createConnectedSocket(device)
+    }
+
+    private fun remoteDevice(macAddress: String): BluetoothDevice {
+        if (!hasPermissions()) throw IllegalStateException("Permission Bluetooth belum diberikan")
+        if (!isBluetoothEnabled()) throw IllegalStateException("Bluetooth belum aktif")
+        return adapter?.getRemoteDevice(macAddress) ?: throw IllegalStateException("Printer tidak ditemukan")
+    }
+
+    private fun createConnectedSocket(device: BluetoothDevice): BluetoothSocket {
+        adapter?.cancelDiscovery()
+        val socket = device.createRfcommSocketToServiceRecord(spp)
+        socket.connect()
+        if (!socket.isConnected) {
+            socket.close()
+            throw IllegalStateException("Gagal terhubung ke printer")
+        }
+        return socket
     }
 }

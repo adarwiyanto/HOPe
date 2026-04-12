@@ -2,20 +2,18 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:orientation="vertical">
 
-    <TextView
+    <ProgressBar
+        android:id="@+id/webProgress"
+        style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Bridge siap menerima deep link hopepos://print"
-        android:textSize="18sp"
-        android:textStyle="bold" />
+        android:layout_height="4dp"
+        android:max="100"
+        android:visibility="gone" />
 
-    <Button
-        android:id="@+id/btnOpenSettings"
+    <WebView
+        android:id="@+id/webView"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Pengaturan Printer" />
+        android:layout_height="match_parent" />
 </LinearLayout>

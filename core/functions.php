@@ -106,6 +106,25 @@ function product_unit_fallback(array $product): array {
   ];
 }
 
+
+function request_header(string $name): string {
+  $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
+  return trim((string)($_SERVER[$key] ?? ''));
+}
+
+function is_android_webview_request(): bool {
+  $ua = (string)($_SERVER['HTTP_USER_AGENT'] ?? '');
+  if ($ua === '') return false;
+  return stripos($ua, 'HOPePOSAndroidWebView') !== false
+    || (stripos($ua, 'Android') !== false && stripos($ua, 'wv') !== false);
+}
+
+function is_android_app_request(): bool {
+  if (is_android_webview_request()) return true;
+  $marker = request_header('X-Hope-Android-App');
+  return $marker === '1' || strtolower($marker) === 'true';
+}
+
 function base_url(string $path = ''): string {
   $cfg = app_config();
   $base = rtrim($cfg['app']['base_url'], '/');
