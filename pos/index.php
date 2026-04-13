@@ -700,7 +700,7 @@ if (!empty($rewardCart)) {
             <div>Pembayaran: <?php echo e(strtoupper($receipt['payment'] ?? '-')); ?></div>
           </div>
           <div class="pos-receipt-actions no-print">
-            <a class="btn pos-print-btn" href="<?php echo e(base_url('pos/receipt.php?id=' . urlencode($receipt['id']))); ?>" target="_blank" rel="noopener">Print Struk 58mm</a>
+            <a class="btn pos-print-btn" href="<?php echo e(base_url('pos/receipt.php?id=' . urlencode($receipt['id']))); ?>">Print Struk 58mm</a>
             <button class="btn pos-print-btn" type="button" data-print-receipt>Cetak Struk</button>
             <form method="post" class="pos-new-transaction-form">
               <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
