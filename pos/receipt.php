@@ -144,7 +144,7 @@ $deepLink = $jobToken !== ''
       <div class="receipt-toolbar-actions">
         <button class="btn" type="button" data-print-via-app>Cetak</button>
         <button class="btn btn-secondary" type="button" data-print-window>Print Browser</button>
-        <button class="btn btn-muted" type="button" data-open-printer-settings>Pengaturan Printer</button>
+        <button class="btn btn-muted" type="button" data-open-printer-settings hidden>Pengaturan Printer</button>
         <a class="btn btn-muted" href="<?php echo e(base_url('pos/index.php')); ?>">Kembali</a>
       </div>
     </div>

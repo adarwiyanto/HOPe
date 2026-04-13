@@ -8,9 +8,13 @@
   const settingsBtn = root.querySelector('[data-open-printer-settings]');
   const notice = root.querySelector('[data-receipt-bridge-notice]');
 
+  const hasBridgeMarker = () =>
+    !!(window.HopeAndroidBridgeInfo && window.HopeAndroidBridgeInfo.ready);
+
   const isAndroidApp =
     root.getAttribute('data-is-android-app') === '1' ||
-    /HOPePOSAndroidWebView/i.test(navigator.userAgent || '');
+    /HOPePOSAndroidWebView/i.test(navigator.userAgent || '') ||
+    hasBridgeMarker();
 
   const showNotice = (message, type) => {
     if (!notice) return;
@@ -41,17 +45,22 @@
     return bridge;
   };
 
+  const hasAndroidBridge = () => {
+    const bridge = getAndroidBridge();
+    return !!(bridge && typeof bridge.printReceipt === 'function');
+  };
+
   const canUseAndroidNativePrint = () => {
+    if (!hasAndroidBridge()) return false;
     const bridge = getAndroidBridge();
     if (!bridge) return false;
-    if (typeof bridge.isReady === 'function') {
-      try {
-        return String(bridge.isReady()) === '1';
-      } catch (_) {
-        return false;
-      }
+    if (typeof bridge.isReady !== 'function') return true;
+    try {
+      const readyValue = bridge.isReady();
+      return readyValue === true || readyValue === 1 || readyValue === '1' || readyValue === 'true';
+    } catch (_) {
+      return false;
     }
-    return typeof bridge.printReceipt === 'function';
   };
 
   const loadPayloadJson = () => {
@@ -78,10 +87,31 @@
     showNotice('Halaman pengaturan printer hanya tersedia di APK Android.', 'warn');
   };
 
+  const syncBridgeUi = () => {
+    const bridgeAvailable = canUseAndroidNativePrint();
+    if (settingsBtn) settingsBtn.hidden = !bridgeAvailable;
+    if (appBtn) appBtn.disabled = isAndroidApp && !bridgeAvailable;
+    if (browserBtn) browserBtn.hidden = isAndroidApp;
+    if (isAndroidApp && !bridgeAvailable) {
+      showNotice('Bridge Android tidak tersedia. Buka receipt dari dalam APK HOPe POS.', 'warn');
+    }
+    console.info('[HOPe POS] receipt bridge state', {
+      isAndroidApp,
+      hasBridgeMarker: hasBridgeMarker(),
+      hasAndroidBridge: hasAndroidBridge(),
+      canUseAndroidNativePrint: bridgeAvailable,
+    });
+  };
+
   const tryNativePrint = () => {
     const payloadJson = loadPayloadJson();
     if (!payloadJson) {
       showNotice('Gagal memproses data receipt.', 'warn');
+      return;
+    }
+
+    if (isAndroidApp && !canUseAndroidNativePrint()) {
+      showNotice('Bridge Android tidak tersedia. Silakan buka dari APK HOPe POS.', 'warn');
       return;
     }
 
@@ -92,18 +122,14 @@
     }
 
     const bridge = getAndroidBridge();
-    if (!bridge || !canUseAndroidNativePrint()) {
-      showNotice('Bridge Android tidak tersedia. Silakan buka dari APK HOPe POS.', 'warn');
-      return;
-    }
-
-    if (typeof bridge.printReceipt !== 'function') {
+    if (!bridge || typeof bridge.printReceipt !== 'function') {
       showNotice('Bridge Android tidak mendukung perintah cetak.', 'warn');
       return;
     }
 
     try {
       const rawResult = bridge.printReceipt(payloadJson);
+      console.info('[HOPe POS] AndroidBridge.printReceipt response', rawResult);
       const result = parseBridgeResult(rawResult);
       if (!result.ok) {
         showNotice(result.message || 'Gagal mengirim data ke printer Android.', 'warn');
@@ -120,11 +146,13 @@
 
   window.HopePosBridge = {
     isAndroidApp,
+    hasAndroidBridge,
     canPrintNative: canUseAndroidNativePrint,
     printReceipt: tryNativePrint,
     openPrinterSettings,
   };
 
+  syncBridgeUi();
   if (browserBtn) browserBtn.addEventListener('click', openBrowserPrint);
   if (appBtn) appBtn.addEventListener('click', tryNativePrint);
   if (settingsBtn) settingsBtn.addEventListener('click', openPrinterSettings);
