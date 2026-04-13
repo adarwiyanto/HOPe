@@ -76,6 +76,7 @@ class PrintJobApi {
             store_address = payloadObj.optString("store_address", ""),
             store_phone = payloadObj.optString("store_phone", ""),
             footer = payloadObj.optString("footer", ""),
+            logo_url = payloadObj.optString("logo_url", ""),
             payment_method = payloadObj.optString("payment_method", "cash"),
             total = payloadObj.optDouble("total", 0.0),
             bayar = payloadObj.optDouble("bayar", 0.0),

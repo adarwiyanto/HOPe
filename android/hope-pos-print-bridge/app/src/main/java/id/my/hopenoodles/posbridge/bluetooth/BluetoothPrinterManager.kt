@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import java.io.IOException
 import java.io.OutputStream
 import java.util.UUID
 
@@ -62,12 +63,34 @@ class BluetoothPrinterManager(private val context: Context) {
 
     private fun createConnectedSocket(device: BluetoothDevice): BluetoothSocket {
         adapter?.cancelDiscovery()
-        val socket = device.createRfcommSocketToServiceRecord(spp)
-        socket.connect()
-        if (!socket.isConnected) {
-            socket.close()
-            throw IllegalStateException("Gagal terhubung ke printer")
+        val attempts = listOf<(BluetoothDevice) -> BluetoothSocket>(
+            { it.createRfcommSocketToServiceRecord(spp) },
+            { it.createInsecureRfcommSocketToServiceRecord(spp) },
+            {
+                val method = it.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                method.invoke(it, 1) as BluetoothSocket
+            }
+        )
+        var lastError: Throwable? = null
+        for (factory in attempts) {
+            val socket = runCatching { factory(device) }.getOrElse {
+                lastError = it
+                return@for
+            }
+            try {
+                socket.connect()
+                if (socket.isConnected) return socket
+                socket.close()
+            } catch (e: Throwable) {
+                lastError = e
+                runCatching { socket.close() }
+            }
         }
-        return socket
+        val message = when (val err = lastError) {
+            is IOException -> err.message ?: "I/O Bluetooth gagal"
+            null -> "Gagal terhubung ke printer"
+            else -> err.message ?: "Gagal terhubung ke printer"
+        }
+        throw IllegalStateException(message)
     }
 }

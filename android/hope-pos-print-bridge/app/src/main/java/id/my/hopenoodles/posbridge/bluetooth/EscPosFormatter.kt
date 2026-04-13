@@ -4,10 +4,12 @@ import android.graphics.Bitmap
 import id.my.hopenoodles.posbridge.data.ReceiptPayload
 import id.my.hopenoodles.posbridge.print.ReceiptHtmlParser
 import java.io.ByteArrayOutputStream
+import java.nio.charset.Charset
 import kotlin.math.min
 
 object EscPosFormatter {
     private const val WIDTH = 32
+    private val CHARSET: Charset = Charsets.UTF_8
 
 
     fun format(payload: ReceiptPayload): ByteArray {
@@ -48,34 +50,33 @@ object EscPosFormatter {
 
         out.write(alignCenter())
         out.write(boldOn())
-        out.write((center(receipt.storeName.uppercase()) + "\n").toByteArray())
+        out.write((center(receipt.storeName.uppercase()) + "\n").toByteArray(CHARSET))
         out.write(boldOff())
-        receipt.storeLines.forEach { out.write((center(it) + "\n").toByteArray()) }
-        out.write(("-".repeat(WIDTH) + "\n").toByteArray())
+        receipt.storeLines.forEach { out.write((center(it) + "\n").toByteArray(CHARSET)) }
+        out.write(("-".repeat(WIDTH) + "\n").toByteArray(CHARSET))
 
         out.write(alignLeft())
-        if (receipt.receiptId.isNotBlank()) out.write(("No: ${receipt.receiptId}\n").toByteArray())
-        if (receipt.tanggal.isNotBlank()) out.write(("Tgl: ${receipt.tanggal}\n").toByteArray())
-        if (receipt.cashier.isNotBlank()) out.write(("Kasir: ${receipt.cashier}\n").toByteArray())
-        out.write(("-".repeat(WIDTH) + "\n").toByteArray())
+        if (receipt.receiptId.isNotBlank()) out.write(("No: ${receipt.receiptId}\n").toByteArray(CHARSET))
+        if (receipt.tanggal.isNotBlank()) out.write(("Tgl: ${receipt.tanggal}\n").toByteArray(CHARSET))
+        if (receipt.cashier.isNotBlank()) out.write(("Kasir: ${receipt.cashier}\n").toByteArray(CHARSET))
+        out.write(("-".repeat(WIDTH) + "\n").toByteArray(CHARSET))
 
         receipt.items.forEach { item ->
-            wrap(item.name, WIDTH).forEach { out.write((it + "\n").toByteArray()) }
-            out.write((twoCol(item.qtyPrice, item.subtotal) + "\n").toByteArray())
+            wrap(item.name, WIDTH).forEach { out.write((it + "\n").toByteArray(CHARSET)) }
+            out.write((twoCol(item.qtyPrice, item.subtotal) + "\n").toByteArray(CHARSET))
         }
 
-        out.write(("-".repeat(WIDTH) + "\n").toByteArray())
-        receipt.summary.forEach { (label, value) -> out.write((twoCol(label.uppercase(), value) + "\n").toByteArray()) }
+        out.write(("-".repeat(WIDTH) + "\n").toByteArray(CHARSET))
+        receipt.summary.forEach { (label, value) -> out.write((twoCol(label.uppercase(), value) + "\n").toByteArray(CHARSET)) }
 
         receipt.footer?.takeIf { it.isNotBlank() }?.let {
-            out.write(("-".repeat(WIDTH) + "\n").toByteArray())
+            out.write(("-".repeat(WIDTH) + "\n").toByteArray(CHARSET))
             out.write(alignCenter())
-            wrap(it, WIDTH).forEach { line -> out.write((center(line) + "\n").toByteArray()) }
+            wrap(it, WIDTH).forEach { line -> out.write((center(line) + "\n").toByteArray(CHARSET)) }
             out.write(alignLeft())
         }
 
         out.write(lineFeed(4))
-        out.write(byteArrayOf(0x1D, 0x56, 0x00))
         return out.toByteArray()
     }
 

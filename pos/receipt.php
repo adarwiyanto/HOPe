@@ -95,6 +95,18 @@ $logoSrc = '';
 if (!empty($storeLogo)) {
   $logoSrc = preg_match('/^https?:\/\//i', (string)$storeLogo) ? (string)$storeLogo : upload_url((string)$storeLogo, 'image');
 }
+$bridgePayload = null;
+if ($receiptValid) {
+  $bridgePayload = build_pos_receipt_payload($receipt, [
+    'store_name' => $storeName,
+    'store_subtitle' => $storeSubtitle,
+    'store_address' => $storeAddress,
+    'store_phone' => $storePhone,
+    'footer' => $receiptFooter,
+    'store_logo' => $storeLogo,
+    'paid_amount' => (float)($receipt['paid_amount'] ?? $receipt['total'] ?? 0),
+  ]);
+}
 $deepLink = $jobToken !== ''
   ? 'hopepos://print?token=' . rawurlencode($jobToken) . '&base=' . rawurlencode($baseUrl)
   : '';
@@ -112,6 +124,7 @@ $deepLink = $jobToken !== ''
   <div class="receipt-page"
     data-receipt-bridge="1"
     data-is-android-app="<?php echo $isAndroidApp ? '1' : '0'; ?>"
+    data-android-bridge-name="AndroidBridge"
     data-print-token="<?php echo e($jobToken); ?>"
     data-bridge-link="<?php echo e($deepLink); ?>"
     data-api-url="<?php echo e($apiUrl); ?>">
@@ -212,6 +225,9 @@ $deepLink = $jobToken !== ''
       </div>
     <?php endif; ?>
   </div>
+  <?php if ($bridgePayload): ?>
+    <script id="receipt-bridge-payload" type="application/json"><?php echo json_encode($bridgePayload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
+  <?php endif; ?>
   <script src="<?php echo e(asset_url('pos/receipt-bridge.js')); ?>"></script>
 </body>
 </html>
