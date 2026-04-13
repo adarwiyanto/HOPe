@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -29,6 +30,7 @@ import id.my.hopenoodles.hopepos.network.LogoDownloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
 import org.json.JSONException
 
 class MainActivity : AppCompatActivity() {
@@ -87,7 +89,7 @@ class MainActivity : AppCompatActivity() {
             WebAppBridge(
                 isTrustedOrigin = { isTrustedUrl(binding.webView.url) },
                 onPrintReceipt = { handlePrintReceipt(it) },
-                onOpenPrinterSettings = { openPrinterSettings() },
+                onOpenPrinterSettings = { openPrinterSettingsSafely() },
             ),
             "AndroidBridge",
         )
@@ -128,43 +130,60 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handlePrintReceipt(payloadRaw: String?): WebAppBridge.BridgeResult {
+        Log.d(TAG, "Bridge printReceipt dipanggil")
+        Log.d(TAG, "State sebelum print: trusted=${isTrustedUrl(binding.webView.url)} btOn=${printerManager.isBluetoothEnabled()} permission=${printerManager.hasConnectPermission()}")
+
+        if (!printerManager.hasConnectPermission()) {
+            ensureBluetoothPermissions()
+            return WebAppBridge.BridgeResult(false, "MISSING_PERMISSION", "Izin BLUETOOTH_CONNECT belum diberikan")
+        }
+
         if (!printerManager.isBluetoothEnabled()) {
             showToast("Bluetooth mati. Aktifkan Bluetooth terlebih dahulu.")
-            openBluetoothSettings()
+            openBluetoothSettingsSafely()
             return WebAppBridge.BridgeResult(false, "BLUETOOTH_OFF", "Bluetooth belum aktif")
         }
 
         val printerMac = printerPrefs.getPrinterMac()
         if (printerMac.isNullOrBlank()) {
             showToast("Printer belum dipilih. Silakan pilih printer.")
-            openPrinterSettings()
+            openPrinterSettingsSafely()
             return WebAppBridge.BridgeResult(false, "PRINTER_NOT_SELECTED", "Printer belum dipilih")
         }
+        Log.d(TAG, "Printer target MAC=$printerMac")
 
         val payload = try {
             ReceiptPayload.fromJson(payloadRaw ?: "")
         } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "Payload print invalid", e)
             return WebAppBridge.BridgeResult(false, "INVALID_PAYLOAD", e.message ?: "Payload tidak valid")
         } catch (e: JSONException) {
+            Log.e(TAG, "JSON print invalid", e)
             return WebAppBridge.BridgeResult(false, "INVALID_JSON", "Format JSON receipt tidak valid")
         }
 
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
+        val result = runBlocking {
+            withContext(Dispatchers.IO) {
                 runCatching {
                     val logo = logoDownloader.download(payload.logoUrl)
                     val receiptBytes = EscPosFormatter.formatReceipt(payload, logo)
                     printerManager.print(printerMac, receiptBytes)
                 }
             }
-            if (result.isSuccess) {
-                showToast("Print receipt berhasil")
-            } else {
-                showToast("Print gagal: ${result.exceptionOrNull()?.message ?: "unknown"}")
-            }
         }
 
-        return WebAppBridge.BridgeResult(true, "QUEUED", "Receipt dimasukkan ke antrian print")
+        return if (result.isSuccess) {
+            Log.d(TAG, "Print receipt sukses")
+            showToast("Print receipt berhasil")
+            WebAppBridge.BridgeResult(true, "PRINT_OK", "Print receipt berhasil")
+        } else {
+            val error = result.exceptionOrNull()
+            Log.e(TAG, "Print receipt gagal", error)
+            val code = (error as? BluetoothPrinterManager.PrinterException)?.code ?: "PRINT_FAILED"
+            val message = error?.message ?: "Gagal mencetak receipt"
+            if (code == "MISSING_PERMISSION") ensureBluetoothPermissions()
+            WebAppBridge.BridgeResult(false, code, message)
+        }
     }
 
     private fun autoConnectDefaultPrinter() {
@@ -176,8 +195,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun openPrinterSettings() {
-        startActivity(Intent(this, PrinterSettingsActivity::class.java))
+    private fun openPrinterSettingsSafely() {
+        runOnUiThread {
+            runCatching {
+                Log.d(TAG, "Membuka PrinterSettingsActivity")
+                startActivity(Intent(this, PrinterSettingsActivity::class.java))
+            }.onFailure {
+                Log.e(TAG, "Gagal membuka PrinterSettingsActivity", it)
+            }
+        }
     }
 
     private fun ensureBluetoothPermissions() {
@@ -191,9 +217,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun openBluetoothSettings() {
-        runCatching {
-            startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+    private fun openBluetoothSettingsSafely() {
+        runOnUiThread {
+            runCatching {
+                startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+            }.onFailure {
+                Log.e(TAG, "Gagal membuka bluetooth settings", it)
+            }
         }
     }
 
@@ -221,6 +251,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val TAG = "MainActivity"
         private const val LOGIN_URL = "https://hopenoodles.my.id/adm.php"
         private const val POS_URL = "https://hopenoodles.my.id/pos/index.php"
         private const val TRUSTED_HOST = "hopenoodles.my.id"

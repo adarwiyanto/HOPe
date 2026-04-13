@@ -8,7 +8,7 @@ class PrinterPrefs(context: Context) {
     fun getPrinterMac(): String? = prefs.getString(KEY_PRINTER_MAC, null)
 
     fun setPrinterMac(mac: String) {
-        prefs.edit().putString(KEY_PRINTER_MAC, mac).apply()
+        prefs.edit().putString(KEY_PRINTER_MAC, mac.trim()).apply()
     }
 
     companion object {
