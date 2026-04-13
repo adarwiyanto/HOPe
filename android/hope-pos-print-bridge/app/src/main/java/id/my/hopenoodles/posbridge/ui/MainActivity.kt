@@ -25,13 +25,16 @@ import androidx.lifecycle.lifecycleScope
 import id.my.hopenoodles.posbridge.bluetooth.BluetoothPrinterManager
 import id.my.hopenoodles.posbridge.bluetooth.EscPosFormatter
 import id.my.hopenoodles.posbridge.data.PrinterPrefs
+import id.my.hopenoodles.posbridge.data.ReceiptItem
+import id.my.hopenoodles.posbridge.data.ReceiptPayload
 import id.my.hopenoodles.posbridge.databinding.ActivityMainBinding
-import id.my.hopenoodles.posbridge.print.ReceiptHtmlParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -57,6 +60,7 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
         ensureBluetoothPermissions()
+        autoConnectLastPrinter()
         if (savedInstanceState == null) {
             binding.webView.loadUrl(loginUrl)
         }
@@ -91,7 +95,7 @@ class MainActivity : AppCompatActivity() {
         binding.webView.addJavascriptInterface(
             WebAppBridge(
                 isTrustedOrigin = { isTrustedUrl(binding.webView.url) },
-                onPrintReceipt = { html, meta -> handlePrintReceipt(html, meta) },
+                onPrintReceipt = { payloadJson -> submitReceiptPrint(payloadJson) },
                 onOpenPrinterSettings = { openPrinterSettings() },
             ),
             "AndroidBridge"
@@ -120,31 +124,42 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 if (url.contains("/admin/dashboard.php")) {
                     view.loadUrl(posUrl)
+                    return
+                }
+                if (isTrustedUrl(url)) {
+                    view.evaluateJavascript(
+                        "window.HopeAndroidBridgeInfo={ready:true,name:'AndroidBridge',host:'$trustedHost'};",
+                        null
+                    )
                 }
             }
         }
     }
 
-    private fun handlePrintReceipt(html: String, metaJson: String?) {
-        lifecycleScope.launch {
-            ensureBluetoothPermissions()
-            val mac = prefs.printerMac()
-            if (mac.isNullOrBlank()) {
+    private fun submitReceiptPrint(payloadJson: String): WebAppBridge.BridgeResult {
+        ensureBluetoothPermissions()
+        val mac = prefs.printerMac()
+        if (mac.isNullOrBlank()) {
+            runOnUiThread {
                 toast("Printer belum dipilih")
                 openPrinterSettings()
-                return@launch
             }
-            if (!btManager.isBluetoothEnabled()) {
+            return WebAppBridge.BridgeResult(false, "PRINTER_NOT_SELECTED", "Printer belum dipilih.")
+        }
+        if (!btManager.isBluetoothEnabled()) {
+            runOnUiThread {
                 toast("Bluetooth belum aktif")
                 openPrinterSettings()
-                return@launch
             }
+            return WebAppBridge.BridgeResult(false, "BLUETOOTH_OFF", "Bluetooth belum aktif.")
+        }
 
+        lifecycleScope.launch {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
-                    val parsed = ReceiptHtmlParser.parse(html, metaJson)
-                    val logo = parsed.logoUrl?.let { fetchBitmap(it) }
-                    val bytes = EscPosFormatter.formatFromParsed(parsed, logo)
+                    val payload = parseReceiptPayload(payloadJson)
+                    val logo = payload.logo_url?.takeIf { it.isNotBlank() }?.let { fetchBitmap(it) }
+                    val bytes = EscPosFormatter.formatFromParsed(payload.toParsedReceipt(), logo)
                     btManager.print(mac, bytes)
                 }.exceptionOrNull()?.message
             }
@@ -156,6 +171,69 @@ class MainActivity : AppCompatActivity() {
                 openPrinterSettings()
             }
         }
+
+        return WebAppBridge.BridgeResult(true, "QUEUED", "Data receipt dikirim ke Android bridge.")
+    }
+
+    private fun parseReceiptPayload(payloadJson: String): ReceiptPayload {
+        val obj = JSONObject(payloadJson)
+        val itemsArray = obj.optJSONArray("items") ?: JSONArray()
+        val items = buildList {
+            for (i in 0 until itemsArray.length()) {
+                val item = itemsArray.optJSONObject(i) ?: continue
+                add(
+                    ReceiptItem(
+                        name = item.optString("name", ""),
+                        qty = item.optDouble("qty", 0.0),
+                        price = item.optDouble("price", 0.0),
+                        subtotal = item.optDouble("subtotal", 0.0),
+                    )
+                )
+            }
+        }
+        return ReceiptPayload(
+            receipt_id = obj.optString("receipt_id", "-"),
+            tanggal_jam = obj.optString("tanggal_jam", "-"),
+            cashier = obj.optString("cashier", "Kasir"),
+            store_name = obj.optString("store_name", "HOPe POS"),
+            store_subtitle = obj.optString("store_subtitle", ""),
+            store_address = obj.optString("store_address", ""),
+            store_phone = obj.optString("store_phone", ""),
+            footer = obj.optString("footer", ""),
+            logo_url = obj.optString("logo_url", ""),
+            payment_method = obj.optString("payment_method", "cash"),
+            total = obj.optDouble("total", 0.0),
+            bayar = obj.optDouble("bayar", 0.0),
+            kembalian = obj.optDouble("kembalian", 0.0),
+            items = items,
+            paper_width = obj.optInt("paper_width", 58),
+        )
+    }
+
+    private fun ReceiptPayload.toParsedReceipt(): id.my.hopenoodles.posbridge.print.ReceiptHtmlParser.ParsedReceipt {
+        return id.my.hopenoodles.posbridge.print.ReceiptHtmlParser.ParsedReceipt(
+            storeName = store_name,
+            storeLines = listOfNotNull(store_subtitle, store_address, store_phone?.takeIf { it.isNotBlank() }?.let { "Telp: $it" })
+                .filter { it.isNotBlank() },
+            logoUrl = logo_url,
+            receiptId = receipt_id,
+            tanggal = tanggal_jam,
+            cashier = cashier,
+            items = items.map {
+                id.my.hopenoodles.posbridge.print.ReceiptHtmlParser.Item(
+                    name = it.name,
+                    qtyPrice = "${it.qty.toInt()} x Rp %,.0f".format(it.price),
+                    subtotal = "Rp %,.0f".format(it.subtotal)
+                )
+            },
+            summary = listOf(
+                "Total" to "Rp %,.0f".format(total),
+                "Bayar" to "Rp %,.0f".format(bayar),
+                "Kembalian" to "Rp %,.0f".format(kembalian),
+                "Pembayaran" to payment_method.uppercase(),
+            ),
+            footer = footer,
+        )
     }
 
     private fun fetchBitmap(url: String): Bitmap? {
@@ -167,6 +245,14 @@ class MainActivity : AppCompatActivity() {
                 BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
             }
         }.getOrNull()
+    }
+
+    private fun autoConnectLastPrinter() {
+        val mac = prefs.printerMac() ?: return
+        if (!btManager.isBluetoothEnabled()) return
+        lifecycleScope.launch(Dispatchers.IO) {
+            btManager.tryConnect(mac)
+        }
     }
 
     private fun openPrinterSettings() {

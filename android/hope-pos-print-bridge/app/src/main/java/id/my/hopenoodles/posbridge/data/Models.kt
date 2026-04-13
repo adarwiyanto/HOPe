@@ -22,6 +22,7 @@ data class ReceiptPayload(
     val store_address: String? = null,
     val store_phone: String? = null,
     val footer: String? = null,
+    val logo_url: String? = null,
     val payment_method: String,
     val total: Double,
     val bayar: Double,
