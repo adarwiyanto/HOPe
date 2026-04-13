@@ -5,6 +5,10 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -13,14 +17,26 @@ import java.io.IOException
 import java.util.UUID
 
 class BluetoothPrinterManager(context: Context) {
+    private val appContext = context.applicationContext
     private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
     private var activeSocket: BluetoothSocket? = null
     private val ioMutex = Mutex()
 
     fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
+    fun hasConnectPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return ContextCompat.checkSelfPermission(
+            appContext,
+            android.Manifest.permission.BLUETOOTH_CONNECT,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
 
     @SuppressLint("MissingPermission")
     fun getBondedDevices(): List<BluetoothDevice> {
+        if (!hasConnectPermission()) {
+            Log.w(TAG, "getBondedDevices ditolak: BLUETOOTH_CONNECT belum granted")
+            return emptyList()
+        }
         val bonded = adapter?.bondedDevices ?: return emptyList()
         return bonded.sortedBy { it.name ?: it.address }
     }
@@ -38,28 +54,42 @@ class BluetoothPrinterManager(context: Context) {
 
     suspend fun print(mac: String, bytes: ByteArray) = withContext(Dispatchers.IO) {
         ioMutex.withLock {
+            if (bytes.isEmpty()) {
+                throw PrinterException("INVALID_PAYLOAD", "Data print kosong")
+            }
             val socket = ensureConnected(mac)
-            val out = socket.outputStream
-            out.write(bytes)
-            out.flush()
+            runCatching {
+                val out = socket.outputStream
+                out.write(bytes)
+                out.flush()
+            }.onFailure {
+                Log.e(TAG, "Write ke printer gagal", it)
+                throw PrinterException("PRINT_FAILED", "Gagal mengirim data ke printer", it)
+            }
         }
     }
 
     @SuppressLint("MissingPermission")
     private fun ensureConnected(mac: String): BluetoothSocket {
+        if (mac.isBlank()) throw PrinterException("PRINTER_NOT_SELECTED", "MAC printer kosong")
         val current = activeSocket
         if (current != null && current.isConnected) return current
         connect(mac)
-        return activeSocket ?: throw IOException("Socket tidak tersedia")
+        return activeSocket ?: throw PrinterException("CONNECT_FAILED", "Socket printer tidak tersedia")
     }
 
     @SuppressLint("MissingPermission")
     private fun connect(mac: String) {
-        val btAdapter = adapter ?: throw IOException("Bluetooth tidak tersedia")
-        if (!btAdapter.isEnabled) throw IOException("Bluetooth mati")
+        if (mac.isBlank()) throw PrinterException("PRINTER_NOT_SELECTED", "MAC printer belum dipilih")
+        val btAdapter = adapter ?: throw PrinterException("BLUETOOTH_UNAVAILABLE", "Perangkat tidak mendukung Bluetooth")
+        if (!hasConnectPermission()) throw PrinterException("MISSING_PERMISSION", "Izin Bluetooth belum diberikan")
+        if (!btAdapter.isEnabled) throw PrinterException("BLUETOOTH_OFF", "Bluetooth sedang mati")
 
         btAdapter.cancelDiscovery()
-        val device = btAdapter.getRemoteDevice(mac)
+        val device = runCatching { btAdapter.getRemoteDevice(mac) }.getOrElse {
+            throw PrinterException("DEVICE_NOT_FOUND", "Perangkat Bluetooth tidak ditemukan", it)
+        }
+        Log.d(TAG, "Mulai koneksi ke printer MAC=${device.address}")
 
         val attempts = listOf<(BluetoothDevice) -> BluetoothSocket>(
             { it.createRfcommSocketToServiceRecord(SPP_UUID) },
@@ -71,23 +101,26 @@ class BluetoothPrinterManager(context: Context) {
         )
 
         var lastError: Throwable? = null
-        for (builder in attempts) {
+        for ((index, builder) in attempts.withIndex()) {
             val socket = runCatching { builder(device) }.getOrElse {
                 lastError = it
+                Log.e(TAG, "Gagal membuat socket metode #${index + 1}", it)
                 null
             } ?: continue
 
             runCatching {
                 socket.connect()
                 activeSocket = socket
+                Log.d(TAG, "Koneksi printer sukses via metode #${index + 1}")
                 return
             }.onFailure {
                 lastError = it
+                Log.e(TAG, "Koneksi printer gagal via metode #${index + 1}", it)
                 runCatching { socket.close() }
             }
         }
 
-        throw IOException("Gagal konek ke printer: ${lastError?.message ?: "unknown"}")
+        throw PrinterException("CONNECT_FAILED", "Gagal konek ke printer: ${lastError?.message ?: "unknown"}", lastError)
     }
 
     fun disconnect() {
@@ -95,7 +128,14 @@ class BluetoothPrinterManager(context: Context) {
         activeSocket = null
     }
 
+    class PrinterException(
+        val code: String,
+        override val message: String,
+        cause: Throwable? = null,
+    ) : IOException(message, cause)
+
     companion object {
+        private const val TAG = "BluetoothPrinterMgr"
         val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
     }
 }

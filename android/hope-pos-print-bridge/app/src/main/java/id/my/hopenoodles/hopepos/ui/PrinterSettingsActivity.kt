@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothDevice
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,7 +32,13 @@ class PrinterSettingsActivity : AppCompatActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { refreshDevices() }
+    ) { result ->
+        val denied = result.filterValues { !it }.keys
+        if (denied.isNotEmpty()) {
+            toast("Izin Bluetooth ditolak. Pilih izin agar printer bisa dipakai.")
+        }
+        refreshDevices()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,10 +65,18 @@ class PrinterSettingsActivity : AppCompatActivity() {
                 toast("Pilih printer dulu")
                 return@setOnClickListener
             }
+            if (!printerManager.hasConnectPermission()) {
+                ensureBluetoothPermissions()
+                toast("Izin Bluetooth belum diberikan")
+                return@setOnClickListener
+            }
             lifecycleScope.launch {
                 val result = withContext(Dispatchers.IO) { printerManager.reconnect(mac) }
                 if (result.isSuccess) toast("Reconnect berhasil")
-                else toast("Reconnect gagal: ${result.exceptionOrNull()?.message}")
+                else {
+                    Log.e(TAG, "Reconnect gagal", result.exceptionOrNull())
+                    toast("Reconnect gagal: ${result.exceptionOrNull()?.message}")
+                }
             }
         }
 
@@ -69,6 +84,11 @@ class PrinterSettingsActivity : AppCompatActivity() {
             val mac = printerPrefs.getPrinterMac()
             if (mac.isNullOrBlank()) {
                 toast("Pilih printer dulu")
+                return@setOnClickListener
+            }
+            if (!printerManager.hasConnectPermission()) {
+                ensureBluetoothPermissions()
+                toast("Izin Bluetooth belum diberikan")
                 return@setOnClickListener
             }
             if (!printerManager.isBluetoothEnabled()) {
@@ -85,20 +105,52 @@ class PrinterSettingsActivity : AppCompatActivity() {
                     }
                 }
                 if (result.isSuccess) toast("Test print berhasil")
-                else toast("Test print gagal: ${result.exceptionOrNull()?.message}")
+                else {
+                    Log.e(TAG, "Test print gagal", result.exceptionOrNull())
+                    toast("Test print gagal: ${result.exceptionOrNull()?.message}")
+                }
             }
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        refreshDevices()
+    }
+
     private fun refreshDevices() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
-        ) {
+        val hasPermission = printerManager.hasConnectPermission()
+        binding.tvPermissionStatus.text = if (hasPermission) {
+            "Izin Bluetooth: granted"
+        } else {
+            "Izin Bluetooth: belum granted"
+        }
+        binding.tvBluetoothStatus.text = if (printerManager.isBluetoothEnabled()) {
+            "Bluetooth: aktif"
+        } else {
+            "Bluetooth: mati"
+        }
+
+        if (!hasPermission) {
+            binding.tvPairedCount.text = "Paired devices: 0"
+            binding.tvEmptyState.text = "Izin BLUETOOTH_CONNECT belum diberikan."
+            pairedDevices = emptyList()
+            binding.listPaired.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
+            renderCurrentPrinter()
             return
         }
+
         pairedDevices = printerManager.getBondedDevices()
         val labels = pairedDevices.map { "${it.name ?: "Unknown"}\n${it.address}" }
+        binding.tvPairedCount.text = "Paired devices: ${pairedDevices.size}"
+        binding.tvEmptyState.text = if (pairedDevices.isEmpty()) {
+            "Belum ada perangkat Bluetooth yang ter-pair."
+        } else {
+            "Ketuk perangkat untuk memilih printer aktif."
+        }
         binding.listPaired.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, labels)
+        Log.d(TAG, "refreshDevices paired=${pairedDevices.size}")
+        renderCurrentPrinter()
     }
 
     private fun renderCurrentPrinter() {
@@ -121,5 +173,9 @@ class PrinterSettingsActivity : AppCompatActivity() {
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    companion object {
+        private const val TAG = "PrinterSettingsAct"
     }
 }
