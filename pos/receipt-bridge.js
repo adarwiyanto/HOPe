@@ -24,19 +24,49 @@
   };
 
   const parseBridgeResult = (raw) => {
-    if (raw === true || raw === 'true') return { ok: true };
-    if (raw === false || raw === 'false') return { ok: false, message: 'Bridge Android menolak perintah cetak.' };
-    if (typeof raw !== 'string') return { ok: true };
-    try {
-      const parsed = JSON.parse(raw);
-      return {
-        ok: parsed.ok !== false,
-        message: parsed.message || '',
-        code: parsed.code || '',
-      };
-    } catch (_) {
+    if (raw === true || raw === 1) return { ok: true };
+    if (raw === false || raw === 0) return { ok: false, message: 'Bridge Android menolak perintah cetak.' };
+    if (typeof raw === 'string') {
+      const normalized = raw.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') return { ok: true };
+      if (normalized === 'false' || normalized === '0') {
+        return { ok: false, message: 'Bridge Android menolak perintah cetak.' };
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'boolean') return { ok: parsed };
+        if (typeof parsed === 'number') return { ok: parsed !== 0 };
+        if (parsed && typeof parsed === 'object') {
+          return {
+            ok: parsed.ok !== false,
+            message: parsed.message || '',
+            code: parsed.code || '',
+          };
+        }
+      } catch (_) {
+        return { ok: true };
+      }
       return { ok: true };
     }
+
+    if (raw && typeof raw === 'object') {
+      return {
+        ok: raw.ok !== false,
+        message: raw.message || '',
+        code: raw.code || '',
+      };
+    }
+
+    return { ok: true };
+  };
+
+  const parseBridgeStatus = (raw) => {
+    const parsed = parseBridgeResult(raw);
+    return {
+      ready: parsed.ok !== false,
+      raw,
+      parsed,
+    };
   };
 
   const getAndroidBridge = () => {
@@ -50,18 +80,24 @@
     return !!(bridge && typeof bridge.printReceipt === 'function');
   };
 
-  const canUseAndroidNativePrint = () => {
-    if (!hasAndroidBridge()) return false;
+  const getBridgeReadiness = () => {
     const bridge = getAndroidBridge();
-    if (!bridge) return false;
-    if (typeof bridge.isReady !== 'function') return true;
+    if (!bridge || typeof bridge.printReceipt !== 'function') {
+      return { canUse: false, readyRaw: null, parsedReady: false };
+    }
+    if (typeof bridge.isReady !== 'function') {
+      return { canUse: true, readyRaw: null, parsedReady: true };
+    }
     try {
-      const readyValue = bridge.isReady();
-      return readyValue === true || readyValue === 1 || readyValue === '1' || readyValue === 'true';
+      const readyRaw = bridge.isReady();
+      const status = parseBridgeStatus(readyRaw);
+      return { canUse: status.ready, readyRaw, parsedReady: status.ready };
     } catch (_) {
-      return false;
+      return { canUse: false, readyRaw: null, parsedReady: false };
     }
   };
+
+  const canUseAndroidNativePrint = () => getBridgeReadiness().canUse;
 
   const loadPayloadJson = () => {
     const payloadNode = document.getElementById('receipt-bridge-payload');
@@ -88,7 +124,8 @@
   };
 
   const syncBridgeUi = () => {
-    const bridgeAvailable = canUseAndroidNativePrint();
+    const readiness = getBridgeReadiness();
+    const bridgeAvailable = readiness.canUse;
     if (settingsBtn) settingsBtn.hidden = !bridgeAvailable;
     if (appBtn) appBtn.disabled = isAndroidApp && !bridgeAvailable;
     if (browserBtn) browserBtn.hidden = isAndroidApp;
@@ -99,6 +136,8 @@
       isAndroidApp,
       hasBridgeMarker: hasBridgeMarker(),
       hasAndroidBridge: hasAndroidBridge(),
+      readyRaw: readiness.readyRaw,
+      parsedReady: readiness.parsedReady,
       canUseAndroidNativePrint: bridgeAvailable,
     });
   };
@@ -110,11 +149,6 @@
       return;
     }
 
-    if (isAndroidApp && !canUseAndroidNativePrint()) {
-      showNotice('Bridge Android tidak tersedia. Silakan buka dari APK HOPe POS.', 'warn');
-      return;
-    }
-
     if (!isAndroidApp) {
       showNotice('Mode browser biasa terdeteksi. Gunakan Print Browser.', 'warn');
       openBrowserPrint();
@@ -123,7 +157,13 @@
 
     const bridge = getAndroidBridge();
     if (!bridge || typeof bridge.printReceipt !== 'function') {
-      showNotice('Bridge Android tidak mendukung perintah cetak.', 'warn');
+      showNotice('Bridge Android tidak tersedia. Silakan buka dari APK HOPe POS.', 'warn');
+      return;
+    }
+
+    const readiness = getBridgeReadiness();
+    if (!readiness.canUse) {
+      showNotice('Bridge Android tidak tersedia. Silakan buka dari APK HOPe POS.', 'warn');
       return;
     }
 

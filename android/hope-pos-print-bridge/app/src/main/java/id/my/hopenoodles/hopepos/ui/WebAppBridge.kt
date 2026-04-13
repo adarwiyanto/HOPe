@@ -34,6 +34,9 @@ class WebAppBridge(
     @JavascriptInterface
     fun isReady(): String = BridgeResult(true, "READY", "Android bridge siap").toJson()
 
+    @JavascriptInterface
+    fun isReadySimple(): Boolean = true
+
     data class BridgeResult(
         val ok: Boolean,
         val code: String,
