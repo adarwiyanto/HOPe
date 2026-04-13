@@ -1,7 +1,5 @@
-<resources>
-    <style name="Theme.HopePosBridge" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#111827</item>
-        <item name="colorPrimaryVariant">#0F172A</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.HopePos" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor" tools:targetApi="l">@android:color/transparent</item>
     </style>
 </resources>
