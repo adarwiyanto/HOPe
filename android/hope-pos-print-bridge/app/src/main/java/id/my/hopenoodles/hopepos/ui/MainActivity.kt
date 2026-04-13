@@ -38,6 +38,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var printerPrefs: PrinterPrefs
     private lateinit var printerManager: BluetoothPrinterManager
     private val logoDownloader = LogoDownloader()
+    @Volatile
+    private var currentPageUrlSnapshot: String? = null
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -56,6 +58,7 @@ class MainActivity : AppCompatActivity() {
         autoConnectDefaultPrinter()
 
         if (savedInstanceState == null) {
+            updateCurrentUrlSnapshot(LOGIN_URL, "initial_load")
             binding.webView.loadUrl(LOGIN_URL)
         }
 
@@ -87,7 +90,8 @@ class MainActivity : AppCompatActivity() {
 
         binding.webView.addJavascriptInterface(
             WebAppBridge(
-                isTrustedOrigin = { isTrustedUrl(binding.webView.url) },
+                getCurrentUrlSnapshot = { currentPageUrlSnapshot },
+                isTrustedOrigin = { isTrustedCachedOrigin() },
                 onPrintReceipt = { handlePrintReceipt(it) },
                 onOpenPrinterSettings = { openPrinterSettingsSafely() },
             ),
@@ -104,6 +108,7 @@ class MainActivity : AppCompatActivity() {
         binding.webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
+                updateCurrentUrlSnapshot(url, "shouldOverrideUrlLoading")
                 if (isTrustedUrl(url)) return false
                 return runCatching {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -113,6 +118,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
+                updateCurrentUrlSnapshot(url, "onPageFinished")
 
                 if (shouldRedirectToPos(url)) {
                     view.loadUrl(POS_URL)
@@ -130,30 +136,41 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handlePrintReceipt(payloadRaw: String?): WebAppBridge.BridgeResult {
-        Log.d(TAG, "Bridge printReceipt dipanggil")
-        Log.d(TAG, "State sebelum print: trusted=${isTrustedUrl(binding.webView.url)} btOn=${printerManager.isBluetoothEnabled()} permission=${printerManager.hasConnectPermission()}")
+        Log.d(TAG, "Bridge printReceipt entered")
+        val cachedUrl = currentPageUrlSnapshot
+        val isTrusted = isTrustedUrl(cachedUrl)
+        Log.d(TAG, "Bridge trusted origin check source=cached_url cachedUrl=$cachedUrl trusted=$isTrusted")
+        if (!isTrusted) {
+            return WebAppBridge.BridgeResult(false, "UNTRUSTED_ORIGIN", "Origin tidak diizinkan")
+        }
 
-        if (!printerManager.hasConnectPermission()) {
+        val hasPermission = printerManager.hasConnectPermission()
+        val bluetoothEnabled = printerManager.isBluetoothEnabled()
+        Log.d(TAG, "Bridge printer precheck permission=$hasPermission bluetoothEnabled=$bluetoothEnabled")
+
+        if (!hasPermission) {
             ensureBluetoothPermissions()
             return WebAppBridge.BridgeResult(false, "MISSING_PERMISSION", "Izin BLUETOOTH_CONNECT belum diberikan")
         }
 
-        if (!printerManager.isBluetoothEnabled()) {
+        if (!bluetoothEnabled) {
             showToast("Bluetooth mati. Aktifkan Bluetooth terlebih dahulu.")
             openBluetoothSettingsSafely()
             return WebAppBridge.BridgeResult(false, "BLUETOOTH_OFF", "Bluetooth belum aktif")
         }
 
         val printerMac = printerPrefs.getPrinterMac()
+        Log.d(TAG, "Bridge selected printer exists=${!printerMac.isNullOrBlank()} mac=$printerMac")
         if (printerMac.isNullOrBlank()) {
             showToast("Printer belum dipilih. Silakan pilih printer.")
             openPrinterSettingsSafely()
             return WebAppBridge.BridgeResult(false, "PRINTER_NOT_SELECTED", "Printer belum dipilih")
         }
-        Log.d(TAG, "Printer target MAC=$printerMac")
 
         val payload = try {
-            ReceiptPayload.fromJson(payloadRaw ?: "")
+            val parsed = ReceiptPayload.fromJson(payloadRaw ?: "")
+            Log.d(TAG, "Bridge payload parse result=ok items=${parsed.items.size} total=${parsed.total}")
+            parsed
         } catch (e: IllegalArgumentException) {
             Log.e(TAG, "Payload print invalid", e)
             return WebAppBridge.BridgeResult(false, "INVALID_PAYLOAD", e.message ?: "Payload tidak valid")
@@ -162,6 +179,7 @@ class MainActivity : AppCompatActivity() {
             return WebAppBridge.BridgeResult(false, "INVALID_JSON", "Format JSON receipt tidak valid")
         }
 
+        Log.d(TAG, "Bridge mulai koneksi printer mac=$printerMac")
         val result = runBlocking {
             withContext(Dispatchers.IO) {
                 runCatching {
@@ -173,12 +191,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         return if (result.isSuccess) {
-            Log.d(TAG, "Print receipt sukses")
+            Log.d(TAG, "Bridge write printer sukses")
             showToast("Print receipt berhasil")
             WebAppBridge.BridgeResult(true, "PRINT_OK", "Print receipt berhasil")
         } else {
             val error = result.exceptionOrNull()
-            Log.e(TAG, "Print receipt gagal", error)
+            Log.e(TAG, "Bridge write printer gagal", error)
             val code = (error as? BluetoothPrinterManager.PrinterException)?.code ?: "PRINT_FAILED"
             val message = error?.message ?: "Gagal mencetak receipt"
             if (code == "MISSING_PERMISSION") ensureBluetoothPermissions()
@@ -196,10 +214,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openPrinterSettingsSafely() {
+        val cachedUrl = currentPageUrlSnapshot
+        val trusted = isTrustedUrl(cachedUrl)
+        Log.d(TAG, "Bridge open settings requested source=cached_url cachedUrl=$cachedUrl trusted=$trusted")
+        if (!trusted) {
+            Log.w(TAG, "Membuka settings ditolak: UNTRUSTED_ORIGIN")
+            return
+        }
         runOnUiThread {
             runCatching {
                 Log.d(TAG, "Membuka PrinterSettingsActivity")
                 startActivity(Intent(this, PrinterSettingsActivity::class.java))
+                Log.d(TAG, "Membuka PrinterSettingsActivity sukses")
             }.onFailure {
                 Log.e(TAG, "Gagal membuka PrinterSettingsActivity", it)
             }
@@ -239,6 +265,18 @@ class MainActivity : AppCompatActivity() {
         if (url.isNullOrBlank()) return false
         val uri = Uri.parse(url)
         return uri.scheme == "https" && uri.host == TRUSTED_HOST
+    }
+
+    private fun updateCurrentUrlSnapshot(url: String?, source: String) {
+        currentPageUrlSnapshot = url
+        Log.d(TAG, "Update cached current url source=$source url=$url")
+    }
+
+    private fun isTrustedCachedOrigin(): Boolean {
+        val cachedUrl = currentPageUrlSnapshot
+        val trusted = isTrustedUrl(cachedUrl)
+        Log.d(TAG, "Trusted origin check source=cached_url cachedUrl=$cachedUrl trusted=$trusted")
+        return trusted
     }
 
     private fun showToast(message: String) {
