@@ -14,5 +14,5 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "hope-pos-print-bridge"
+rootProject.name = "HOPe POS"
 include(":app")
