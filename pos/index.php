@@ -13,11 +13,13 @@ ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 ensure_sales_transaction_code_column();
 ensure_sales_user_column();
+ensure_pos_print_jobs_table();
 ensure_inventory_module_schema();
 
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
 $storeSubtitle = setting('store_subtitle', '');
+$isAndroidApp = is_android_app_request();
 $me = current_user();
 $isOwner = (string)($me['role'] ?? '') === 'owner';
 $products = db()->query("SELECT id, name, price, image_path, product_type, track_stock, allow_bom FROM products WHERE show_on_pos = 1 ORDER BY name ASC")->fetchAll();
@@ -423,7 +425,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'payment' => $paymentMethod,
         'items' => $receiptItems,
         'total' => $receiptTotal,
+        'paid_amount' => $receiptTotal,
       ];
+
+      $printPayload = build_pos_receipt_payload($_SESSION['pos_receipt'], [
+        'store_name' => $storeName,
+        'store_subtitle' => $storeSubtitle,
+        'store_address' => setting('store_address', ''),
+        'store_phone' => setting('store_phone', ''),
+        'footer' => setting('receipt_footer', ''),
+        'store_logo' => setting('store_logo', ''),
+        'paid_amount' => $receiptTotal,
+      ]);
+      $printJob = create_pos_print_job($printPayload, [
+        'sale_id' => isset($saleId) ? (int)$saleId : null,
+        'created_by' => (int)($me['id'] ?? 0),
+        'device_hint' => substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 100),
+        'notes' => 'POS receipt bridge job',
+      ]);
+      if ($printJob && !empty($printJob['job_token'])) {
+        $_SESSION['pos_receipt']['print_job_token'] = (string)$printJob['job_token'];
+      }
+
       $cart = [];
       $rewardCart = [];
       $bypassItems = [];
@@ -568,7 +591,7 @@ if (!empty($rewardCart)) {
   <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <link rel="stylesheet" href="<?php echo e(asset_url('pos/pos.css')); ?>">
 </head>
-<body>
+<body data-android-app="<?php echo $isAndroidApp ? '1' : '0'; ?>">
   <div class="pos-page">
     <div class="topbar pos-topbar">
       <div class="title"><?php echo e($appName); ?> POS</div>
@@ -677,7 +700,7 @@ if (!empty($rewardCart)) {
             <div>Pembayaran: <?php echo e(strtoupper($receipt['payment'] ?? '-')); ?></div>
           </div>
           <div class="pos-receipt-actions no-print">
-            <a class="btn pos-print-btn" href="<?php echo e(base_url('pos/receipt.php?id=' . urlencode($receipt['id']))); ?>" target="_blank" rel="noopener">Print Struk 58mm</a>
+            <a class="btn pos-print-btn" href="<?php echo e(base_url('pos/receipt.php?id=' . urlencode($receipt['id']))); ?>">Print Struk 58mm</a>
             <button class="btn pos-print-btn" type="button" data-print-receipt>Cetak Struk</button>
             <form method="post" class="pos-new-transaction-form">
               <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
