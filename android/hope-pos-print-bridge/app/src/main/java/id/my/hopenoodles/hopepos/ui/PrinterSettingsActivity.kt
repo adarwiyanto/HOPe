@@ -65,9 +65,13 @@ class PrinterSettingsActivity : AppCompatActivity() {
                 toast("Pilih printer dulu")
                 return@setOnClickListener
             }
-            if (!printerManager.hasConnectPermission()) {
+            if (!printerManager.hasRequiredBluetoothPermissionsForConnect()) {
                 ensureBluetoothPermissions()
-                toast("Izin Bluetooth belum diberikan")
+                toast("Izin Bluetooth belum lengkap untuk reconnect printer")
+                return@setOnClickListener
+            }
+            if (!printerManager.isBluetoothEnabled()) {
+                toast("Bluetooth masih mati")
                 return@setOnClickListener
             }
             lifecycleScope.launch {
@@ -86,9 +90,9 @@ class PrinterSettingsActivity : AppCompatActivity() {
                 toast("Pilih printer dulu")
                 return@setOnClickListener
             }
-            if (!printerManager.hasConnectPermission()) {
+            if (!printerManager.hasRequiredBluetoothPermissionsForConnect()) {
                 ensureBluetoothPermissions()
-                toast("Izin Bluetooth belum diberikan")
+                toast("Izin Bluetooth belum lengkap untuk test print")
                 return@setOnClickListener
             }
             if (!printerManager.isBluetoothEnabled()) {
@@ -119,11 +123,11 @@ class PrinterSettingsActivity : AppCompatActivity() {
     }
 
     private fun refreshDevices() {
-        val hasPermission = printerManager.hasConnectPermission()
+        val hasPermission = printerManager.hasRequiredBluetoothPermissionsForSettings()
         binding.tvPermissionStatus.text = if (hasPermission) {
             "Izin Bluetooth: granted"
         } else {
-            "Izin Bluetooth: belum granted"
+            "Izin Bluetooth: belum lengkap (butuh SCAN + CONNECT)"
         }
         binding.tvBluetoothStatus.text = if (printerManager.isBluetoothEnabled()) {
             "Bluetooth: aktif"
@@ -133,7 +137,7 @@ class PrinterSettingsActivity : AppCompatActivity() {
 
         if (!hasPermission) {
             binding.tvPairedCount.text = "Paired devices: 0"
-            binding.tvEmptyState.text = "Izin BLUETOOTH_CONNECT belum diberikan."
+            binding.tvEmptyState.text = "Izin Bluetooth belum lengkap. Berikan BLUETOOTH_SCAN dan BLUETOOTH_CONNECT."
             pairedDevices = emptyList()
             binding.listPaired.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, emptyList<String>())
             renderCurrentPrinter()
@@ -165,7 +169,10 @@ class PrinterSettingsActivity : AppCompatActivity() {
 
     private fun ensureBluetoothPermissions() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val missing = listOf(Manifest.permission.BLUETOOTH_CONNECT).filter {
+        val missing = listOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+        ).filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isNotEmpty()) permissionLauncher.launch(missing.toTypedArray())

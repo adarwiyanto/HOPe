@@ -43,7 +43,12 @@ class MainActivity : AppCompatActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) {}
+    ) { result ->
+        val denied = result.filterValues { !it }.keys
+        if (denied.isNotEmpty()) {
+            showToast("Izin Bluetooth dibutuhkan agar printer bisa dipakai.")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -144,13 +149,18 @@ class MainActivity : AppCompatActivity() {
             return WebAppBridge.BridgeResult(false, "UNTRUSTED_ORIGIN", "Origin tidak diizinkan")
         }
 
-        val hasPermission = printerManager.hasConnectPermission()
+        val hasPermission = printerManager.hasRequiredBluetoothPermissionsForConnect()
         val bluetoothEnabled = printerManager.isBluetoothEnabled()
         Log.d(TAG, "Bridge printer precheck permission=$hasPermission bluetoothEnabled=$bluetoothEnabled")
 
         if (!hasPermission) {
             ensureBluetoothPermissions()
-            return WebAppBridge.BridgeResult(false, "MISSING_PERMISSION", "Izin BLUETOOTH_CONNECT belum diberikan")
+            val missing = printerManager.getMissingBluetoothPermissionErrorForConnect()
+            return WebAppBridge.BridgeResult(
+                false,
+                missing?.first ?: "MISSING_PERMISSION",
+                missing?.second ?: "Izin Bluetooth belum lengkap",
+            )
         }
 
         if (!bluetoothEnabled) {
@@ -199,13 +209,16 @@ class MainActivity : AppCompatActivity() {
             Log.e(TAG, "Bridge write printer gagal", error)
             val code = (error as? BluetoothPrinterManager.PrinterException)?.code ?: "PRINT_FAILED"
             val message = error?.message ?: "Gagal mencetak receipt"
-            if (code == "MISSING_PERMISSION") ensureBluetoothPermissions()
+            if (code == "MISSING_PERMISSION" || code == "MISSING_CONNECT_PERMISSION" || code == "MISSING_SCAN_PERMISSION") {
+                ensureBluetoothPermissions()
+            }
             WebAppBridge.BridgeResult(false, code, message)
         }
     }
 
     private fun autoConnectDefaultPrinter() {
         val mac = printerPrefs.getPrinterMac() ?: return
+        if (!printerManager.hasRequiredBluetoothPermissionsForConnect()) return
         if (!printerManager.isBluetoothEnabled()) return
 
         lifecycleScope.launch {
@@ -234,7 +247,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun ensureBluetoothPermissions() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val required = listOf(Manifest.permission.BLUETOOTH_CONNECT)
+        val required = listOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+        )
         val missing = required.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }

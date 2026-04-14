@@ -3,6 +3,7 @@ package id.my.hopenoodles.hopepos.bluetooth
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
 import android.content.pm.PackageManager
@@ -18,17 +19,49 @@ import java.util.UUID
 
 class BluetoothPrinterManager(context: Context) {
     private val appContext = context.applicationContext
-    private val adapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    private val bluetoothManager: BluetoothManager? =
+        appContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    private val adapter: BluetoothAdapter? = bluetoothManager?.adapter
     private var activeSocket: BluetoothSocket? = null
     private val ioMutex = Mutex()
 
     fun isBluetoothEnabled(): Boolean = adapter?.isEnabled == true
+
+    fun hasScanPermission(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return ContextCompat.checkSelfPermission(
+            appContext,
+            android.Manifest.permission.BLUETOOTH_SCAN,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
     fun hasConnectPermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return ContextCompat.checkSelfPermission(
             appContext,
             android.Manifest.permission.BLUETOOTH_CONNECT,
         ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun hasRequiredBluetoothPermissionsForSettings(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return hasConnectPermission() && hasScanPermission()
+    }
+
+    fun hasRequiredBluetoothPermissionsForConnect(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return hasConnectPermission() && hasScanPermission()
+    }
+
+    fun getMissingBluetoothPermissionErrorForConnect(): Pair<String, String>? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+        if (!hasConnectPermission()) {
+            return "MISSING_CONNECT_PERMISSION" to "Izin BLUETOOTH_CONNECT belum diberikan"
+        }
+        if (!hasScanPermission()) {
+            return "MISSING_SCAN_PERMISSION" to "Izin BLUETOOTH_SCAN belum diberikan"
+        }
+        return null
     }
 
     @SuppressLint("MissingPermission")
@@ -82,7 +115,12 @@ class BluetoothPrinterManager(context: Context) {
     private fun connect(mac: String) {
         if (mac.isBlank()) throw PrinterException("PRINTER_NOT_SELECTED", "MAC printer belum dipilih")
         val btAdapter = adapter ?: throw PrinterException("BLUETOOTH_UNAVAILABLE", "Perangkat tidak mendukung Bluetooth")
-        if (!hasConnectPermission()) throw PrinterException("MISSING_PERMISSION", "Izin Bluetooth belum diberikan")
+        if (!hasConnectPermission()) {
+            throw PrinterException("MISSING_CONNECT_PERMISSION", "Izin BLUETOOTH_CONNECT belum diberikan")
+        }
+        if (!hasScanPermission()) {
+            throw PrinterException("MISSING_SCAN_PERMISSION", "Izin BLUETOOTH_SCAN belum diberikan")
+        }
         if (!btAdapter.isEnabled) throw PrinterException("BLUETOOTH_OFF", "Bluetooth sedang mati")
 
         btAdapter.cancelDiscovery()
