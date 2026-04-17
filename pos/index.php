@@ -3,12 +3,14 @@ require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
+require_once __DIR__ . '/../core/permissions.php';
 require_once __DIR__ . '/../core/csrf.php';
 require_once __DIR__ . '/../core/inventory.php';
 require_once __DIR__ . '/../lib/upload_secure.php';
 
 start_secure_session();
 require_login();
+require_menu_access('pos');
 ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 ensure_sales_transaction_code_column();
