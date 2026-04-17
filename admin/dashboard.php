@@ -3,28 +3,20 @@ require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
+require_once __DIR__ . '/../core/permissions.php';
 
 date_default_timezone_set('Asia/Jakarta');
 
 start_secure_session();
 require_login();
+require_menu_access('dashboard');
 
 $appName = app_config()['app']['name'];
 $storeName = setting('store_name', $appName);
 $storeLogo = setting('store_logo', '');
 $customCss = setting('custom_css', '');
 $u = current_user();
-$role = $u['role'] ?? '';
-
-if ($role === 'user' || $role === 'pegawai' || $role === '' || $role === null) {
-  redirect(base_url('pos/index.php'));
-  exit;
-}
-
-if ($role !== 'admin' && $role !== 'owner') {
-  http_response_code(403);
-  exit('Forbidden');
-}
+$role = normalize_role_key((string)($u['role_key'] ?? $u['role'] ?? ''));
 
 $range = $_GET['range'] ?? 'today';
 $rangeStart = null;
@@ -90,7 +82,7 @@ $stats = [
 $stmt = db()->prepare("
   SELECT COUNT(*) c, COALESCE(SUM(total),0) s
   FROM sales
-  WHERE sold_at >= ? AND sold_at < ? AND return_reason IS NULL
+  WHERE is_active_revision=1 AND sold_at >= ? AND sold_at < ? AND return_reason IS NULL
 ");
 $stmt->execute([$rangeStartStr, $rangeEndStr]);
 $statsRange = $stmt->fetch();
@@ -101,7 +93,7 @@ $stmt = db()->prepare("
   SELECT COUNT(DISTINCT COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))) c,
          COALESCE(SUM(total),0) s
   FROM sales
-  WHERE sold_at >= ? AND sold_at < ? AND return_reason IS NULL
+  WHERE is_active_revision=1 AND sold_at >= ? AND sold_at < ? AND return_reason IS NULL
 ");
 $stmt->execute([$rangeStartStr, $rangeEndStr]);
 $avgRow = $stmt->fetch();
@@ -111,7 +103,7 @@ $stats['avg_transaction'] = $txCount > 0 ? ((float)$avgRow['s'] / $txCount) : 0.
 $stmt = db()->prepare("
   SELECT COUNT(*) c
   FROM sales
-  WHERE COALESCE(returned_at, sold_at) >= ?
+  WHERE is_active_revision=1 AND COALESCE(returned_at, sold_at) >= ?
     AND COALESCE(returned_at, sold_at) < ?
     AND return_reason IS NOT NULL
 ");
@@ -121,7 +113,7 @@ $stats['returns'] = (int)($stmt->fetch()['c'] ?? 0);
 $stmt = db()->prepare("
   SELECT payment_method, COUNT(*) c, COALESCE(SUM(total),0) s
   FROM sales
-  WHERE sold_at >= ? AND sold_at < ? AND return_reason IS NULL
+  WHERE is_active_revision=1 AND sold_at >= ? AND sold_at < ? AND return_reason IS NULL
   GROUP BY payment_method
   ORDER BY s DESC
 ");
@@ -132,6 +124,7 @@ $stmt = db()->prepare("
   SELECT s.*, p.name product_name
   FROM sales s
   JOIN products p ON p.id = s.product_id
+  WHERE s.is_active_revision=1
   ORDER BY s.sold_at DESC
   LIMIT 10
 ");
