@@ -2,6 +2,7 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/security.php';
+require_once __DIR__ . '/permissions.php';
 
 function start_session(): void {
   start_secure_session();
@@ -17,11 +18,13 @@ function require_login(): void {
 function require_admin(): void {
   require_login();
   ensure_owner_role();
+  ensure_roles_permissions_schema();
   $u = current_user();
-  if (($u['role'] ?? '') === 'pegawai') {
+  $roleKey = normalize_role_key((string)($u['role_key'] ?? $u['role'] ?? ''));
+  if ($roleKey === 'kasir') {
     redirect(base_url('pos/index.php'));
   }
-  if (!in_array($u['role'] ?? '', ['admin', 'owner', 'superadmin'], true)) {
+  if (!in_array($roleKey, ['admin', 'owner', 'manager', 'gudang', 'kasir'], true)) {
     http_response_code(403);
     exit('Forbidden');
   }
@@ -34,7 +37,11 @@ function current_user(): ?array {
 
 function login_attempt(string $username, string $password): bool {
   ensure_user_profile_columns();
-  $stmt = db()->prepare("SELECT id, username, name, role, email, avatar_path, password_hash FROM users WHERE username=? LIMIT 1");
+  ensure_roles_permissions_schema();
+  $stmt = db()->prepare("SELECT u.id, u.username, u.name, u.role, u.role_id, u.email, u.avatar_path, u.password_hash, r.role_key
+    FROM users u
+    LEFT JOIN roles r ON r.id=u.role_id
+    WHERE u.username=? LIMIT 1");
   $stmt->execute([$username]);
   $u = $stmt->fetch();
   if (!$u) return false;
@@ -69,8 +76,12 @@ function login_attempt(string $username, string $password): bool {
     $stmt->execute([$newHash, (int)$u['id']]);
   }
   unset($u['password_hash']);
-  if (($u['role'] ?? '') === 'superadmin') {
-    $u['role'] = 'owner';
+  $roleKey = normalize_role_key((string)($u['role_key'] ?? $u['role'] ?? ''));
+  $u['role_key'] = $roleKey;
+  $u['role'] = $roleKey;
+  if ((int)($u['role_id'] ?? 0) <= 0) {
+    $role = role_by_key($roleKey);
+    $u['role_id'] = (int)($role['id'] ?? 0);
   }
   $_SESSION['user'] = $u;
   login_clear_failed_attempts();

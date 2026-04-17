@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/permissions.php';
 
 function ensure_inventory_module_schema(): void {
   static $ensured = false;
@@ -511,16 +512,13 @@ function post_production(int $productionId, int $userId, string $consumeTransTyp
 }
 
 function inventory_is_owner(array $user): bool {
-  return ($user['role'] ?? '') === 'owner';
+  return normalize_role_key((string)($user['role_key'] ?? $user['role'] ?? '')) === 'owner';
 }
 
 function inventory_require_stock_role(): array {
   require_admin();
+  require_menu_access('stock_opname');
   $u = current_user() ?? [];
-  if (!in_array(($u['role'] ?? ''), ['owner', 'admin'], true)) {
-    http_response_code(403);
-    exit('Forbidden');
-  }
   return $u;
 }
 
