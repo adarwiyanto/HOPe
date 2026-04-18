@@ -385,6 +385,7 @@ function ensure_landing_order_tables(): void {
       CREATE TABLE IF NOT EXISTS customers (
         id INT AUTO_INCREMENT PRIMARY KEY,
         name VARCHAR(160) NOT NULL,
+        username VARCHAR(50) NULL,
         email VARCHAR(190) NULL,
         phone VARCHAR(30) NULL,
         password_hash VARCHAR(255) NULL,
@@ -393,7 +394,8 @@ function ensure_landing_order_tables(): void {
         loyalty_points INT NOT NULL DEFAULT 0,
         loyalty_remainder INT NOT NULL DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_customers_username (username)
       ) ENGINE=InnoDB
     ");
 
@@ -444,6 +446,11 @@ function ensure_landing_order_tables(): void {
     $stmt->execute(['loyalty_remainder_mode', 'discard']);
     $stmt->execute(['landing_order_enabled', '1']);
 
+    $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'username'");
+    $hasUsername = (bool)$stmt->fetch();
+    if (!$hasUsername) {
+      $db->exec("ALTER TABLE customers ADD COLUMN username VARCHAR(50) NULL AFTER name");
+    }
     $stmt = $db->query("SHOW COLUMNS FROM customers LIKE 'phone'");
     $hasPhone = (bool)$stmt->fetch();
     if (!$hasPhone) {
@@ -476,6 +483,11 @@ function ensure_landing_order_tables(): void {
     }
     try {
       $db->exec("ALTER TABLE customers ADD UNIQUE KEY uniq_phone (phone)");
+    } catch (Throwable $e) {
+      // abaikan jika indeks sudah ada
+    }
+    try {
+      $db->exec("ALTER TABLE customers ADD UNIQUE KEY uniq_customers_username (username)");
     } catch (Throwable $e) {
       // abaikan jika indeks sudah ada
     }

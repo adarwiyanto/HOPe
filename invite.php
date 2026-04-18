@@ -4,11 +4,13 @@ require_once __DIR__ . '/core/db.php';
 require_once __DIR__ . '/core/functions.php';
 require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/csrf.php';
+require_once __DIR__ . '/core/customer_auth.php';
 start_secure_session();
 
 ensure_owner_role();
 ensure_user_invites_table();
 ensure_user_profile_columns();
+ensure_customer_username_schema();
 
 $err = '';
 $ok = '';
@@ -52,14 +54,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $p1 = (string)($_POST['pass1'] ?? '');
     $p2 = (string)($_POST['pass2'] ?? '');
     if ($name === '' || $username === '') throw new Exception('Nama dan username wajib diisi.');
+    $username = normalize_username($username);
+    if (!is_valid_username($username)) throw new Exception('Format username tidak valid.');
     if ($p1 === '' || $p1 !== $p2) throw new Exception('Password tidak cocok.');
 
-    $stmt = db()->prepare("SELECT id FROM users WHERE username=? LIMIT 1");
-    $stmt->execute([$username]);
-    if ($stmt->fetch()) throw new Exception('Username sudah dipakai.');
+    if (username_exists_anywhere($username)) throw new Exception('Username sudah dipakai.');
 
     $role = (string)($invite['role'] ?? 'user');
-    if (!in_array($role, ['admin', 'user', 'owner', 'pegawai'], true)) $role = 'user';
+    if (!in_array($role, ['admin', 'user', 'owner', 'pegawai', 'manager', 'kasir', 'gudang'], true)) $role = 'user';
     $hash = password_hash($p1, PASSWORD_DEFAULT);
     $email = (string)($invite['email'] ?? '');
     $stmt = db()->prepare("INSERT INTO users (username,email,name,role,password_hash) VALUES (?,?,?,?,?)");
