@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" role="img" aria-label="Default landing background">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1e32"/>
+      <stop offset="50%" stop-color="#153b5d"/>
+      <stop offset="100%" stop-color="#0b86d8"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="20%" cy="18%" r="38%">
+      <stop offset="0%" stop-color="#ffd089" stop-opacity="0.52"/>
+      <stop offset="100%" stop-color="#ffd089" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="82%" cy="12%" r="34%">
+      <stop offset="0%" stop-color="#45b4ff" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#45b4ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <rect width="1920" height="1080" fill="url(#glowA)"/>
+  <rect width="1920" height="1080" fill="url(#glowB)"/>
+</svg>

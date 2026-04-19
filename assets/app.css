@@ -702,7 +702,7 @@ input:focus, select:focus, textarea:focus{
   position:relative;
   min-height:100vh;
   background:linear-gradient(160deg,#0b1e32 0%, #153b5d 55%, #0b86d8 130%);
-  color:#eaf2fb;
+  color:var(--text);
 }
 
 .hero-background,
@@ -720,7 +720,7 @@ input:focus, select:focus, textarea:focus{
     radial-gradient(circle at 20% 20%, rgba(255,208,120,.22), transparent 48%),
     radial-gradient(circle at 80% 10%, rgba(11,134,216,.24), transparent 46%),
     linear-gradient(140deg, rgba(5,16,31,.62), rgba(7,30,54,.52)),
-    url('images/landing-bg.jpg');
+    url('images/landing-bg.svg');
   background-position:center center;
   background-size:cover;
   background-repeat:no-repeat;
@@ -770,6 +770,7 @@ input:focus, select:focus, textarea:focus{
   background:rgba(255,255,255,.9);
   border-color:rgba(255,255,255,.22);
   box-shadow:0 16px 38px rgba(6,21,39,.24);
+  color:var(--text);
 }
 
 .landing-glass-card{
@@ -798,6 +799,23 @@ input:focus, select:focus, textarea:focus{
 
 .landing-store-subtitle{
   margin:6px 0 0;
+  color:#334155;
+}
+
+.landing-page .content.landing h1,
+.landing-page .content.landing h2,
+.landing-page .content.landing h3,
+.landing-page .content.landing h4,
+.landing-page .content.landing p,
+.landing-page .content.landing label,
+.landing-page .content.landing a,
+.auth-page .card h1,
+.auth-page .card h2,
+.auth-page .card h3,
+.auth-page .card p,
+.auth-page .card label,
+.auth-page .card a{
+  color:inherit;
 }
 
 .auth-wrap{
@@ -810,6 +828,7 @@ input:focus, select:focus, textarea:focus{
   background:linear-gradient(150deg, rgba(255,255,255,.93), rgba(243,248,255,.86));
   border:1px solid rgba(255,255,255,.34);
   box-shadow:0 20px 45px rgba(4,16,33,.3);
+  color:var(--text);
 }
 
 .auth-tabs{display:flex;gap:8px;margin-bottom:12px}
