@@ -29,6 +29,16 @@ $customCss = setting('custom_css', '');
 $landingCss = setting('landing_css', '');
 $landingHtml = setting('landing_html', '');
 $landingOrderEnabled = setting('landing_order_enabled', '1') === '1';
+$landingBackground = theme_background_active_for('landing');
+$landingBackgroundIsVideo = ($landingBackground['file_type'] ?? 'image') === 'video';
+$landingBackgroundImageUrl = $landingBackgroundIsVideo
+  ? asset_url('assets/images/landing-bg.svg')
+  : (string)($landingBackground['url'] ?? asset_url('assets/images/landing-bg.svg'));
+$landingBackgroundVideoUrl = $landingBackgroundIsVideo
+  ? (string)($landingBackground['url'] ?? asset_url('assets/videos/landing-bg.mp4'))
+  : (string)($landingBackground['video_url'] ?? asset_url('assets/videos/landing-bg.mp4'));
+$landingBackgroundVideoExt = strtolower((string)pathinfo((string)($landingBackground['file_path'] ?? ''), PATHINFO_EXTENSION));
+$landingBackgroundVideoMime = $landingBackgroundVideoExt === 'webm' ? 'video/webm' : 'video/mp4';
 $recaptchaSiteKey = setting('recaptcha_site_key', '');
 $recaptchaSecretKey = setting('recaptcha_secret_key', '');
 $checkoutRecaptchaAction = 'checkout';
@@ -196,12 +206,14 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
   <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?><?php echo $landingCss; ?></style>
 </head>
-<body class="page-has-premium-bg landing-page bg-mode-image">
+<body class="page-has-premium-bg landing-page <?php echo $landingBackgroundIsVideo ? 'bg-mode-video' : 'bg-mode-image'; ?>">
   <div class="hero-background" aria-hidden="true">
-    <div class="hero-image"></div>
-    <video class="hero-video" autoplay muted loop playsinline preload="metadata">
-      <source src="<?php echo e(asset_url('assets/videos/landing-bg.mp4')); ?>" type="video/mp4">
+    <div class="hero-image" style="background-image:url('<?php echo e($landingBackgroundImageUrl); ?>')"></div>
+    <?php if ($landingBackgroundIsVideo && $landingBackgroundVideoUrl !== ''): ?>
+    <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="<?php echo e(asset_url('assets/images/landing-bg.svg')); ?>">
+      <source src="<?php echo e($landingBackgroundVideoUrl); ?>" type="<?php echo e($landingBackgroundVideoMime); ?>">
     </video>
+    <?php endif; ?>
     <div class="hero-overlay"></div>
   </div>
 

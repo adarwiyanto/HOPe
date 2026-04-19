@@ -192,6 +192,101 @@ function set_setting(string $key, string $value): void {
   $stmt->execute([$key, $value]);
 }
 
+function ensure_store_theme_backgrounds_table(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  try {
+    db()->exec("
+      CREATE TABLE IF NOT EXISTS store_theme_backgrounds (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(140) NOT NULL,
+        file_type ENUM('image','video') NOT NULL,
+        file_path VARCHAR(255) NOT NULL,
+        target_page ENUM('landing','login','both') NOT NULL DEFAULT 'both',
+        is_enabled TINYINT(1) NOT NULL DEFAULT 1,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_target_enabled (target_page, is_enabled, sort_order, id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    ");
+    db()->exec("INSERT INTO settings (`key`,`value`) VALUES ('theme_background_active_landing','0')
+      ON DUPLICATE KEY UPDATE `value`=`value`");
+    db()->exec("INSERT INTO settings (`key`,`value`) VALUES ('theme_background_active_login','0')
+      ON DUPLICATE KEY UPDATE `value`=`value`");
+  } catch (Throwable $e) {
+    // Diamkan agar tidak mengganggu flow lama.
+  }
+}
+
+function theme_background_default_for(string $page): array {
+  $normalized = $page === 'login' ? 'login' : 'landing';
+  $defaultVideoPath = dirname(__DIR__) . '/assets/videos/landing-bg.mp4';
+  return [
+    'page' => $normalized,
+    'source' => 'default',
+    'id' => null,
+    'title' => 'Default Lokal',
+    'file_type' => 'image',
+    'file_path' => 'assets/images/landing-bg.svg',
+    'url' => asset_url('assets/images/landing-bg.svg'),
+    'video_url' => is_file($defaultVideoPath) ? asset_url('assets/videos/landing-bg.mp4') : '',
+  ];
+}
+
+function theme_background_is_accessible_path(string $path): bool {
+  if ($path === '') return false;
+  if (preg_match('~^https?://~i', $path)) return true;
+  if (str_starts_with($path, 'data:')) return true;
+  $local = dirname(__DIR__) . '/' . ltrim($path, '/');
+  return is_file($local);
+}
+
+function theme_background_active_for(string $page): array {
+  ensure_store_theme_backgrounds_table();
+  $normalized = $page === 'login' ? 'login' : 'landing';
+  $settingKey = $normalized === 'login' ? 'theme_background_active_login' : 'theme_background_active_landing';
+  $activeId = (int)setting($settingKey, '0');
+  if ($activeId <= 0) {
+    return theme_background_default_for($normalized);
+  }
+
+  try {
+    $stmt = db()->prepare("SELECT * FROM store_theme_backgrounds WHERE id = ? LIMIT 1");
+    $stmt->execute([$activeId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+      return theme_background_default_for($normalized);
+    }
+    if ((int)($row['is_enabled'] ?? 0) !== 1) {
+      return theme_background_default_for($normalized);
+    }
+    $targetPage = (string)($row['target_page'] ?? 'both');
+    if (!in_array($targetPage, [$normalized, 'both'], true)) {
+      return theme_background_default_for($normalized);
+    }
+    $path = trim((string)($row['file_path'] ?? ''));
+    if (!theme_background_is_accessible_path($path)) {
+      return theme_background_default_for($normalized);
+    }
+
+    return [
+      'page' => $normalized,
+      'source' => 'admin',
+      'id' => (int)$row['id'],
+      'title' => (string)$row['title'],
+      'file_type' => (string)$row['file_type'],
+      'file_path' => $path,
+      'url' => asset_url($path),
+      'video_url' => theme_background_default_for($normalized)['video_url'],
+    ];
+  } catch (Throwable $e) {
+    return theme_background_default_for($normalized);
+  }
+}
+
 function ensure_products_favorite_column(): void {
   static $ensured = false;
   if ($ensured) return;

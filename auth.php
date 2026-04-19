@@ -150,6 +150,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $customCss = setting('custom_css', '');
+$loginBackground = theme_background_active_for('login');
+$loginBackgroundIsVideo = ($loginBackground['file_type'] ?? 'image') === 'video';
+$loginBackgroundImageUrl = $loginBackgroundIsVideo
+  ? asset_url('assets/images/landing-bg.svg')
+  : (string)($loginBackground['url'] ?? asset_url('assets/images/landing-bg.svg'));
+$loginBackgroundVideoUrl = $loginBackgroundIsVideo
+  ? (string)($loginBackground['url'] ?? asset_url('assets/videos/landing-bg.mp4'))
+  : (string)($loginBackground['video_url'] ?? asset_url('assets/videos/landing-bg.mp4'));
+$loginBackgroundVideoExt = strtolower((string)pathinfo((string)($loginBackground['file_path'] ?? ''), PATHINFO_EXTENSION));
+$loginBackgroundVideoMime = $loginBackgroundVideoExt === 'webm' ? 'video/webm' : 'video/mp4';
 ?>
 <!doctype html>
 <html>
@@ -161,12 +171,14 @@ $customCss = setting('custom_css', '');
   <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?></style>
 </head>
-<body class="page-has-premium-bg auth-page bg-mode-image">
+<body class="page-has-premium-bg auth-page <?php echo $loginBackgroundIsVideo ? 'bg-mode-video' : 'bg-mode-image'; ?>">
   <div class="auth-background" aria-hidden="true">
-    <div class="hero-image"></div>
-    <video class="hero-video" autoplay muted loop playsinline preload="metadata">
-      <source src="<?php echo e(asset_url('assets/videos/landing-bg.mp4')); ?>" type="video/mp4">
+    <div class="hero-image" style="background-image:url('<?php echo e($loginBackgroundImageUrl); ?>')"></div>
+    <?php if ($loginBackgroundIsVideo && $loginBackgroundVideoUrl !== ''): ?>
+    <video class="hero-video" autoplay muted loop playsinline preload="metadata" poster="<?php echo e(asset_url('assets/images/landing-bg.svg')); ?>">
+      <source src="<?php echo e($loginBackgroundVideoUrl); ?>" type="<?php echo e($loginBackgroundVideoMime); ?>">
     </video>
+    <?php endif; ?>
     <div class="hero-overlay"></div>
   </div>
 
