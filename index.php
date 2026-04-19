@@ -196,7 +196,16 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
   <link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>">
   <style><?php echo $customCss; ?><?php echo $landingCss; ?></style>
 </head>
-<body>
+<body class="page-has-premium-bg landing-page bg-mode-image">
+  <div class="hero-background" aria-hidden="true">
+    <div class="hero-image"></div>
+    <video class="hero-video" autoplay muted loop playsinline preload="metadata">
+      <source src="<?php echo e(asset_url('assets/videos/landing-bg.mp4')); ?>" type="video/mp4">
+    </video>
+    <div class="hero-overlay"></div>
+  </div>
+
+  <div class="landing-page-content">
   <?php
     $productCards = '';
     ob_start();
@@ -364,6 +373,8 @@ $loginButton = '<div style="display:flex;gap:8px;flex-wrap:wrap">' . implode('',
         : '',
     ]);
   ?>
+  </div>
+
   <?php if (!empty($recaptchaSiteKey)): ?>
     <style>
       .grecaptcha-badge {

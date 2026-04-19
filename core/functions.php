@@ -623,13 +623,13 @@ function verify_recaptcha_response(
 function landing_default_html(): string {
   return <<<'HTML'
 <div class="content landing">
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-      <div style="display:flex;align-items:center;gap:12px">
+  <div class="card landing-glass-card">
+    <div class="landing-header-row">
+      <div class="landing-brand-block">
         {{store_logo_block}}
         <div>
-          <h2 style="margin:0">{{store_name}}</h2>
-          <p style="margin:6px 0 0"><small>{{store_subtitle}}</small></p>
+          <h2 class="landing-store-title">{{store_name}}</h2>
+          <p class="landing-store-subtitle"><small>{{store_subtitle}}</small></p>
         </div>
       </div>
       {{login_button}}
@@ -638,7 +638,7 @@ function landing_default_html(): string {
 
   {{notice}}
 
-  <div class="card" style="margin-top:16px">
+  <div class="card landing-glass-card" style="margin-top:16px">
     <h3 style="margin:0 0 8px">Tentang Kami</h3>
     <p style="margin:0;color:var(--muted)">{{store_intro}}</p>
   </div>
