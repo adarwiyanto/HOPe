@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       CREATE TABLE IF NOT EXISTS customers (
         id INT(11) NOT NULL AUTO_INCREMENT,
         name VARCHAR(160) NOT NULL,
+        username VARCHAR(50) DEFAULT NULL,
         phone VARCHAR(30) DEFAULT NULL,
         loyalty_points INT(11) NOT NULL DEFAULT 0,
         loyalty_remainder INT(11) NOT NULL DEFAULT 0,
@@ -52,6 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         UNIQUE KEY email (email),
+        UNIQUE KEY uniq_customers_username (username),
         UNIQUE KEY uniq_phone (phone)
       ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
     ");
