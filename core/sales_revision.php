@@ -255,7 +255,7 @@ function revise_sale_transaction(string $sourceTransactionCode, array $payload, 
        revision_reason_category, revision_reason_text, revised_by_user_id, revised_at, revision_status, original_sale_id,
        product_id, branch_id, qty, price_each, total, discount_amount, tax_amount, extra_fee, grand_total,
        payment_method, payment_proof_path, customer_name, notes, sale_status, created_by, sold_at)
-      VALUES (?,?,?,?,?,?,?,?,?,NOW(),'active',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+      VALUES (?,?,?,?,?,?,?,?,?,NOW(),'active',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
     $sourceId = (int)$oldHeader['id'];
     $originalId = (int)($oldItems[0]['original_sale_id'] ?? $sourceId);
