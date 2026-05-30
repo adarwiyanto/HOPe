@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.provider.MediaStore
 import android.util.Log
 import android.view.View
 import android.webkit.CookieManager
@@ -15,11 +16,13 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.ValueCallback
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import id.my.hopenoodles.hopepos.bluetooth.BluetoothPrinterManager
 import id.my.hopenoodles.hopepos.bluetooth.EscPosFormatter
@@ -32,6 +35,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import org.json.JSONException
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -40,6 +47,9 @@ class MainActivity : AppCompatActivity() {
     private val logoDownloader = LogoDownloader()
     @Volatile
     private var currentPageUrlSnapshot: String? = null
+    private var pendingFilePathCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingFileChooserParams: WebChromeClient.FileChooserParams? = null
+    private var pendingCameraImageUri: Uri? = null
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -48,6 +58,50 @@ class MainActivity : AppCompatActivity() {
         if (denied.isNotEmpty()) {
             showToast("Izin Bluetooth dibutuhkan agar printer bisa dipakai.")
         }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val params = pendingFileChooserParams
+        pendingFileChooserParams = null
+        if (granted && params != null) {
+            launchFileChooser(params)
+        } else {
+            pendingFilePathCallback?.onReceiveValue(null)
+            pendingFilePathCallback = null
+            pendingCameraImageUri = null
+            if (!granted) showToast("Izin kamera dibutuhkan untuk foto bukti QRIS.")
+        }
+    }
+
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        val callback = pendingFilePathCallback
+        if (callback == null) {
+            pendingCameraImageUri = null
+            return@registerForActivityResult
+        }
+
+        val uris = if (result.resultCode == RESULT_OK) {
+            val data = result.data
+            when {
+                data?.clipData != null -> {
+                    val clip = data.clipData!!
+                    Array(clip.itemCount) { idx -> clip.getItemAt(idx).uri }
+                }
+                data?.data != null -> arrayOf(data.data!!)
+                pendingCameraImageUri != null -> arrayOf(pendingCameraImageUri!!)
+                else -> null
+            }
+        } else {
+            null
+        }
+
+        callback.onReceiveValue(uris)
+        pendingFilePathCallback = null
+        pendingCameraImageUri = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,6 +162,24 @@ class MainActivity : AppCompatActivity() {
                 binding.webProgress.progress = newProgress
                 binding.webProgress.visibility = if (newProgress >= 100) View.GONE else View.VISIBLE
             }
+
+            override fun onShowFileChooser(
+                webView: WebView,
+                filePathCallback: ValueCallback<Array<Uri>>,
+                fileChooserParams: WebChromeClient.FileChooserParams,
+            ): Boolean {
+                pendingFilePathCallback?.onReceiveValue(null)
+                pendingFilePathCallback = filePathCallback
+
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    pendingFileChooserParams = fileChooserParams
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    return true
+                }
+
+                launchFileChooser(fileChooserParams)
+                return true
+            }
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
@@ -137,6 +209,51 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
             }
+        }
+    }
+
+
+    private fun launchFileChooser(fileChooserParams: WebChromeClient.FileChooserParams) {
+        val cameraIntent = createImageCaptureIntent()
+        val acceptTypes = fileChooserParams.acceptTypes?.joinToString(",").orEmpty().lowercase(Locale.ROOT)
+        val wantsImage = acceptTypes.isBlank() || acceptTypes.contains("image") || acceptTypes.contains("jpg") || acceptTypes.contains("jpeg") || acceptTypes.contains("png")
+
+        val contentIntent = runCatching { fileChooserParams.createIntent() }
+            .getOrElse { Intent(Intent.ACTION_GET_CONTENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*" } }
+
+        val intent = if (fileChooserParams.isCaptureEnabled && wantsImage && cameraIntent != null) {
+            cameraIntent
+        } else {
+            Intent(Intent.ACTION_CHOOSER).apply {
+                putExtra(Intent.EXTRA_INTENT, contentIntent)
+                if (wantsImage && cameraIntent != null) {
+                    putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(cameraIntent))
+                }
+            }
+        }
+
+        runCatching { fileChooserLauncher.launch(intent) }
+            .onFailure {
+                Log.e(TAG, "Gagal membuka kamera/file chooser QRIS", it)
+                pendingFilePathCallback?.onReceiveValue(null)
+                pendingFilePathCallback = null
+                pendingCameraImageUri = null
+                showToast("Kamera atau file chooser tidak bisa dibuka.")
+            }
+    }
+
+    private fun createImageCaptureIntent(): Intent? {
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        if (intent.resolveActivity(packageManager) == null) return null
+
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val imageFile = File.createTempFile("qris_${timeStamp}_", ".jpg", externalCacheDir ?: cacheDir)
+        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", imageFile)
+        pendingCameraImageUri = uri
+
+        return intent.apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         }
     }
 

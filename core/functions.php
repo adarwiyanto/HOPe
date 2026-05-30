@@ -395,6 +395,42 @@ function ensure_sales_user_column(): void {
   }
 }
 
+
+
+function ensure_sales_loyalty_columns(): void {
+  static $ensured = false;
+  if ($ensured) return;
+  $ensured = true;
+
+  $defs = [
+    'order_id' => ['INT NULL', 'AFTER customer_name'],
+    'customer_id' => ['INT NULL', 'AFTER order_id'],
+    'loyalty_points_earned' => ['INT NOT NULL DEFAULT 0', 'AFTER customer_id'],
+    'loyalty_points_redeemed' => ['INT NOT NULL DEFAULT 0', 'AFTER loyalty_points_earned'],
+    'loyalty_remainder_before' => ['INT NULL', 'AFTER loyalty_points_redeemed'],
+    'loyalty_remainder_after' => ['INT NULL', 'AFTER loyalty_remainder_before'],
+  ];
+
+  foreach ($defs as $column => $def) {
+    try {
+      $stmt = db()->query("SHOW COLUMNS FROM sales LIKE " . db()->quote($column));
+      $hasColumn = (bool)$stmt->fetch();
+      if ($hasColumn) continue;
+
+      [$type, $after] = $def;
+      try {
+        db()->exec("ALTER TABLE sales ADD COLUMN {$column} {$type} {$after}");
+      } catch (Throwable $e) {
+        db()->exec("ALTER TABLE sales ADD COLUMN {$column} {$type}");
+      }
+    } catch (Throwable $e) {
+      // Diamkan agar halaman tetap berjalan pada database lama.
+    }
+  }
+
+  try { db()->exec("CREATE INDEX idx_sales_order_customer ON sales (order_id, customer_id)"); } catch (Throwable $e) {}
+}
+
 function ensure_user_invites_table(): void {
   static $ensured = false;
   if ($ensured) return;

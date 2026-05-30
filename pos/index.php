@@ -15,6 +15,7 @@ ensure_landing_order_tables();
 ensure_loyalty_rewards_table();
 ensure_sales_transaction_code_column();
 ensure_sales_user_column();
+ensure_sales_loyalty_columns();
 ensure_pos_print_jobs_table();
 ensure_inventory_module_schema();
 
@@ -332,11 +333,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         $receiptTotal += $total;
       }
+      $pointsRedeemedTotal = 0;
       if (!empty($rewardCart)) {
         $rewardIds = array_map('intval', array_keys($rewardCart));
         $placeholders = implode(',', array_fill(0, count($rewardIds), '?'));
         $stmtReward = $db->prepare("
-          SELECT lr.id, lr.product_id, p.name
+          SELECT lr.id, lr.product_id, lr.points_required, p.name
           FROM loyalty_rewards lr
           JOIN products p ON p.id = lr.product_id
           WHERE lr.id IN ($placeholders)
@@ -356,9 +358,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           if ($qty <= 0) {
             continue;
           }
+          $pointsRedeemedTotal += ((int)($reward['points_required'] ?? 0)) * $qty;
           $stmt->execute([$transactionCode, $pid, $qty, 0, 0, $paymentMethod, $paymentProofPath, (int)($me['id'] ?? 0)]);
           $saleId = (int)$db->lastInsertId();
-          $stmtUpdateBranch = $db->prepare("UPDATE sales SET branch_id=? WHERE id=?");
+            $stmtUpdateBranch = $db->prepare("UPDATE sales SET branch_id=? WHERE id=?");
           $stmtUpdateBranch->execute([$branchId, $saleId]);
           add_stock_ledger([
             'branch_id' => $branchId,
@@ -387,9 +390,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           $stmtLink->execute([$transactionCode, (int)$productionId, $branchId]);
         }
       }
-      $db->commit();
-      if (!empty($_SESSION['pos_order_id'])) {
-        $orderId = (int)$_SESSION['pos_order_id'];
+      $orderId = !empty($_SESSION['pos_order_id']) ? (int)$_SESSION['pos_order_id'] : 0;
+      if ($orderId > 0) {
         $stmt = $db->prepare("UPDATE orders SET status='completed', completed_at=NOW() WHERE id=?");
         $stmt->execute([$orderId]);
         $stmt = $db->prepare("
@@ -398,15 +400,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           JOIN customers c ON c.id = o.customer_id
           WHERE o.id = ?
           LIMIT 1
+          FOR UPDATE
         ");
         $stmt->execute([$orderId]);
         $customer = $stmt->fetch();
         if ($customer) {
+          $customerId = (int)$customer['id'];
           $pointValue = (int)setting('loyalty_point_value', '0');
+          $pointsEarned = 0;
+          $customerRemainder = (int)($customer['loyalty_remainder'] ?? 0);
+          $newRemainder = $customerRemainder;
           if ($pointValue > 0) {
             $remainderMode = (string)setting('loyalty_remainder_mode', 'discard');
             $carryRemainder = $remainderMode === 'carry';
-            $customerRemainder = (int)($customer['loyalty_remainder'] ?? 0);
             $totalForPoints = (int)round($receiptTotal) + ($carryRemainder ? $customerRemainder : 0);
             $pointsEarned = intdiv($totalForPoints, $pointValue);
             $newRemainder = $carryRemainder ? ($totalForPoints % $pointValue) : 0;
@@ -415,11 +421,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               SET loyalty_points = loyalty_points + ?, loyalty_remainder = ?
               WHERE id = ?
             ");
-            $stmt->execute([$pointsEarned, $newRemainder, (int)$customer['id']]);
+            $stmt->execute([$pointsEarned, $newRemainder, $customerId]);
           }
+          $stmt = $db->prepare("
+            UPDATE sales
+            SET order_id=?, customer_id=?, loyalty_points_earned=?, loyalty_points_redeemed=?,
+                loyalty_remainder_before=?, loyalty_remainder_after=?
+            WHERE transaction_code=?
+          ");
+          $stmt->execute([$orderId, $customerId, $pointsEarned, $pointsRedeemedTotal, $customerRemainder, $newRemainder, $transactionCode]);
         }
         unset($_SESSION['pos_order_id']);
       }
+      $db->commit();
       $_SESSION['pos_receipt'] = [
         'id' => $transactionCode,
         'time' => date('d/m/Y H:i'),
@@ -897,7 +911,7 @@ if (!empty($rewardCart)) {
                   </div>
                   <div class="pos-qris" data-qris-field hidden>
                     <label for="payment_proof">Foto Bukti QRIS</label>
-                    <input class="pos-qris-input" type="file" id="payment_proof" name="payment_proof" accept=".jpg,.jpeg,.png" capture="environment">
+                    <input class="pos-qris-input" type="file" id="payment_proof" name="payment_proof" accept="image/*" capture="environment">
                     <label class="btn pos-qris-upload" for="payment_proof">Ambil Foto QRIS</label>
                     <div class="pos-qris-preview" data-qris-preview hidden>
                       <img alt="Preview bukti QRIS">
