@@ -258,13 +258,14 @@ $stmt = db()->prepare("SELECT
     MAX(s.payment_method) AS payment_method,
     MAX(s.payment_proof_path) AS payment_proof_path,
     MAX(s.return_reason) AS return_reason,
-    MAX(s.customer_name) AS customer_name,
+    COALESCE(NULLIF(MAX(s.customer_name), ''), MAX(c.name), '') AS customer_name,
     MAX(s.revision_no) AS revision_no,
     MAX(s.is_active_revision) AS is_active_revision,
     MAX(s.revision_status) AS revision_status,
     MAX(u.name) AS cashier_name
   FROM sales s
   LEFT JOIN users u ON u.id = s.created_by
+  LEFT JOIN customers c ON c.id = s.customer_id
   {$whereClause}
   GROUP BY s.transaction_code, s.base_sale_code
   ORDER BY sold_at DESC

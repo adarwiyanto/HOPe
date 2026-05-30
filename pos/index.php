@@ -395,7 +395,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("UPDATE orders SET status='completed', completed_at=NOW() WHERE id=?");
         $stmt->execute([$orderId]);
         $stmt = $db->prepare("
-          SELECT c.id, c.loyalty_remainder
+          SELECT c.id, c.name AS customer_name, c.loyalty_remainder
           FROM orders o
           JOIN customers c ON c.id = o.customer_id
           WHERE o.id = ?
@@ -425,11 +425,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           }
           $stmt = $db->prepare("
             UPDATE sales
-            SET order_id=?, customer_id=?, loyalty_points_earned=?, loyalty_points_redeemed=?,
+            SET order_id=?, customer_id=?, customer_name=?, loyalty_points_earned=?, loyalty_points_redeemed=?,
                 loyalty_remainder_before=?, loyalty_remainder_after=?
             WHERE transaction_code=?
           ");
-          $stmt->execute([$orderId, $customerId, $pointsEarned, $pointsRedeemedTotal, $customerRemainder, $newRemainder, $transactionCode]);
+          $customerName = trim((string)($customer['customer_name'] ?? ''));
+          $stmt->execute([$orderId, $customerId, $customerName, $pointsEarned, $pointsRedeemedTotal, $customerRemainder, $newRemainder, $transactionCode]);
         }
         unset($_SESSION['pos_order_id']);
       }
