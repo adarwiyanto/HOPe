@@ -14,6 +14,7 @@ require_admin();
 require_menu_access('sales');
 ensure_sales_transaction_code_column();
 ensure_sales_user_column();
+ensure_sales_loyalty_columns();
 ensure_inventory_module_schema();
 ensure_roles_permissions_schema();
 ensure_sales_revision_schema();
@@ -47,15 +48,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Hanya owner yang bisa menghapus transaksi.');
       }
       if ($transactionCode !== '' && strpos($transactionCode, 'LEGACY-') !== 0) {
-        $stmt = db()->prepare("SELECT DISTINCT payment_proof_path FROM sales WHERE transaction_code=?");
-        $stmt->execute([$transactionCode]);
-        foreach ($stmt->fetchAll() as $row) {
-          if (!empty($row['payment_proof_path'])) {
-            upload_secure_delete((string)$row['payment_proof_path'], 'image');
+        $db = db();
+        $db->beginTransaction();
+        try {
+          $stmt = $db->prepare("SELECT * FROM sales WHERE transaction_code=? FOR UPDATE");
+          $stmt->execute([$transactionCode]);
+          $saleRows = $stmt->fetchAll();
+          if (!$saleRows) {
+            throw new Exception('Transaksi tidak ditemukan.');
           }
+
+          $customerId = 0;
+          $pointsEarned = 0;
+          $pointsRedeemed = 0;
+          $remainderBefore = null;
+          foreach ($saleRows as $row) {
+            if ($customerId <= 0 && !empty($row['customer_id'])) $customerId = (int)$row['customer_id'];
+            $pointsEarned = max($pointsEarned, (int)($row['loyalty_points_earned'] ?? 0));
+            $pointsRedeemed = max($pointsRedeemed, (int)($row['loyalty_points_redeemed'] ?? 0));
+            if ($remainderBefore === null && $row['loyalty_remainder_before'] !== null) {
+              $remainderBefore = (int)$row['loyalty_remainder_before'];
+            }
+          }
+
+          if ($customerId > 0 && ($pointsEarned > 0 || $pointsRedeemed > 0 || $remainderBefore !== null)) {
+            $pointDelta = $pointsRedeemed - $pointsEarned;
+            if ($remainderBefore !== null) {
+              $stmt = $db->prepare("
+                UPDATE customers
+                SET loyalty_points = GREATEST(0, loyalty_points + ?), loyalty_remainder = ?
+                WHERE id = ?
+              ");
+              $stmt->execute([$pointDelta, $remainderBefore, $customerId]);
+            } else {
+              $stmt = $db->prepare("
+                UPDATE customers
+                SET loyalty_points = GREATEST(0, loyalty_points + ?)
+                WHERE id = ?
+              ");
+              $stmt->execute([$pointDelta, $customerId]);
+            }
+          }
+
+          $stmt = $db->prepare("SELECT DISTINCT payment_proof_path FROM sales WHERE transaction_code=?");
+          $stmt->execute([$transactionCode]);
+          foreach ($stmt->fetchAll() as $row) {
+            if (!empty($row['payment_proof_path'])) {
+              upload_secure_delete((string)$row['payment_proof_path'], 'image');
+            }
+          }
+          $stmt = $db->prepare("DELETE FROM sales WHERE transaction_code=?");
+          $stmt->execute([$transactionCode]);
+          $db->commit();
+        } catch (Throwable $e) {
+          if ($db->inTransaction()) $db->rollBack();
+          throw $e;
         }
-        $stmt = db()->prepare("DELETE FROM sales WHERE transaction_code=?");
-        $stmt->execute([$transactionCode]);
       } else {
         if ($legacySaleId <= 0) throw new Exception('Transaksi tidak ditemukan.');
         $stmt = db()->prepare("DELETE FROM sales WHERE id=?");
@@ -210,13 +258,14 @@ $stmt = db()->prepare("SELECT
     MAX(s.payment_method) AS payment_method,
     MAX(s.payment_proof_path) AS payment_proof_path,
     MAX(s.return_reason) AS return_reason,
-    MAX(s.customer_name) AS customer_name,
+    COALESCE(NULLIF(MAX(s.customer_name), ''), MAX(c.name), '') AS customer_name,
     MAX(s.revision_no) AS revision_no,
     MAX(s.is_active_revision) AS is_active_revision,
     MAX(s.revision_status) AS revision_status,
     MAX(u.name) AS cashier_name
   FROM sales s
   LEFT JOIN users u ON u.id = s.created_by
+  LEFT JOIN customers c ON c.id = s.customer_id
   {$whereClause}
   GROUP BY s.transaction_code, s.base_sale_code
   ORDER BY sold_at DESC
@@ -306,7 +355,7 @@ $customCss = setting('custom_css', '');
 <div class="transaction-card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><strong><?php echo e($txCode); ?></strong><br><small><?php echo e((string)$tx['sold_at']); ?></small></div><div><strong>Rp <?php echo e(format_number_id((float)$tx['total_amount'])); ?></strong></div></div>
 <div style="display:flex;gap:10px;flex-wrap:wrap"><span>Kasir: <?php echo e($tx['cashier_name'] ?? '-'); ?></span><span>Customer: <?php echo e($tx['customer_name'] ?? '-'); ?></span><span>Status Versi: <?php echo ((int)$tx['is_active_revision']===1) ? '<span class="badge-ok">Aktif</span>' : '<span class="badge-old">Arsip</span>'; ?></span><?php if ($revised): ?><span class="badge">Revised</span><?php endif; ?></div>
 <?php if ($items): ?><ul><?php foreach ($items as $it): ?><li><?php echo e($it['product_name']); ?> x <?php echo e((string)$it['qty']); ?> (Rp <?php echo e(format_number_id((float)$it['total'])); ?>)</li><?php endforeach; ?></ul><?php endif; ?>
-<div class="actions"><a class="btn" href="<?php echo e(base_url('admin/sales.php?detail=' . urlencode($txCode))); ?>">Detail</a><?php if ($canEditSale): ?><a class="btn" href="<?php echo e(base_url('admin/sales.php?edit=' . urlencode($txCode))); ?>">Edit Transaksi</a><?php endif; ?><?php if (in_array(current_user_role_key(), ['owner','admin'], true)): ?><a class="btn" href="<?php echo e(base_url('admin/sales.php?history=' . urlencode((string)$tx['base_sale_code']))); ?>">Lihat Riwayat Revisi</a><?php endif; ?></div>
+<div class="actions"><a class="btn" href="<?php echo e(base_url('admin/sales.php?detail=' . urlencode($txCode))); ?>">Detail</a><?php if ($canEditSale): ?><a class="btn" href="<?php echo e(base_url('admin/sales.php?edit=' . urlencode($txCode))); ?>">Edit Transaksi</a><?php endif; ?><?php if (in_array(current_user_role_key(), ['owner','admin'], true)): ?><a class="btn" href="<?php echo e(base_url('admin/sales.php?history=' . urlencode((string)$tx['base_sale_code']))); ?>">Lihat Riwayat Revisi</a><?php endif; ?><?php if ($isOwner): ?><form method="post" style="display:inline" onsubmit="return confirm('Hapus transaksi ini? Poin customer akan dikembalikan bila data loyalty tersedia.');"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="transaction_code" value="<?php echo e($txCode); ?>"><button class="btn" type="submit">Hapus</button></form><?php endif; ?></div>
 </div>
 <?php endforeach; ?></div></div>
 </div></div></div>
