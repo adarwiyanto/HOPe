@@ -251,26 +251,26 @@ if ($peakStart && $peakEnd) {
   $peakDays = max(1, (int)$peakEnd->diff($peakStart)->days);
 }
 
-$peakDayWhere = '';
-$peakQueryParams = $peakParams;
-$peakDayOccurrences = $peakDays;
-if ($peakDay !== 'all') {
-  $peakDayWhere = 'AND DAYOFWEEK(sold_at) = ?';
-  $peakQueryParams[] = (int)$peakDay;
-  $peakDayOccurrences = 0;
+$peakDayOccurrencesMap = ['all' => $peakDays];
+foreach ([1, 2, 3, 4, 5, 6, 7] as $dayNo) {
+  $occurrences = 0;
   if ($peakStart && $peakEnd) {
     for ($d = $peakStart; $d < $peakEnd; $d = $d->modify('+1 day')) {
-      if ((int)$d->format('w') + 1 === (int)$peakDay) {
-        $peakDayOccurrences++;
+      if ((int)$d->format('w') + 1 === $dayNo) {
+        $occurrences++;
       }
     }
   }
-  $peakDayOccurrences = max(1, $peakDayOccurrences);
+  $peakDayOccurrencesMap[(string)$dayNo] = max(1, $occurrences);
 }
+$peakDayOccurrences = $peakDay === 'all' ? $peakDays : $peakDayOccurrencesMap[(string)$peakDay];
 
-$hourlyCounts = array_fill(0, 24, 0);
+$hourlyCountsByDay = ['all' => array_fill(0, 24, 0)];
+foreach ([1, 2, 3, 4, 5, 6, 7] as $dayNo) {
+  $hourlyCountsByDay[(string)$dayNo] = array_fill(0, 24, 0);
+}
 $stmt = db()->prepare("
-  SELECT HOUR(tx_time) h, COUNT(*) c
+  SELECT DAYOFWEEK(tx_time) weekday_no, HOUR(tx_time) h, COUNT(*) c
   FROM (
     SELECT COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id)) AS tx_code,
            MIN(sold_at) AS tx_time
@@ -278,28 +278,61 @@ $stmt = db()->prepare("
     WHERE return_reason IS NULL
       AND is_active_revision=1
       {$peakWhere}
-      {$peakDayWhere}
     GROUP BY COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))
   ) t
-  GROUP BY HOUR(tx_time)
-  ORDER BY h ASC
+  GROUP BY DAYOFWEEK(tx_time), HOUR(tx_time)
+  ORDER BY weekday_no ASC, h ASC
 ");
-$stmt->execute($peakQueryParams);
+$stmt->execute($peakParams);
 foreach ($stmt->fetchAll() as $row) {
+  $weekdayNo = (int)($row['weekday_no'] ?? 0);
   $hour = (int)($row['h'] ?? 0);
-  if ($hour >= 0 && $hour <= 23) {
-    $hourlyCounts[$hour] = (int)$row['c'];
+  $count = (int)($row['c'] ?? 0);
+  if ($weekdayNo >= 1 && $weekdayNo <= 7 && $hour >= 0 && $hour <= 23) {
+    $hourlyCountsByDay['all'][$hour] += $count;
+    $hourlyCountsByDay[(string)$weekdayNo][$hour] += $count;
   }
 }
 
-$hourlyAverages = [];
-$maxHourly = 0.0;
-foreach ($hourlyCounts as $hour => $count) {
-  $avg = $peakDayOccurrences > 0 ? $count / $peakDayOccurrences : 0;
-  $hourlyAverages[$hour] = $avg;
-  if ($avg > $maxHourly) {
-    $maxHourly = $avg;
+$hourlyAveragesByDay = [];
+$maxHourlyByDay = [];
+foreach ($hourlyCountsByDay as $dayKey => $counts) {
+  $divisor = $dayKey === 'all' ? $peakDays : ($peakDayOccurrencesMap[$dayKey] ?? 1);
+  $hourlyAveragesByDay[$dayKey] = [];
+  $maxHourlyByDay[$dayKey] = 0.0;
+  foreach ($counts as $hour => $count) {
+    $avg = $divisor > 0 ? $count / $divisor : 0;
+    $hourlyAveragesByDay[$dayKey][$hour] = $avg;
+    if ($avg > $maxHourlyByDay[$dayKey]) {
+      $maxHourlyByDay[$dayKey] = $avg;
+    }
   }
+}
+
+$selectedPeakDayKey = $peakDay === 'all' ? 'all' : (string)$peakDay;
+$hourlyAverages = $hourlyAveragesByDay[$selectedPeakDayKey] ?? $hourlyAveragesByDay['all'];
+$maxHourly = $maxHourlyByDay[$selectedPeakDayKey] ?? 0.0;
+
+$hourlyChartData = [];
+foreach ($hourlyAveragesByDay as $dayKey => $averages) {
+  $chartMax = $maxHourlyByDay[$dayKey] ?? 0.0;
+  $rows = [];
+  foreach ($averages as $hour => $avg) {
+    $height = $chartMax > 0 ? ($avg / $chartMax) * 120 : 0;
+    $rows[(string)$hour] = [
+      'hour' => (int)$hour,
+      'label' => str_pad((string)$hour, 2, '0', STR_PAD_LEFT) . ':00',
+      'value' => format_number_id($avg),
+      'height' => number_format($height, 2, '.', ''),
+    ];
+  }
+  $meta = $dayKey === 'all'
+    ? $peakLabel . ' · ' . $peakDays . ' hari'
+    : $peakLabel . ' · ' . ($peakDayOccurrencesMap[$dayKey] ?? 1) . 'x ' . ($weekdayLabels[(int)$dayKey] ?? 'hari');
+  $hourlyChartData[$dayKey] = [
+    'meta' => $meta,
+    'rows' => $rows,
+  ];
 }
 
 $dailyVisitMap = array_fill(1, 7, 0);
@@ -1092,16 +1125,16 @@ function format_rupiah($amount)
             </div>
             <button class="btn" type="submit">Terapkan</button>
           </form>
-          <p style="margin:10px 0 0"><small>Periode grafik: <?php echo e($peakLabel); ?> · <?php echo $peakDay === 'all' ? e((string)$peakDays) . ' hari' : e((string)$peakDayOccurrences) . 'x ' . e($weekdayLabels[(int)$peakDay]); ?></small></p>
+          <p style="margin:10px 0 0"><small id="peak-chart-meta">Periode grafik: <?php echo e($hourlyChartData[$selectedPeakDayKey]['meta'] ?? ($peakLabel . ' · ' . $peakDays . ' hari')); ?></small></p>
           <div class="hourly-chart">
             <?php foreach ($hourlyAverages as $hour => $avg): ?>
               <?php
                 $height = $maxHourly > 0 ? ($avg / $maxHourly) * 120 : 0;
                 $label = str_pad((string)$hour, 2, '0', STR_PAD_LEFT) . ':00';
               ?>
-              <div class="hourly-bar">
-                <div class="hourly-bar-value"><?php echo e(format_number_id($avg)); ?></div>
-                <div class="hourly-bar-fill" style="height:<?php echo e(number_format($height, 2, '.', '')); ?>px"></div>
+              <div class="hourly-bar" data-hour="<?php echo e((string)$hour); ?>">
+                <div class="hourly-bar-value" data-hourly-value><?php echo e(format_number_id($avg)); ?></div>
+                <div class="hourly-bar-fill" data-hourly-fill style="height:<?php echo e(number_format($height, 2, '.', '')); ?>px"></div>
                 <div class="hourly-bar-label"><?php echo e($label); ?></div>
               </div>
             <?php endforeach; ?>
@@ -1438,6 +1471,8 @@ function format_rupiah($amount)
     const peakStart = document.querySelector('#peak-custom-start');
     const peakEnd = document.querySelector('#peak-custom-end');
     const peakDaySelect = document.querySelector('#peak-day');
+    const peakChartMeta = document.querySelector('#peak-chart-meta');
+    const hourlyChartData = <?php echo json_encode($hourlyChartData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
     const submitFormSafely = (form) => {
       if (!form) return;
       form.submit();
@@ -1457,9 +1492,24 @@ function format_rupiah($amount)
       togglePeakCustom();
     }
     if (peakDaySelect) {
-      peakDaySelect.addEventListener('change', () => {
-        submitFormSafely(peakDaySelect.form);
-      });
+      const updateHourlyChart = () => {
+        const dayKey = peakDaySelect.value || 'all';
+        const chartPayload = hourlyChartData[dayKey] || hourlyChartData.all;
+        if (!chartPayload || !chartPayload.rows) return;
+        document.querySelectorAll('.hourly-chart .hourly-bar').forEach((bar) => {
+          const hour = bar.dataset.hour;
+          const row = chartPayload.rows[hour];
+          if (!row) return;
+          const valueEl = bar.querySelector('[data-hourly-value]');
+          const fillEl = bar.querySelector('[data-hourly-fill]');
+          if (valueEl) valueEl.textContent = row.value;
+          if (fillEl) fillEl.style.height = `${row.height}px`;
+        });
+        if (peakChartMeta) {
+          peakChartMeta.textContent = `Periode grafik: ${chartPayload.meta}`;
+        }
+      };
+      peakDaySelect.addEventListener('change', updateHourlyChart);
     }
   </script>
 </body>
