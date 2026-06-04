@@ -796,6 +796,33 @@ function format_rupiah($amount)
     .dashboard-page .mini-table {
       min-width: 320px;
     }
+
+    .dashboard-page .customer-summary-table {
+      width: 100%;
+      min-width: 0 !important;
+      table-layout: fixed;
+    }
+    .dashboard-page .customer-summary-table td,
+    .dashboard-page .customer-summary-table th {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dashboard-page .customer-summary-table td:first-child,
+    .dashboard-page .customer-summary-table th:first-child {
+      width: 72%;
+      padding-right: 12px;
+    }
+    .dashboard-page .customer-summary-table td:last-child,
+    .dashboard-page .customer-summary-table th:last-child {
+      width: 28%;
+      text-align: right;
+      font-weight: 700;
+    }
+    .dashboard-page .customer-summary-block {
+      min-width: 0;
+      overflow: hidden;
+    }
     .dashboard-page .content .card {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -972,9 +999,9 @@ function format_rupiah($amount)
               </div>
             </div>
             <div class="grid cols-2" style="margin-top:12px">
-              <div>
+              <div class="customer-summary-block">
                 <h4 style="margin:0 0 8px">Jenis Kelamin</h4>
-                <table class="mini-table">
+                <table class="mini-table customer-summary-table">
                   <tbody>
                     <?php foreach ($genderLabels as $gKey => $gLabel): ?>
                       <tr><td><?php echo e($gLabel); ?></td><td><?php echo e((string)($customerSummary['gender'][$gKey] ?? 0)); ?></td></tr>
@@ -982,9 +1009,9 @@ function format_rupiah($amount)
                   </tbody>
                 </table>
               </div>
-              <div>
+              <div class="customer-summary-block">
                 <h4 style="margin:0 0 8px">Rentang Usia</h4>
-                <table class="mini-table">
+                <table class="mini-table customer-summary-table">
                   <tbody>
                     <?php foreach ($ageBandLabels as $aKey => $aLabel): ?>
                       <tr><td><?php echo e($aLabel); ?></td><td><?php echo e((string)($customerSummary['age'][$aKey] ?? 0)); ?></td></tr>
