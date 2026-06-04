@@ -4,6 +4,7 @@ require_once __DIR__ . '/core/functions.php';
 require_once __DIR__ . '/core/security.php';
 require_once __DIR__ . '/core/auth.php';
 require_once __DIR__ . '/core/customer_auth.php';
+require_once __DIR__ . '/core/csrf.php';
 
 start_secure_session();
 ensure_landing_order_tables();
@@ -28,6 +29,40 @@ if ($customer) {
   $stmt->execute([(int)$customer['id']]);
   $customer = $stmt->fetch() ?: $customer;
 }
+
+if ($customer && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') === 'complete_profile') {
+  try {
+    csrf_check();
+    $gender = trim((string)($_POST['gender'] ?? ''));
+    $birthDate = trim((string)($_POST['birth_date'] ?? ''));
+    if (!in_array($gender, ['male', 'female', 'other'], true)) {
+      throw new Exception('Jenis kelamin tidak valid.');
+    }
+    $birth = DateTimeImmutable::createFromFormat('Y-m-d', $birthDate);
+    $birthErrors = DateTimeImmutable::getLastErrors();
+    if (!$birth || ($birthErrors !== false && (($birthErrors['warning_count'] ?? 0) > 0 || ($birthErrors['error_count'] ?? 0) > 0))) {
+      throw new Exception('Tanggal lahir tidak valid.');
+    }
+    if ($birth > new DateTimeImmutable('today')) {
+      throw new Exception('Tanggal lahir tidak boleh melebihi hari ini.');
+    }
+    $stmt = db()->prepare("UPDATE customers SET gender = ?, birth_date = ? WHERE id = ? LIMIT 1");
+    $stmt->execute([$gender, $birthDate, (int)$customer['id']]);
+    $_SESSION['customer_notice'] = 'Data profil berhasil dilengkapi. Terima kasih.';
+    header('Location: ' . base_url('customer.php'));
+    exit;
+  } catch (Throwable $ex) {
+    $err = $ex->getMessage();
+  }
+}
+
+if ($customer) {
+  $stmt = db()->prepare("SELECT * FROM customers WHERE id = ? LIMIT 1");
+  $stmt->execute([(int)$customer['id']]);
+  $customer = $stmt->fetch() ?: $customer;
+}
+
+$profileIncomplete = $customer && (empty($customer['gender']) || empty($customer['birth_date']));
 
 $rewards = db()->query("
   SELECT lr.id, lr.points_required, p.name
@@ -91,6 +126,8 @@ $customCss = setting('custom_css', '');
     .customer-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(59,130,246,.12);color:#1d4ed8;font-weight:600}
     .order-card{margin-top:12px}
     .order-items{margin-top:8px}
+    .complete-profile-card{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+    .inline-profile-form{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));align-items:end;margin-top:12px}
   </style>
 </head>
 <body>
@@ -115,6 +152,31 @@ $customCss = setting('custom_css', '');
             <div style="margin-top:10px"><a class="btn" href="<?php echo e(base_url('auth.php')); ?>">Masuk / Daftar</a></div>
           </div>
         <?php else: ?>
+          <?php if ($profileIncomplete): ?>
+            <div class="card complete-profile-card" style="margin-top:16px">
+              <h3 style="margin-top:0">Lengkapi Profil</h3>
+              <p style="margin:0;color:var(--muted)">Lengkapi jenis kelamin dan tanggal lahir agar rekomendasi menu dan promo bisa lebih sesuai.</p>
+              <form method="post" class="inline-profile-form">
+                <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>">
+                <input type="hidden" name="action" value="complete_profile">
+                <div class="row">
+                  <label>Jenis Kelamin</label>
+                  <select name="gender" required>
+                    <option value="">Pilih</option>
+                    <option value="male" <?php echo ($customer['gender'] ?? '') === 'male' ? 'selected' : ''; ?>>Laki-laki</option>
+                    <option value="female" <?php echo ($customer['gender'] ?? '') === 'female' ? 'selected' : ''; ?>>Perempuan</option>
+                    <option value="other" <?php echo ($customer['gender'] ?? '') === 'other' ? 'selected' : ''; ?>>Lainnya</option>
+                  </select>
+                </div>
+                <div class="row">
+                  <label>Tanggal Lahir</label>
+                  <input name="birth_date" type="date" max="<?php echo e((new DateTimeImmutable('today'))->format('Y-m-d')); ?>" value="<?php echo e((string)($customer['birth_date'] ?? '')); ?>" required>
+                </div>
+                <button class="btn" type="submit">Simpan Profil</button>
+              </form>
+            </div>
+          <?php endif; ?>
+
           <div class="customer-grid" style="margin-top:16px">
             <div class="card">
               <h3 style="margin-top:0">Profil</h3>

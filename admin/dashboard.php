@@ -138,6 +138,54 @@ $topProducts = [];
 $deadStock = [];
 $sharePaymentsMonth = [];
 $recentReturns = [];
+$customerSummary = [
+  'total' => 0,
+  'complete' => 0,
+  'incomplete' => 0,
+  'gender' => [],
+  'age' => [],
+];
+$customerSegmentFavorites = [];
+$selectedSegmentProducts = [];
+$visitDailyRows = [];
+$visitDailyMax = 0;
+
+$genderLabels = [
+  'male' => 'Laki-laki',
+  'female' => 'Perempuan',
+  'other' => 'Lainnya',
+  '' => 'Belum diisi',
+];
+$ageBandLabels = [
+  'lt17' => '< 17 tahun',
+  '17_24' => '17–24 tahun',
+  '25_34' => '25–34 tahun',
+  '35_44' => '35–44 tahun',
+  '45_54' => '45–54 tahun',
+  '55_plus' => '≥ 55 tahun',
+  'unknown' => 'Usia belum diisi',
+];
+$weekdayLabels = [
+  1 => 'Minggu',
+  2 => 'Senin',
+  3 => 'Selasa',
+  4 => 'Rabu',
+  5 => 'Kamis',
+  6 => 'Jumat',
+  7 => 'Sabtu',
+];
+$segmentGender = $_GET['segment_gender'] ?? 'all';
+if (!in_array($segmentGender, ['all', 'male', 'female', 'other'], true)) {
+  $segmentGender = 'all';
+}
+$segmentAge = $_GET['segment_age'] ?? 'all';
+if (!in_array($segmentAge, array_merge(['all'], array_keys($ageBandLabels)), true)) {
+  $segmentAge = 'all';
+}
+$peakDay = $_GET['peak_day'] ?? 'all';
+if ($peakDay !== 'all' && (!ctype_digit((string)$peakDay) || (int)$peakDay < 1 || (int)$peakDay > 7)) {
+  $peakDay = 'all';
+}
 
 $todayStart = $today;
 $todayEnd = $today->modify('+1 day');
@@ -203,6 +251,23 @@ if ($peakStart && $peakEnd) {
   $peakDays = max(1, (int)$peakEnd->diff($peakStart)->days);
 }
 
+$peakDayWhere = '';
+$peakQueryParams = $peakParams;
+$peakDayOccurrences = $peakDays;
+if ($peakDay !== 'all') {
+  $peakDayWhere = 'AND DAYOFWEEK(sold_at) = ?';
+  $peakQueryParams[] = (int)$peakDay;
+  $peakDayOccurrences = 0;
+  if ($peakStart && $peakEnd) {
+    for ($d = $peakStart; $d < $peakEnd; $d = $d->modify('+1 day')) {
+      if ((int)$d->format('w') + 1 === (int)$peakDay) {
+        $peakDayOccurrences++;
+      }
+    }
+  }
+  $peakDayOccurrences = max(1, $peakDayOccurrences);
+}
+
 $hourlyCounts = array_fill(0, 24, 0);
 $stmt = db()->prepare("
   SELECT HOUR(tx_time) h, COUNT(*) c
@@ -211,13 +276,15 @@ $stmt = db()->prepare("
            MIN(sold_at) AS tx_time
     FROM sales
     WHERE return_reason IS NULL
-    {$peakWhere}
+      AND is_active_revision=1
+      {$peakWhere}
+      {$peakDayWhere}
     GROUP BY COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))
   ) t
   GROUP BY HOUR(tx_time)
   ORDER BY h ASC
 ");
-$stmt->execute($peakParams);
+$stmt->execute($peakQueryParams);
 foreach ($stmt->fetchAll() as $row) {
   $hour = (int)($row['h'] ?? 0);
   if ($hour >= 0 && $hour <= 23) {
@@ -228,12 +295,152 @@ foreach ($stmt->fetchAll() as $row) {
 $hourlyAverages = [];
 $maxHourly = 0.0;
 foreach ($hourlyCounts as $hour => $count) {
-  $avg = $peakDays > 0 ? $count / $peakDays : 0;
+  $avg = $peakDayOccurrences > 0 ? $count / $peakDayOccurrences : 0;
   $hourlyAverages[$hour] = $avg;
   if ($avg > $maxHourly) {
     $maxHourly = $avg;
   }
 }
+
+$dailyVisitMap = array_fill(1, 7, 0);
+$stmt = db()->prepare("
+  SELECT DAYOFWEEK(tx_time) weekday_no, COUNT(*) c
+  FROM (
+    SELECT COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id)) AS tx_code,
+           MIN(sold_at) AS tx_time
+    FROM sales
+    WHERE return_reason IS NULL
+      AND is_active_revision=1
+      AND sold_at >= ? AND sold_at < ?
+    GROUP BY COALESCE(NULLIF(transaction_code, ''), CONCAT('LEGACY-', id))
+  ) t
+  GROUP BY DAYOFWEEK(tx_time)
+");
+$stmt->execute([$rangeStartStr, $rangeEndStr]);
+foreach ($stmt->fetchAll() as $row) {
+  $weekdayNo = (int)($row['weekday_no'] ?? 0);
+  if ($weekdayNo >= 1 && $weekdayNo <= 7) {
+    $dailyVisitMap[$weekdayNo] = (int)$row['c'];
+  }
+}
+foreach ([2, 3, 4, 5, 6, 7, 1] as $weekdayNo) {
+  $count = $dailyVisitMap[$weekdayNo] ?? 0;
+  $visitDailyRows[] = ['weekday_no' => $weekdayNo, 'label' => $weekdayLabels[$weekdayNo], 'count' => $count];
+  if ($count > $visitDailyMax) {
+    $visitDailyMax = $count;
+  }
+}
+
+$row = db()->query("
+  SELECT COUNT(*) total,
+         SUM(CASE WHEN gender IS NOT NULL AND gender <> '' AND birth_date IS NOT NULL THEN 1 ELSE 0 END) complete_count,
+         SUM(CASE WHEN gender IS NULL OR gender = '' OR birth_date IS NULL THEN 1 ELSE 0 END) incomplete_count
+  FROM customers
+")->fetch();
+$customerSummary['total'] = (int)($row['total'] ?? 0);
+$customerSummary['complete'] = (int)($row['complete_count'] ?? 0);
+$customerSummary['incomplete'] = (int)($row['incomplete_count'] ?? 0);
+
+$stmt = db()->query("
+  SELECT COALESCE(NULLIF(gender, ''), '') gender_key, COUNT(*) c
+  FROM customers
+  GROUP BY COALESCE(NULLIF(gender, ''), '')
+");
+foreach ($stmt->fetchAll() as $row) {
+  $customerSummary['gender'][(string)$row['gender_key']] = (int)$row['c'];
+}
+
+$stmt = db()->query("
+  SELECT
+    CASE
+      WHEN birth_date IS NULL THEN 'unknown'
+      WHEN TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) < 17 THEN 'lt17'
+      WHEN TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) BETWEEN 17 AND 24 THEN '17_24'
+      WHEN TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) BETWEEN 25 AND 34 THEN '25_34'
+      WHEN TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) BETWEEN 35 AND 44 THEN '35_44'
+      WHEN TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) BETWEEN 45 AND 54 THEN '45_54'
+      ELSE '55_plus'
+    END age_band,
+    COUNT(*) c
+  FROM customers
+  GROUP BY age_band
+");
+foreach ($stmt->fetchAll() as $row) {
+  $customerSummary['age'][(string)$row['age_band']] = (int)$row['c'];
+}
+
+$segmentRows = [];
+$stmt = db()->prepare("
+  SELECT c.gender,
+         CASE
+           WHEN c.birth_date IS NULL THEN 'unknown'
+           WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) < 17 THEN 'lt17'
+           WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 17 AND 24 THEN '17_24'
+           WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 25 AND 34 THEN '25_34'
+           WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 35 AND 44 THEN '35_44'
+           WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 45 AND 54 THEN '45_54'
+           ELSE '55_plus'
+         END age_band,
+         p.name product_name,
+         SUM(s.qty) qty,
+         COUNT(DISTINCT COALESCE(NULLIF(s.transaction_code, ''), CONCAT('LEGACY-', s.id))) tx_count
+  FROM sales s
+  JOIN customers c ON c.id = s.customer_id
+  JOIN products p ON p.id = s.product_id
+  WHERE s.is_active_revision=1
+    AND s.return_reason IS NULL
+    AND c.gender IS NOT NULL AND c.gender <> ''
+    AND c.birth_date IS NOT NULL
+    AND s.sold_at >= ? AND s.sold_at < ?
+  GROUP BY c.gender, age_band, s.product_id, p.name
+  ORDER BY c.gender ASC, age_band ASC, qty DESC, tx_count DESC, product_name ASC
+");
+$stmt->execute([$rangeStartStr, $rangeEndStr]);
+foreach ($stmt->fetchAll() as $row) {
+  $key = (string)$row['gender'] . '|' . (string)$row['age_band'];
+  if (!isset($segmentRows[$key])) {
+    $segmentRows[$key] = $row;
+  }
+}
+$customerSegmentFavorites = array_values($segmentRows);
+
+$segmentWhere = '';
+$segmentParams = [$rangeStartStr, $rangeEndStr];
+if ($segmentGender !== 'all') {
+  $segmentWhere .= ' AND c.gender = ?';
+  $segmentParams[] = $segmentGender;
+}
+if ($segmentAge !== 'all') {
+  $segmentWhere .= " AND CASE
+      WHEN c.birth_date IS NULL THEN 'unknown'
+      WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) < 17 THEN 'lt17'
+      WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 17 AND 24 THEN '17_24'
+      WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 25 AND 34 THEN '25_34'
+      WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 35 AND 44 THEN '35_44'
+      WHEN TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) BETWEEN 45 AND 54 THEN '45_54'
+      ELSE '55_plus'
+    END = ?";
+  $segmentParams[] = $segmentAge;
+}
+$stmt = db()->prepare("
+  SELECT p.name product_name,
+         SUM(s.qty) qty,
+         COUNT(DISTINCT COALESCE(NULLIF(s.transaction_code, ''), CONCAT('LEGACY-', s.id))) tx_count
+  FROM sales s
+  JOIN customers c ON c.id = s.customer_id
+  JOIN products p ON p.id = s.product_id
+  WHERE s.is_active_revision=1
+    AND s.return_reason IS NULL
+    AND c.gender IS NOT NULL AND c.gender <> ''
+    AND c.birth_date IS NOT NULL
+    AND s.sold_at >= ? AND s.sold_at < ?
+    {$segmentWhere}
+  GROUP BY s.product_id, p.name
+  ORDER BY qty DESC, tx_count DESC, product_name ASC
+  LIMIT 10
+");
+$stmt->execute($segmentParams);
+$selectedSegmentProducts = $stmt->fetchAll();
 
 if ($role === 'admin') {
   $stmt = db()->prepare("
@@ -482,6 +689,48 @@ function format_rupiah($amount)
     .hourly-filter .row {
       margin: 0;
     }
+    .compact-chart {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .compact-row {
+      display: grid;
+      grid-template-columns: 86px 1fr 56px;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .compact-track {
+      height: 16px;
+      border-radius: 999px;
+      background: rgba(148,163,184,.18);
+      overflow: hidden;
+    }
+    .compact-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(16,185,129,.35), rgba(16,185,129,.9));
+      min-width: 2px;
+    }
+    .mini-table td,
+    .mini-table th {
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+    @media (min-width: 981px) {
+      .hourly-chart {
+        grid-template-columns: repeat(24, minmax(24px, 1fr));
+        gap: 6px;
+      }
+      .hourly-bar-fill {
+        max-height: 90px;
+      }
+      .hourly-bar-value,
+      .hourly-bar-label {
+        font-size: 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -550,6 +799,136 @@ function format_rupiah($amount)
           </div>
         </div>
 
+        <div class="grid cols-2" style="margin-top:16px">
+          <div class="card">
+            <h3 style="margin-top:0">Ringkasan Data Pelanggan</h3>
+            <div class="grid cols-3">
+              <div class="card">
+                <h4 style="margin-top:0">Total Pelanggan</h4>
+                <div style="font-size:20px;font-weight:600"><?php echo e((string)$customerSummary['total']); ?></div>
+              </div>
+              <div class="card">
+                <h4 style="margin-top:0">Data Lengkap</h4>
+                <div style="font-size:20px;font-weight:600"><?php echo e((string)$customerSummary['complete']); ?></div>
+              </div>
+              <div class="card">
+                <h4 style="margin-top:0">Perlu Dilengkapi</h4>
+                <div style="font-size:20px;font-weight:600"><?php echo e((string)$customerSummary['incomplete']); ?></div>
+              </div>
+            </div>
+            <div class="grid cols-2" style="margin-top:12px">
+              <div>
+                <h4 style="margin:0 0 8px">Jenis Kelamin</h4>
+                <table class="mini-table">
+                  <tbody>
+                    <?php foreach ($genderLabels as $gKey => $gLabel): ?>
+                      <tr><td><?php echo e($gLabel); ?></td><td><?php echo e((string)($customerSummary['gender'][$gKey] ?? 0)); ?></td></tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+              <div>
+                <h4 style="margin:0 0 8px">Rentang Usia</h4>
+                <table class="mini-table">
+                  <tbody>
+                    <?php foreach ($ageBandLabels as $aKey => $aLabel): ?>
+                      <tr><td><?php echo e($aLabel); ?></td><td><?php echo e((string)($customerSummary['age'][$aKey] ?? 0)); ?></td></tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0">Grafik Kunjungan Harian</h3>
+            <p style="margin:4px 0 12px;color:var(--muted)">Jumlah transaksi unik per hari dalam periode utama.</p>
+            <div class="compact-chart">
+              <?php foreach ($visitDailyRows as $row): ?>
+                <?php $width = $visitDailyMax > 0 ? ((int)$row['count'] / $visitDailyMax) * 100 : 0; ?>
+                <div class="compact-row">
+                  <div><?php echo e($row['label']); ?></div>
+                  <div class="compact-track"><div class="compact-fill" style="width:<?php echo e(number_format($width, 2, '.', '')); ?>%"></div></div>
+                  <div style="text-align:right;font-weight:600"><?php echo e((string)$row['count']); ?></div>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h3 style="margin-top:0">Produk Favorit Berdasarkan Jenis Kelamin & Usia</h3>
+          <p style="margin:4px 0 12px;color:var(--muted)">Analisa hanya memakai transaksi dengan pelanggan terdaftar yang sudah mengisi jenis kelamin dan tanggal lahir.</p>
+          <form method="get" class="hourly-filter" style="margin-bottom:12px">
+            <input type="hidden" name="range" value="<?php echo e($range); ?>">
+            <?php if (!empty($_GET['start'])): ?><input type="hidden" name="start" value="<?php echo e($_GET['start']); ?>"><?php endif; ?>
+            <?php if (!empty($_GET['end'])): ?><input type="hidden" name="end" value="<?php echo e($_GET['end']); ?>"><?php endif; ?>
+            <input type="hidden" name="peak_range" value="<?php echo e($peakRange); ?>">
+            <input type="hidden" name="peak_day" value="<?php echo e((string)$peakDay); ?>">
+            <?php if (!empty($_GET['peak_start'])): ?><input type="hidden" name="peak_start" value="<?php echo e($_GET['peak_start']); ?>"><?php endif; ?>
+            <?php if (!empty($_GET['peak_end'])): ?><input type="hidden" name="peak_end" value="<?php echo e($_GET['peak_end']); ?>"><?php endif; ?>
+            <div class="row" style="min-width:160px">
+              <label>Jenis Kelamin</label>
+              <select name="segment_gender">
+                <option value="all" <?php echo $segmentGender === 'all' ? 'selected' : ''; ?>>Semua</option>
+                <option value="male" <?php echo $segmentGender === 'male' ? 'selected' : ''; ?>>Laki-laki</option>
+                <option value="female" <?php echo $segmentGender === 'female' ? 'selected' : ''; ?>>Perempuan</option>
+                <option value="other" <?php echo $segmentGender === 'other' ? 'selected' : ''; ?>>Lainnya</option>
+              </select>
+            </div>
+            <div class="row" style="min-width:160px">
+              <label>Rentang Usia</label>
+              <select name="segment_age">
+                <option value="all" <?php echo $segmentAge === 'all' ? 'selected' : ''; ?>>Semua</option>
+                <?php foreach ($ageBandLabels as $aKey => $aLabel): ?>
+                  <?php if ($aKey === 'unknown') continue; ?>
+                  <option value="<?php echo e($aKey); ?>" <?php echo $segmentAge === $aKey ? 'selected' : ''; ?>><?php echo e($aLabel); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <button class="btn" type="submit">Lihat Menu Favorit</button>
+          </form>
+          <div class="grid cols-2">
+            <div>
+              <h4 style="margin-top:0">Menu favorit untuk filter terpilih</h4>
+              <table class="mini-table">
+                <thead><tr><th>Produk</th><th>Qty</th><th>Transaksi</th></tr></thead>
+                <tbody>
+                  <?php if (count($selectedSegmentProducts) === 0): ?>
+                    <tr><td colspan="3">Belum ada data sesuai filter.</td></tr>
+                  <?php else: ?>
+                    <?php foreach ($selectedSegmentProducts as $row): ?>
+                      <tr>
+                        <td><?php echo e($row['product_name']); ?></td>
+                        <td><?php echo e((string)$row['qty']); ?></td>
+                        <td><?php echo e((string)$row['tx_count']); ?></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h4 style="margin-top:0">Top menu per segmentasi</h4>
+              <table class="mini-table">
+                <thead><tr><th>Segmentasi</th><th>Produk</th><th>Qty</th></tr></thead>
+                <tbody>
+                  <?php if (count($customerSegmentFavorites) === 0): ?>
+                    <tr><td colspan="3">Belum ada data segmentasi.</td></tr>
+                  <?php else: ?>
+                    <?php foreach ($customerSegmentFavorites as $row): ?>
+                      <tr>
+                        <td><?php echo e(($genderLabels[$row['gender']] ?? $row['gender']) . ', ' . ($ageBandLabels[$row['age_band']] ?? $row['age_band'])); ?></td>
+                        <td><?php echo e($row['product_name']); ?></td>
+                        <td><?php echo e((string)$row['qty']); ?></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  <?php endif; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <div class="card" style="margin-top:16px">
           <h3 style="margin-top:0">Grafik Rata-rata Jam Kunjungan</h3>
           <p style="margin:4px 0 12px;color:var(--muted)">Rata-rata jumlah transaksi per jam berdasarkan periode yang dipilih.</p>
@@ -561,6 +940,8 @@ function format_rupiah($amount)
             <?php if (!empty($_GET['end'])): ?>
               <input type="hidden" name="end" value="<?php echo e($_GET['end']); ?>">
             <?php endif; ?>
+            <input type="hidden" name="segment_gender" value="<?php echo e($segmentGender); ?>">
+            <input type="hidden" name="segment_age" value="<?php echo e($segmentAge); ?>">
             <div class="row" style="min-width:160px">
               <label>Periode</label>
               <select name="peak_range" id="peak-range">
@@ -578,9 +959,18 @@ function format_rupiah($amount)
               <label>Sampai</label>
               <input type="date" name="peak_end" value="<?php echo e($peakEndInput ?: $today->format('Y-m-d')); ?>">
             </div>
+            <div class="row" style="min-width:150px">
+              <label>Hari</label>
+              <select name="peak_day">
+                <option value="all" <?php echo $peakDay === 'all' ? 'selected' : ''; ?>>Semua hari</option>
+                <?php foreach ([2,3,4,5,6,7,1] as $dayNo): ?>
+                  <option value="<?php echo e((string)$dayNo); ?>" <?php echo (string)$peakDay === (string)$dayNo ? 'selected' : ''; ?>><?php echo e($weekdayLabels[$dayNo]); ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
             <button class="btn" type="submit">Terapkan</button>
           </form>
-          <p style="margin:10px 0 0"><small>Periode grafik: <?php echo e($peakLabel); ?> · <?php echo e((string)$peakDays); ?> hari</small></p>
+          <p style="margin:10px 0 0"><small>Periode grafik: <?php echo e($peakLabel); ?> · <?php echo $peakDay === 'all' ? e((string)$peakDays) . ' hari' : e((string)$peakDayOccurrences) . 'x ' . e($weekdayLabels[(int)$peakDay]); ?></small></p>
           <div class="hourly-chart">
             <?php foreach ($hourlyAverages as $hour => $avg): ?>
               <?php

@@ -1,9 +1,13 @@
 package id.my.hopenoodles.hopepos.ui
 
 import android.Manifest
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.media.ExifInterface
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -36,6 +40,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.runBlocking
 import org.json.JSONException
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -99,9 +104,26 @@ class MainActivity : AppCompatActivity() {
             null
         }
 
-        callback.onReceiveValue(uris)
-        pendingFilePathCallback = null
-        pendingCameraImageUri = null
+        if (uris == null) {
+            callback.onReceiveValue(null)
+            pendingFilePathCallback = null
+            pendingCameraImageUri = null
+            return@registerForActivityResult
+        }
+
+        lifecycleScope.launch {
+            val compressedUris = withContext(Dispatchers.IO) {
+                compressImageUrisForUpload(uris)
+            }
+
+            if (compressedUris == null) {
+                showToast("Foto QRIS gagal dikompresi. Silakan pilih foto lain.")
+            }
+
+            callback.onReceiveValue(compressedUris)
+            pendingFilePathCallback = null
+            pendingCameraImageUri = null
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -240,6 +262,105 @@ class MainActivity : AppCompatActivity() {
                 pendingCameraImageUri = null
                 showToast("Kamera atau file chooser tidak bisa dibuka.")
             }
+    }
+
+
+    private fun compressImageUrisForUpload(uris: Array<Uri>): Array<Uri>? {
+        if (uris.isEmpty()) return null
+
+        return runCatching {
+            uris.map { uri -> compressSingleImageForUpload(uri) }.toTypedArray()
+        }.onFailure {
+            Log.e(TAG, "Gagal kompres foto QRIS sebelum upload", it)
+        }.getOrNull()
+    }
+
+    private fun compressSingleImageForUpload(sourceUri: Uri): Uri {
+        val originalBytes = contentResolver.openInputStream(sourceUri)?.use { input -> input.readBytes() }
+            ?: error("File foto tidak bisa dibaca")
+
+        if (originalBytes.size <= MAX_UPLOAD_IMAGE_BYTES) {
+            return sourceUri
+        }
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(originalBytes, 0, originalBytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return sourceUri
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = calculateInSampleSize(bounds.outWidth, bounds.outHeight, MAX_UPLOAD_IMAGE_DIMENSION)
+        }
+
+        val decodedBitmap = BitmapFactory.decodeByteArray(originalBytes, 0, originalBytes.size, decodeOptions)
+            ?: error("Foto tidak bisa diproses")
+
+        val scaledBitmap = scaleBitmapIfNeeded(decodedBitmap, MAX_UPLOAD_IMAGE_DIMENSION)
+        if (scaledBitmap !== decodedBitmap) decodedBitmap.recycle()
+
+        val rotatedBitmap = rotateBitmapIfNeeded(scaledBitmap, originalBytes)
+        if (rotatedBitmap !== scaledBitmap) scaledBitmap.recycle()
+
+        val compressedFile = File.createTempFile("qris_upload_compressed_", ".jpg", cacheDir)
+        writeCompressedJpeg(rotatedBitmap, compressedFile)
+        rotatedBitmap.recycle()
+
+        return FileProvider.getUriForFile(this, "${packageName}.fileprovider", compressedFile)
+    }
+
+    private fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
+        var sampleSize = 1
+        var sampledWidth = width
+        var sampledHeight = height
+        while (sampledWidth / 2 >= maxDimension && sampledHeight / 2 >= maxDimension) {
+            sampleSize *= 2
+            sampledWidth /= 2
+            sampledHeight /= 2
+        }
+        return sampleSize.coerceAtLeast(1)
+    }
+
+    private fun scaleBitmapIfNeeded(bitmap: Bitmap, maxDimension: Int): Bitmap {
+        val maxSide = maxOf(bitmap.width, bitmap.height)
+        if (maxSide <= maxDimension) return bitmap
+
+        val scale = maxDimension.toFloat() / maxSide.toFloat()
+        val width = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val height = (bitmap.height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, width, height, true)
+    }
+
+    private fun writeCompressedJpeg(bitmap: Bitmap, outputFile: File) {
+        var quality = INITIAL_JPEG_QUALITY
+
+        do {
+            FileOutputStream(outputFile, false).use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)
+            }
+            quality -= JPEG_QUALITY_STEP
+        } while (outputFile.length() > TARGET_UPLOAD_IMAGE_BYTES && quality >= MIN_JPEG_QUALITY)
+    }
+
+    private fun rotateBitmapIfNeeded(bitmap: Bitmap, originalBytes: ByteArray): Bitmap {
+        val orientation = runCatching {
+            ExifInterface(originalBytes.inputStream()).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL,
+            )
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+        val degrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+
+        if (degrees == 0f) return bitmap
+
+        val matrix = Matrix().apply { postRotate(degrees) }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     private fun createImageCaptureIntent(): Intent? {
@@ -426,5 +547,11 @@ class MainActivity : AppCompatActivity() {
         private const val LOGIN_URL = "https://hopenoodles.my.id/adm.php"
         private const val POS_URL = "https://hopenoodles.my.id/pos/index.php"
         private const val TRUSTED_HOST = "hopenoodles.my.id"
+        private const val MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024
+        private const val TARGET_UPLOAD_IMAGE_BYTES = 1536 * 1024
+        private const val MAX_UPLOAD_IMAGE_DIMENSION = 1600
+        private const val INITIAL_JPEG_QUALITY = 88
+        private const val MIN_JPEG_QUALITY = 52
+        private const val JPEG_QUALITY_STEP = 8
     }
 }
