@@ -731,9 +731,131 @@ function format_rupiah($amount)
         font-size: 10px;
       }
     }
+    .dashboard-page .content {
+      max-width: 1360px;
+    }
+    .dashboard-page .card {
+      overflow-wrap: anywhere;
+    }
+    .dashboard-page .content table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .dashboard-page .content th,
+    .dashboard-page .content td {
+      text-align: left;
+      vertical-align: top;
+    }
+    .dashboard-page .content th {
+      color: var(--muted);
+      font-weight: 700;
+      border-bottom: 1px solid var(--border);
+    }
+    .dashboard-page .content td {
+      border-bottom: 1px solid var(--border);
+    }
+    .dashboard-page .content .card > table,
+    .dashboard-page .content .card > .grid table,
+    .dashboard-page .content .card > div table {
+      min-width: 420px;
+    }
+    .dashboard-page .mini-table {
+      min-width: 320px;
+    }
+    .dashboard-page .content .card {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .dashboard-page .content .card::-webkit-scrollbar {
+      height: 8px;
+    }
+    .dashboard-page .content .card::-webkit-scrollbar-thumb {
+      background: rgba(148,163,184,.55);
+      border-radius: 999px;
+    }
+    @media (min-width: 981px) {
+      .dashboard-page .grid.cols-4 {
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      }
+      .dashboard-page .grid.cols-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .dashboard-page .card {
+        padding: 14px;
+      }
+      .dashboard-page .content .card {
+        overflow-x: visible;
+      }
+    }
+    @media (max-width: 720px) {
+      .dashboard-page .content {
+        padding: 12px 10px 22px;
+      }
+      .dashboard-page .topbar {
+        gap: 8px;
+        padding: 0 10px;
+      }
+      .dashboard-page .topbar .title {
+        font-size: 15px;
+      }
+      .dashboard-page .card {
+        padding: 12px;
+        border-radius: 12px;
+      }
+      .dashboard-page .grid {
+        gap: 12px;
+      }
+      .dashboard-page .hourly-filter {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .dashboard-page .hourly-filter .row {
+        min-width: 0 !important;
+        width: 100%;
+      }
+      .dashboard-page .hourly-filter .btn {
+        width: 100%;
+      }
+      .dashboard-page .hourly-chart {
+        grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+        gap: 8px;
+      }
+      .dashboard-page .hourly-bar-fill {
+        max-height: 72px;
+      }
+      .dashboard-page .compact-row {
+        grid-template-columns: 74px minmax(120px, 1fr) 46px;
+        gap: 8px;
+      }
+      .dashboard-page .content .card > table,
+      .dashboard-page .content .card > .grid table,
+      .dashboard-page .content .card > div table {
+        min-width: 560px;
+      }
+      .dashboard-page .mini-table {
+        min-width: 360px;
+      }
+      .dashboard-page h3 {
+        font-size: 17px;
+      }
+      .dashboard-page h4 {
+        font-size: 14px;
+      }
+    }
+    @media (max-width: 420px) {
+      .dashboard-page .hourly-chart {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .dashboard-page .hourly-bar-value,
+      .dashboard-page .hourly-bar-label {
+        font-size: 10px;
+      }
+    }
   </style>
 </head>
-<body>
+<body class="dashboard-page">
   <div class="container">
     <?php include __DIR__ . '/partials_sidebar.php'; ?>
     <div class="main">
@@ -961,7 +1083,7 @@ function format_rupiah($amount)
             </div>
             <div class="row" style="min-width:150px">
               <label>Hari</label>
-              <select name="peak_day">
+              <select name="peak_day" id="peak-day">
                 <option value="all" <?php echo $peakDay === 'all' ? 'selected' : ''; ?>>Semua hari</option>
                 <?php foreach ([2,3,4,5,6,7,1] as $dayNo): ?>
                   <option value="<?php echo e((string)$dayNo); ?>" <?php echo (string)$peakDay === (string)$dayNo ? 'selected' : ''; ?>><?php echo e($weekdayLabels[$dayNo]); ?></option>
@@ -1315,14 +1437,29 @@ function format_rupiah($amount)
     const peakSelect = document.querySelector('#peak-range');
     const peakStart = document.querySelector('#peak-custom-start');
     const peakEnd = document.querySelector('#peak-custom-end');
+    const peakDaySelect = document.querySelector('#peak-day');
+    const submitFormSafely = (form) => {
+      if (!form) return;
+      form.submit();
+    };
     if (peakSelect && peakStart && peakEnd) {
       const togglePeakCustom = () => {
         const show = peakSelect.value === 'custom';
         peakStart.style.display = show ? 'grid' : 'none';
         peakEnd.style.display = show ? 'grid' : 'none';
       };
-      peakSelect.addEventListener('change', togglePeakCustom);
+      peakSelect.addEventListener('change', () => {
+        togglePeakCustom();
+        if (peakSelect.value !== 'custom') {
+          submitFormSafely(peakSelect.form);
+        }
+      });
       togglePeakCustom();
+    }
+    if (peakDaySelect) {
+      peakDaySelect.addEventListener('change', () => {
+        submitFormSafely(peakDaySelect.form);
+      });
     }
   </script>
 </body>
