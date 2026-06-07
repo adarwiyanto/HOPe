@@ -297,12 +297,23 @@ $historyRows = $historyBaseCode !== '' ? sale_revision_history($historyBaseCode)
 $editItems = $editCode !== '' ? fetch_sale_version_items($editCode) : [];
 $editHeader = $editItems ? sale_version_header($editItems) : [];
 
+function sale_payment_label(string $method): string {
+  $method = strtolower(trim($method));
+  return match ($method) {
+    'qris' => 'QRIS',
+    'transfer' => 'Transfer',
+    'card' => 'Card',
+    'cash' => 'Cash',
+    default => $method !== '' ? strtoupper($method) : '-',
+  };
+}
+
 $customCss = setting('custom_css', '');
 ?>
 <!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Penjualan</title>
 <link rel="icon" href="<?php echo e(favicon_url()); ?>"><link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>"><style><?php echo $customCss; ?></style>
-<style>.badge-ok{background:rgba(52,211,153,.2);padding:4px 8px;border-radius:999px}.badge-old{background:rgba(251,146,60,.2);padding:4px 8px;border-radius:999px}.transaction-card{border:1px solid rgba(148,163,184,.3);padding:12px;border-radius:10px;margin-bottom:10px}.actions{display:flex;gap:8px;flex-wrap:wrap}</style>
+<style>.badge-ok{background:rgba(52,211,153,.2);padding:4px 8px;border-radius:999px}.badge-old{background:rgba(251,146,60,.2);padding:4px 8px;border-radius:999px}.transaction-card{border:1px solid rgba(148,163,184,.3);padding:12px;border-radius:10px;margin-bottom:10px}.actions{display:flex;gap:8px;flex-wrap:wrap}.transaction-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.transaction-meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.payment-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;padding:8px 10px;border:1px solid rgba(148,163,184,.22);border-radius:12px;background:rgba(148,163,184,.07)}.payment-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.payment-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(59,130,246,.12);font-weight:700;font-size:.88rem}.payment-note{font-size:.82rem;opacity:.72}.payment-proof-link{display:inline-flex;align-items:center;text-decoration:none}.payment-proof-thumb{width:54px;height:54px;border-radius:12px;object-fit:cover;border:1px solid rgba(148,163,184,.38);box-shadow:0 4px 10px rgba(15,23,42,.12)}@media (min-width:1024px){.transaction-card{padding:14px 16px}.payment-strip{max-width:100%;}.payment-proof-thumb{width:58px;height:58px}}@media (max-width:720px){.payment-strip{align-items:flex-start;flex-direction:column}.payment-proof-thumb{width:64px;height:64px}.transaction-head{align-items:flex-start}}</style>
 </head><body><div class="container"><?php include __DIR__ . '/partials_sidebar.php'; ?><div class="main"><div class="topbar"><button class="btn" data-toggle-sidebar type="button">Menu</button><div class="badge">Input Penjualan</div></div>
 <div class="content">
 <?php if ($err): ?><div class="card" style="border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)"><?php echo e($err); ?></div><?php endif; ?>
@@ -351,9 +362,18 @@ $customCss = setting('custom_css', '');
 
 <div class="grid cols-2"><div class="card"><h3 style="margin-top:0">Transaksi Baru</h3><form method="post"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="create"><div class="row"><label>Produk</label><select name="product_id" required><option value="">-- pilih --</option><?php foreach ($products as $p): ?><option value="<?php echo e((string)$p['id']); ?>"><?php echo e($p['name']); ?></option><?php endforeach; ?></select></div><div class="row"><label>Qty</label><input type="number" name="qty" value="1" min="1" required></div><button class="btn" type="submit">Simpan Penjualan</button></form></div>
 <div class="card"><h3 style="margin-top:0">Riwayat Transaksi</h3><form method="get" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div class="row" style="margin:0"><label>Rentang Waktu</label><select name="range"><option value="today" <?php echo $range==='today'?'selected':''; ?>>Hari ini</option><option value="yesterday" <?php echo $range==='yesterday'?'selected':''; ?>>Kemarin</option><option value="7days" <?php echo $range==='7days'?'selected':''; ?>>7 hari</option><option value="custom" <?php echo $range==='custom'?'selected':''; ?>>Custom</option></select></div><div class="row" style="margin:0"><label>Mulai</label><input type="date" name="start" value="<?php echo e($customStart); ?>"></div><div class="row" style="margin:0"><label>Sampai</label><input type="date" name="end" value="<?php echo e($customEnd); ?>"></div><button class="btn" type="submit">Terapkan</button></form>
-<?php foreach ($transactions as $tx): $txCode=(string)$tx['tx_code']; $items=$itemsByTx[$txCode] ?? []; $revised = ((int)$tx['revision_no'] > 0); ?>
-<div class="transaction-card"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><strong><?php echo e($txCode); ?></strong><br><small><?php echo e((string)$tx['sold_at']); ?></small></div><div><strong>Rp <?php echo e(format_number_id((float)$tx['total_amount'])); ?></strong></div></div>
-<div style="display:flex;gap:10px;flex-wrap:wrap"><span>Kasir: <?php echo e($tx['cashier_name'] ?? '-'); ?></span><span>Customer: <?php echo e($tx['customer_name'] ?? '-'); ?></span><span>Status Versi: <?php echo ((int)$tx['is_active_revision']===1) ? '<span class="badge-ok">Aktif</span>' : '<span class="badge-old">Arsip</span>'; ?></span><?php if ($revised): ?><span class="badge">Revised</span><?php endif; ?></div>
+<?php foreach ($transactions as $tx):
+  $txCode = (string)$tx['tx_code'];
+  $items = $itemsByTx[$txCode] ?? [];
+  $revised = ((int)$tx['revision_no'] > 0);
+  $paymentMethod = strtolower((string)($tx['payment_method'] ?? ''));
+  $paymentLabel = sale_payment_label($paymentMethod);
+  $paymentProofPath = trim((string)($tx['payment_proof_path'] ?? ''));
+  $paymentProofUrl = ($paymentMethod === 'qris' && $paymentProofPath !== '') ? upload_url($paymentProofPath, 'image') : '';
+?>
+<div class="transaction-card"><div class="transaction-head"><div><strong><?php echo e($txCode); ?></strong><br><small><?php echo e((string)$tx['sold_at']); ?></small></div><div><strong>Rp <?php echo e(format_number_id((float)$tx['total_amount'])); ?></strong></div></div>
+<div class="transaction-meta"><span>Kasir: <?php echo e($tx['cashier_name'] ?? '-'); ?></span><span>Customer: <?php echo e($tx['customer_name'] ?? '-'); ?></span><span>Status Versi: <?php echo ((int)$tx['is_active_revision']===1) ? '<span class="badge-ok">Aktif</span>' : '<span class="badge-old">Arsip</span>'; ?></span><?php if ($revised): ?><span class="badge">Revised</span><?php endif; ?></div>
+<div class="payment-strip"><div class="payment-info"><span>Jenis Pembayaran:</span><span class="payment-badge"><?php echo e($paymentLabel); ?></span><?php if ($paymentMethod === 'qris' && $paymentProofUrl === ''): ?><span class="payment-note">Bukti QRIS belum ada</span><?php endif; ?></div><?php if ($paymentProofUrl !== ''): ?><a class="payment-proof-link" href="<?php echo e($paymentProofUrl); ?>" target="_blank" rel="noopener" title="Lihat bukti QRIS"><img class="payment-proof-thumb" src="<?php echo e($paymentProofUrl); ?>" alt="Bukti pembayaran QRIS <?php echo e($txCode); ?>" loading="lazy"></a><?php endif; ?></div>
 <?php if ($items): ?><ul><?php foreach ($items as $it): ?><li><?php echo e($it['product_name']); ?> x <?php echo e((string)$it['qty']); ?> (Rp <?php echo e(format_number_id((float)$it['total'])); ?>)</li><?php endforeach; ?></ul><?php endif; ?>
 <div class="actions"><a class="btn" href="<?php echo e(base_url('admin/sales.php?detail=' . urlencode($txCode))); ?>">Detail</a><?php if ($canEditSale): ?><a class="btn" href="<?php echo e(base_url('admin/sales.php?edit=' . urlencode($txCode))); ?>">Edit Transaksi</a><?php endif; ?><?php if (in_array(current_user_role_key(), ['owner','admin'], true)): ?><a class="btn" href="<?php echo e(base_url('admin/sales.php?history=' . urlencode((string)$tx['base_sale_code']))); ?>">Lihat Riwayat Revisi</a><?php endif; ?><?php if ($isOwner): ?><form method="post" style="display:inline" onsubmit="return confirm('Hapus transaksi ini? Poin customer akan dikembalikan bila data loyalty tersedia.');"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="transaction_code" value="<?php echo e($txCode); ?>"><button class="btn" type="submit">Hapus</button></form><?php endif; ?></div>
 </div>
