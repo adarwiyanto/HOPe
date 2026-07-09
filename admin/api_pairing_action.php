@@ -6,6 +6,8 @@ require_once __DIR__ . '/../core/permissions.php';
 require_once __DIR__ . '/../core/api_pairing.php';
 start_secure_session(); require_admin(); csrf_check(); ensure_hope_integration_schema();
 $u=current_user()??[]; $uid=(int)($u['id']??0); $act=(string)($_POST['act']??'');
+function hope_admin_token(array $c): string { return (string)($c['access_token_plain'] ?? ''); }
+function hope_revoke_remote_connection(array $c): array { $token=hope_admin_token($c); if($token==='' || empty($c['remote_base_url'])) return ['ok'=>false,'message'=>'Token/base URL remote kosong.']; return hope_remote_json((string)$c['remote_base_url'],'api/pairing/revoke.php',['reason'=>'revoked_from_hope'],'POST',$token,10); }
 function hope_pair_go(string $msg=''): void { if($msg!=='') set_setting('last_integration_error',$msg); redirect(base_url('admin/dapur_connection.php')); }
 try{
  if($act==='create_request'){
@@ -23,10 +25,11 @@ try{
  elseif($act==='approve'){
    if(!current_user_is_owner()) throw new RuntimeException('Hanya owner yang dapat approve koneksi.');
    $id=(int)($_POST['id']??0); $r=db()->prepare("SELECT * FROM api_pairing_requests WHERE id=? AND direction='incoming' LIMIT 1"); $r->execute([$id]); $req=$r->fetch(PDO::FETCH_ASSOC); if(!$req) throw new RuntimeException('Request tidak ditemukan.');
+   $grantScope=hope_pairing_scope_for((string)$req['requester_type'],'hope');
    $token='hope_'.bin2hex(random_bytes(32)); $hash=hash('sha256',$token);
-   db()->prepare("UPDATE api_pairing_requests SET status='approved', access_token_plain=?, token_hash=?, approved_by=?, approved_at=NOW(), last_message='Approved', updated_at=NOW() WHERE id=?")->execute([$token,$hash,$uid,$id]);
-   db()->prepare("INSERT INTO api_connections(connection_name,connection_type,remote_system_type,remote_base_url,access_scope,token_hash,access_token_plain,status,paired_from_request_code,paired_by,paired_at) VALUES(?,?,?,?,?,?,?,?,?,?,NOW())")->execute([(string)$req['requester_name'],'incoming',(string)$req['requester_type'],(string)$req['requester_base_url'],(string)$req['requested_scope'],$hash,$token,'active',(string)$req['request_code'],$uid]);
-   hope_api_log_event(null,'api/pairing/approve','in','pair_request_approved','Request pairing disetujui.',['request_code'=>$req['request_code'],'requester'=>$req['requester_base_url']]);
+   db()->prepare("UPDATE api_pairing_requests SET status='approved', requested_scope=?, access_token_plain=?, token_hash=?, approved_by=?, approved_at=NOW(), last_message='Approved', updated_at=NOW() WHERE id=?")->execute([$grantScope,$token,$hash,$uid,$id]);
+   db()->prepare("INSERT INTO api_connections(connection_name,connection_type,remote_system_type,remote_base_url,access_scope,token_hash,access_token_plain,status,paired_from_request_code,paired_by,paired_at) VALUES(?,?,?,?,?,?,?,?,?,?,NOW())")->execute([(string)$req['requester_name'],'incoming',(string)$req['requester_type'],(string)$req['requester_base_url'],$grantScope,$hash,$token,'active',(string)$req['request_code'],$uid]);
+   hope_api_log_event(null,'api/pairing/approve','in','pair_request_approved','Request pairing disetujui dengan scope '.$grantScope.'.',['request_code'=>$req['request_code'],'requester'=>$req['requester_base_url']]);
  }
  elseif($act==='reject'){
    if(!current_user_is_owner()) throw new RuntimeException('Hanya owner yang dapat reject koneksi.');
@@ -66,6 +69,18 @@ try{
    hope_api_log_event(null,'api/v1/kitchen/receive-transfer.php','in',$ok?'dryrun_receive_ok':'dryrun_receive_failed',$msg,['request'=>$payload,'response'=>$res]);
    hope_pair_go($ok?'Test terima stok dry-run berhasil. Stok tidak berubah.':'Test terima stok gagal: '.$msg);
  }
+ elseif($act==='refresh_scope'){
+   if(!current_user_is_owner()) throw new RuntimeException('Hanya owner yang dapat refresh scope koneksi.');
+   $id=(int)($_POST['id']??0); $st=db()->prepare("SELECT * FROM api_connections WHERE id=? AND status='active' LIMIT 1"); $st->execute([$id]); $c=$st->fetch(PDO::FETCH_ASSOC); if(!$c) throw new RuntimeException('Koneksi tidak ditemukan.');
+   $token=hope_admin_token($c); if($token==='') throw new RuntimeException('Token remote kosong.');
+   $desired=hope_pairing_scope_for((string)($c['remote_system_type']??$c['connection_type']??''),'hope');
+   $res=hope_remote_json((string)$c['remote_base_url'],'api/pairing/refresh-scope.php',['desired_scope'=>$desired],'POST',$token,12);
+   $ok=!empty($res['ok']); $newScope=(string)($res['access_scope']??$desired); $msg=(string)($res['message']??$res['_error']??'');
+   if($ok) db()->prepare("UPDATE api_connections SET access_scope=?, last_test_at=NOW(), last_test_status='ok', last_test_message=?, updated_at=NOW() WHERE id=?")->execute([$newScope,'Scope diperbarui: '.$newScope,$id]);
+   else db()->prepare("UPDATE api_connections SET last_test_at=NOW(), last_test_status='failed', last_test_message=? WHERE id=?")->execute(['Refresh scope gagal: '.$msg,$id]);
+   hope_test_log($id,(string)$c['remote_base_url'],(string)$c['remote_system_type'],'api/pairing/refresh-scope.php',$ok?'ok':'failed',(int)($res['_http_code']??0),$msg,$res,$uid);
+   hope_pair_go($ok?'Scope koneksi diperbarui menjadi '.$newScope.'.':'Refresh scope gagal: '.$msg);
+ }
  elseif($act==='delete_request'){
    $id=(int)($_POST['id']??0); if($id<=0) throw new RuntimeException('Request tidak valid.');
    $st=db()->prepare("SELECT * FROM api_pairing_requests WHERE id=? LIMIT 1"); $st->execute([$id]); $r=$st->fetch(PDO::FETCH_ASSOC); if(!$r) throw new RuntimeException('Request tidak ditemukan.');
@@ -73,8 +88,12 @@ try{
  }
  elseif($act==='revoke_connection'){
    if(!current_user_is_owner()) throw new RuntimeException('Hanya owner yang dapat hapus/revoke koneksi.');
-   $id=(int)($_POST['id']??0); db()->prepare("UPDATE api_connections SET status='revoked', revoked_by=?, revoked_at=NOW(), updated_at=NOW(), last_test_status='revoked', last_test_message='Dicabut dari menu HOPe' WHERE id=?")->execute([$uid,$id]);
-   hope_api_log_event(null,'api_connections','out','connection_revoked','Koneksi dicabut.',['connection_id'=>$id]);
+   $id=(int)($_POST['id']??0); $st=db()->prepare('SELECT * FROM api_connections WHERE id=? LIMIT 1'); $st->execute([$id]); $c=$st->fetch(PDO::FETCH_ASSOC); if(!$c) throw new RuntimeException('Koneksi tidak ditemukan.');
+   $remote=hope_revoke_remote_connection($c);
+   db()->prepare("UPDATE api_connections SET status='revoked', revoked_by=?, revoked_at=NOW(), updated_at=NOW(), last_test_status='revoked', last_test_message='Dicabut dari menu HOPe' WHERE id=?")->execute([$uid,$id]);
+   if(!empty($c['paired_from_request_code'])) db()->prepare("UPDATE api_pairing_requests SET status='cancelled', last_message='Koneksi dicabut dari menu HOPe', updated_at=NOW() WHERE request_code=?")->execute([(string)$c['paired_from_request_code']]);
+   hope_api_log_event(null,'api_connections','out','connection_revoked','Koneksi dicabut. Remote revoke: '.(!empty($remote['ok'])?'ok':($remote['message']??'gagal')),['connection_id'=>$id,'remote_response'=>$remote]);
  }
+
 }catch(Throwable $e){ hope_api_log_event(null,'admin/api_pairing_action.php','out','action_error',$e->getMessage(),['act'=>$act]); hope_pair_go('Error: '.$e->getMessage()); }
 hope_pair_go();
