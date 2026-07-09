@@ -1,0 +1,319 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="id.my.hopenoodles.hopepos"
+4    android:versionCode="2"
+5    android:versionName="1.0.1-android11" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="30"
+9        android:targetSdkVersion="35" />
+10
+11    <queries>
+11-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:3:5-20:15
+12        <intent>
+12-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:4:9-7:18
+13            <action android:name="android.intent.action.MAIN" />
+13-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:13-65
+13-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:21-62
+14
+15            <category android:name="android.intent.category.LAUNCHER" />
+15-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:6:13-73
+15-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:6:23-70
+16        </intent>
+17        <intent>
+17-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:8:9-11:18
+18            <action android:name="android.intent.action.MAIN" />
+18-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:13-65
+18-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:21-62
+19
+20            <category android:name="android.intent.category.HOME" />
+20-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:10:13-69
+20-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:10:23-66
+21        </intent>
+22        <intent>
+22-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:12:9-14:18
+23            <action android:name="android.media.action.IMAGE_CAPTURE" />
+23-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:13:13-73
+23-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:13:21-70
+24        </intent>
+25        <intent>
+25-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:15:9-18:18
+26            <action android:name="android.intent.action.GET_CONTENT" />
+26-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:16:13-72
+26-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:16:21-69
+27
+28            <data android:mimeType="image/*" />
+28-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:17:13-48
+28-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:17:19-45
+29        </intent>
+30    </queries>
+31
+32    <uses-permission android:name="android.permission.INTERNET" />
+32-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:22:5-67
+32-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:22:22-64
+33    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+33-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:23:5-78
+33-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:23:22-75
+34    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+34-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:24:5-81
+34-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:24:22-78
+35    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+35-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:25:5-95
+35-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:25:22-92
+36    <uses-permission android:name="android.permission.CAMERA" />
+36-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:26:5-65
+36-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:26:22-62
+37    <uses-permission
+37-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:27:5-95
+38        android:name="android.permission.BLUETOOTH"
+38-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:27:22-65
+39        android:maxSdkVersion="30" />
+39-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:27:66-92
+40    <uses-permission
+40-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:28:5-101
+41        android:name="android.permission.BLUETOOTH_ADMIN"
+41-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:28:22-71
+42        android:maxSdkVersion="30" />
+42-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:28:72-98
+43    <uses-permission
+43-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:29:5-31:58
+44        android:name="android.permission.BLUETOOTH_SCAN"
+44-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:30:9-57
+45        android:usesPermissionFlags="neverForLocation" />
+45-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:31:9-55
+46    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+46-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:32:5-76
+46-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:32:22-73
+47
+48    <permission
+48-->[androidx.core:core:1.13.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\c443ce5cc5146741c94ef87b4a6a8d3f\transformed\core-1.13.1\AndroidManifest.xml:22:5-24:47
+49        android:name="id.my.hopenoodles.hopepos.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+49-->[androidx.core:core:1.13.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\c443ce5cc5146741c94ef87b4a6a8d3f\transformed\core-1.13.1\AndroidManifest.xml:23:9-81
+50        android:protectionLevel="signature" />
+50-->[androidx.core:core:1.13.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\c443ce5cc5146741c94ef87b4a6a8d3f\transformed\core-1.13.1\AndroidManifest.xml:24:9-44
+51
+52    <uses-permission android:name="id.my.hopenoodles.hopepos.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+52-->[androidx.core:core:1.13.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\c443ce5cc5146741c94ef87b4a6a8d3f\transformed\core-1.13.1\AndroidManifest.xml:26:5-97
+52-->[androidx.core:core:1.13.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\c443ce5cc5146741c94ef87b4a6a8d3f\transformed\core-1.13.1\AndroidManifest.xml:26:22-94
+53
+54    <application
+54-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:34:5-115:19
+55        android:allowBackup="true"
+55-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:35:9-35
+56        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+56-->[androidx.core:core:1.13.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\c443ce5cc5146741c94ef87b4a6a8d3f\transformed\core-1.13.1\AndroidManifest.xml:28:18-86
+57        android:debuggable="true"
+58        android:extractNativeLibs="false"
+59        android:hardwareAccelerated="true"
+59-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:40:9-43
+60        android:icon="@mipmap/ic_launcher"
+60-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:36:9-43
+61        android:label="@string/app_name"
+61-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:37:9-41
+62        android:roundIcon="@mipmap/ic_launcher_round"
+62-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:38:9-54
+63        android:supportsRtl="true"
+63-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:39:9-35
+64        android:theme="@style/Theme.HopePos" >
+64-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:41:9-45
+65        <provider
+66            android:name="androidx.core.content.FileProvider"
+66-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:44:13-62
+67            android:authorities="id.my.hopenoodles.hopepos.fileprovider"
+67-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:45:13-64
+68            android:exported="false"
+68-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:46:13-37
+69            android:grantUriPermissions="true" >
+69-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:47:13-47
+70            <meta-data
+70-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:48:13-50:54
+71                android:name="android.support.FILE_PROVIDER_PATHS"
+71-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:49:17-67
+72                android:resource="@xml/file_paths" />
+72-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:50:17-51
+73        </provider>
+74
+75        <receiver
+75-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:53:9-65:20
+76            android:name="id.my.hopenoodles.hopepos.kiosk.HopeDeviceAdminReceiver"
+76-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:54:13-58
+77            android:description="@string/kiosk_device_admin_description"
+77-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:55:13-73
+78            android:exported="true"
+78-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:56:13-36
+79            android:label="@string/app_name"
+79-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:57:13-45
+80            android:permission="android.permission.BIND_DEVICE_ADMIN" >
+80-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:58:13-70
+81            <meta-data
+81-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:59:13-61:65
+82                android:name="android.app.device_admin"
+82-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:60:17-56
+83                android:resource="@xml/device_admin_receiver" />
+83-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:61:17-62
+84
+85            <intent-filter>
+85-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:62:13-64:29
+86                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+86-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:63:17-82
+86-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:63:25-79
+87            </intent-filter>
+88        </receiver>
+89        <receiver
+89-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:68:9-76:20
+90            android:name="id.my.hopenoodles.hopepos.kiosk.BootReceiver"
+90-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:69:13-47
+91            android:enabled="true"
+91-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:70:13-35
+92            android:exported="true" >
+92-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:71:13-36
+93            <intent-filter>
+93-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:72:13-75:29
+94                <action android:name="android.intent.action.BOOT_COMPLETED" />
+94-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:73:17-79
+94-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:73:25-76
+95                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+95-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:74:17-86
+95-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:74:25-83
+96            </intent-filter>
+97        </receiver>
+98
+99        <activity
+99-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:78:9-81:53
+100            android:name="id.my.hopenoodles.hopepos.ui.KioskSetupActivity"
+100-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:79:13-50
+101            android:exported="false"
+101-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:80:13-37
+102            android:screenOrientation="landscape" />
+102-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:81:13-50
+103        <activity
+103-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:83:9-86:53
+104            android:name="id.my.hopenoodles.hopepos.ui.PrinterSettingsActivity"
+104-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:84:13-55
+105            android:exported="false"
+105-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:85:13-37
+106            android:screenOrientation="landscape" />
+106-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:86:13-50
+107        <activity
+107-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:88:9-91:53
+108            android:name="id.my.hopenoodles.hopepos.ui.HopeLauncherSettingsActivity"
+108-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:89:13-60
+109            android:exported="false"
+109-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:90:13-37
+110            android:screenOrientation="landscape" />
+110-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:91:13-50
+111        <activity
+111-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:93:9-107:20
+112            android:name="id.my.hopenoodles.hopepos.ui.HopeHomeActivity"
+112-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:94:13-48
+113            android:exported="true"
+113-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:95:13-36
+114            android:launchMode="singleTask"
+114-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:96:13-44
+115            android:screenOrientation="landscape" >
+115-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:97:13-50
+116            <intent-filter>
+116-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:98:13-101:29
+117                <action android:name="android.intent.action.MAIN" />
+117-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:13-65
+117-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:21-62
+118
+119                <category android:name="android.intent.category.LAUNCHER" />
+119-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:6:13-73
+119-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:6:23-70
+120            </intent-filter>
+121            <intent-filter>
+121-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:102:13-106:29
+122                <action android:name="android.intent.action.MAIN" />
+122-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:13-65
+122-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:5:21-62
+123
+124                <category android:name="android.intent.category.HOME" />
+124-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:10:13-69
+124-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:10:23-66
+125                <category android:name="android.intent.category.DEFAULT" />
+125-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:105:17-76
+125-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:105:27-73
+126            </intent-filter>
+127        </activity>
+128        <activity
+128-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:109:9-114:86
+129            android:name="id.my.hopenoodles.hopepos.ui.MainActivity"
+129-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:110:13-44
+130            android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
+130-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:114:13-83
+131            android:exported="false"
+131-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:111:13-37
+132            android:launchMode="singleTop"
+132-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:112:13-43
+133            android:screenOrientation="landscape" />
+133-->C:\xampp\htdocs\hope\android\hope-pos-print-bridge\app\src\main\AndroidManifest.xml:113:13-50
+134
+135        <provider
+135-->[androidx.emoji2:emoji2:1.3.0] C:\Users\adarw\.gradle\caches\9.0.0\transforms\5e6bdeb670f6919f2d577286b2c3f799\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+136            android:name="androidx.startup.InitializationProvider"
+136-->[androidx.emoji2:emoji2:1.3.0] C:\Users\adarw\.gradle\caches\9.0.0\transforms\5e6bdeb670f6919f2d577286b2c3f799\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:25:13-67
+137            android:authorities="id.my.hopenoodles.hopepos.androidx-startup"
+137-->[androidx.emoji2:emoji2:1.3.0] C:\Users\adarw\.gradle\caches\9.0.0\transforms\5e6bdeb670f6919f2d577286b2c3f799\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:26:13-68
+138            android:exported="false" >
+138-->[androidx.emoji2:emoji2:1.3.0] C:\Users\adarw\.gradle\caches\9.0.0\transforms\5e6bdeb670f6919f2d577286b2c3f799\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:27:13-37
+139            <meta-data
+139-->[androidx.emoji2:emoji2:1.3.0] C:\Users\adarw\.gradle\caches\9.0.0\transforms\5e6bdeb670f6919f2d577286b2c3f799\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+140                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+140-->[androidx.emoji2:emoji2:1.3.0] C:\Users\adarw\.gradle\caches\9.0.0\transforms\5e6bdeb670f6919f2d577286b2c3f799\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:30:17-75
+141                android:value="androidx.startup" />
+141-->[androidx.emoji2:emoji2:1.3.0] C:\Users\adarw\.gradle\caches\9.0.0\transforms\5e6bdeb670f6919f2d577286b2c3f799\transformed\jetified-emoji2-1.3.0\AndroidManifest.xml:31:17-49
+142            <meta-data
+142-->[androidx.lifecycle:lifecycle-process:2.8.2] C:\Users\adarw\.gradle\caches\9.0.0\transforms\4a6176957000b5af0b33a96cabba8621\transformed\jetified-lifecycle-process-2.8.2\AndroidManifest.xml:29:13-31:52
+143                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+143-->[androidx.lifecycle:lifecycle-process:2.8.2] C:\Users\adarw\.gradle\caches\9.0.0\transforms\4a6176957000b5af0b33a96cabba8621\transformed\jetified-lifecycle-process-2.8.2\AndroidManifest.xml:30:17-78
+144                android:value="androidx.startup" />
+144-->[androidx.lifecycle:lifecycle-process:2.8.2] C:\Users\adarw\.gradle\caches\9.0.0\transforms\4a6176957000b5af0b33a96cabba8621\transformed\jetified-lifecycle-process-2.8.2\AndroidManifest.xml:31:17-49
+145            <meta-data
+145-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+146                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+146-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+147                android:value="androidx.startup" />
+147-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+148        </provider>
+149
+150        <receiver
+150-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+151            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+151-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+152            android:directBootAware="false"
+152-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+153            android:enabled="true"
+153-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+154            android:exported="true"
+154-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+155            android:permission="android.permission.DUMP" >
+155-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+156            <intent-filter>
+156-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+157                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+157-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+157-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+158            </intent-filter>
+159            <intent-filter>
+159-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+160                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+160-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+160-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+161            </intent-filter>
+162            <intent-filter>
+162-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+163                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+163-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+163-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+164            </intent-filter>
+165            <intent-filter>
+165-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+166                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+166-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+166-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\adarw\.gradle\caches\9.0.0\transforms\9dda9fa238f2355f5e6ca12efdd3aeb1\transformed\jetified-profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+167            </intent-filter>
+168        </receiver>
+169    </application>
+170
+171</manifest>

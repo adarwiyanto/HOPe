@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-mergeDebugResources-35:/layout/activity_printer_settings.xml",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/layout/activity_printer_settings.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-mergeDebugResources-35:/layout/activity_main.xml",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/layout/activity_main.xml"
+    }
+]

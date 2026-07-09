@@ -1,0 +1,50 @@
+[
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/xml_file_paths.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/xml/file_paths.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/mipmap_ic_launcher_round.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/mipmap/ic_launcher_round.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/drawable-nodpi_hope_launcher_icon.png.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/drawable-nodpi/hope_launcher_icon.png"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/layout_activity_printer_settings.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/layout/activity_printer_settings.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/xml_device_admin_receiver.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/xml/device_admin_receiver.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/drawable_hope_launcher_foreground.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/drawable/hope_launcher_foreground.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/drawable-nodpi_hope_launcher_splash.jpg.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/drawable-nodpi/hope_launcher_splash.jpg"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/layout_activity_main.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/layout/activity_main.xml"
+    },
+    {
+        "merged": "id.my.hopenoodles.hopepos.app-debug-36:/mipmap_ic_launcher.xml.flat",
+        "source": "id.my.hopenoodles.hopepos.app-main-38:/mipmap/ic_launcher.xml"
+    }
+]

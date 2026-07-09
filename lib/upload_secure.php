@@ -7,7 +7,7 @@ function upload_secure(array $file, string $type = 'image'): array {
   }
 
   $type = $type === 'doc' ? 'doc' : 'image';
-  $maxSize = $type === 'doc' ? 5 * 1024 * 1024 : 2 * 1024 * 1024;
+  $maxSize = $type === 'doc' ? 5 * 1024 * 1024 : 1 * 1024 * 1024;
   $allowedExt = $type === 'doc' ? ['pdf'] : ['jpg', 'jpeg', 'png'];
   $allowedMime = $type === 'doc'
     ? ['application/pdf']

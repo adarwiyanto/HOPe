@@ -348,6 +348,7 @@ function ensure_inventory_settings_defaults(): void {
     'number_thousand_separator' => ',',
     'number_trim_trailing_zero' => '0',
     'number_show_unit_after_qty' => '1',
+    'stock_opname_auto_post' => '1',
   ];
   foreach ($defaults as $k => $v) {
     set_setting($k, setting($k, $v));
@@ -670,6 +671,67 @@ function save_stock_opname_items(PDO $db, int $opnameId, array $rows): void {
   }
 }
 
+function recalculate_stock_opname_items(PDO $db, int $opnameId): void {
+  $header = get_stock_opname_header($opnameId);
+  if (!$header) throw new Exception('Dokumen opname tidak ditemukan.');
+  if (($header['status'] ?? '') !== 'draft') throw new Exception('Hanya draft yang dapat dihitung ulang.');
+  $items = get_stock_opname_items($opnameId);
+  $stmt = $db->prepare("UPDATE stock_opname_items SET variance_qty=?, variance_type=?, warning_flag=?, updated_at=NOW() WHERE id=? AND opname_id=?");
+  foreach ($items as $it) {
+    $physical = (float)$it['physical_qty'];
+    $system = (float)$it['system_qty'];
+    $variance = round($physical - $system, 4);
+    $type = 'zero';
+    if ($variance > 0) $type = 'plus';
+    if ($variance < 0) $type = 'minus';
+    $stmt->execute([$variance, $type, stock_variance_needs_warning($variance) ? 1 : 0, (int)$it['id'], $opnameId]);
+  }
+}
+
+function post_stock_opname(PDO $db, int $opnameId, int $userId, string $note = ''): void {
+  $stmt = $db->prepare("SELECT * FROM stock_opname_headers WHERE id=? LIMIT 1 FOR UPDATE");
+  $stmt->execute([$opnameId]);
+  $header = $stmt->fetch();
+  if (!$header) throw new Exception('Dokumen opname tidak ditemukan.');
+  if (($header['status'] ?? '') !== 'draft') throw new Exception('Hanya draft yang bisa diposting.');
+
+  recalculate_stock_opname_items($db, $opnameId);
+  $items = get_stock_opname_items($opnameId);
+  if (empty($items)) throw new Exception('Item opname kosong.');
+
+  foreach ($items as $it) {
+    $physical = (float)$it['physical_qty'];
+    if ($physical < 0) throw new Exception('Physical qty tidak boleh negatif.');
+    $variance = (float)$it['variance_qty'];
+    if (stock_variance_reason_required($variance) && trim((string)($it['reason_note'] ?? '')) === '') {
+      throw new Exception('Masih ada item selisih tanpa alasan.');
+    }
+  }
+
+  foreach ($items as $it) {
+    $variance = (float)$it['variance_qty'];
+    if (abs($variance) < 0.00001) continue;
+    $transType = $variance > 0 ? 'stock_opname_adjustment_plus' : 'stock_opname_adjustment_minus';
+    add_stock_ledger([
+      'branch_id' => (int)$header['branch_id'],
+      'product_id' => (int)$it['product_id'],
+      'trans_type' => $transType,
+      'ref_table' => 'stock_opname_headers',
+      'ref_id' => $opnameId,
+      'qty_in' => $variance > 0 ? abs($variance) : 0,
+      'qty_out' => $variance < 0 ? abs($variance) : 0,
+      'unit_cost' => null,
+      'note' => 'Posting stok opname ' . (string)$header['opname_no'],
+      'created_by' => $userId,
+    ]);
+  }
+
+  $stmt = $db->prepare("UPDATE stock_opname_headers
+    SET status='approved', approved_by=?, approved_at=NOW(), approval_note=?, updated_at=NOW()
+    WHERE id=?");
+  $stmt->execute([$userId, $note !== '' ? $note : 'Auto post tanpa approval', $opnameId]);
+}
+
 function submit_stock_opname(PDO $db, int $opnameId): void {
   $header = get_stock_opname_header($opnameId);
   if (!$header) throw new Exception('Dokumen opname tidak ditemukan.');
@@ -684,8 +746,8 @@ function submit_stock_opname(PDO $db, int $opnameId): void {
       throw new Exception('Masih ada item selisih tanpa alasan.');
     }
   }
-  $stmt = $db->prepare("UPDATE stock_opname_headers SET status='waiting_approval', updated_at=NOW() WHERE id=?");
-  $stmt->execute([$opnameId]);
+  $userId = (int)((current_user()['id'] ?? 0));
+  post_stock_opname($db, $opnameId, $userId, 'Auto post stok opname');
 }
 
 function approve_stock_opname(PDO $db, int $opnameId, int $userId, string $note = ''): void {
@@ -731,10 +793,41 @@ function reject_stock_opname(PDO $db, int $opnameId, int $userId, string $note =
 }
 
 function cancel_stock_opname(PDO $db, int $opnameId): void {
-  $stmt = $db->prepare("UPDATE stock_opname_headers SET status='cancelled', updated_at=NOW()
-    WHERE id=? AND status IN ('draft','waiting_approval')");
+  $stmt = $db->prepare("SELECT * FROM stock_opname_headers WHERE id=? LIMIT 1 FOR UPDATE");
   $stmt->execute([$opnameId]);
-  if ($stmt->rowCount() <= 0) throw new Exception('Hanya draft/menunggu approval yang bisa dibatalkan.');
+  $header = $stmt->fetch();
+  if (!$header) throw new Exception('Dokumen opname tidak ditemukan.');
+  if (($header['status'] ?? '') === 'cancelled') throw new Exception('Dokumen sudah dibatalkan.');
+
+  $userId = (int)((current_user()['id'] ?? 0));
+  if (($header['status'] ?? '') === 'approved') {
+    $st = $db->prepare("SELECT COALESCE(SUM(qty_in),0) qty_in, COALESCE(SUM(qty_out),0) qty_out, product_id
+      FROM stock_ledger
+      WHERE ref_table='stock_opname_headers' AND ref_id=? AND trans_type IN ('stock_opname_adjustment_plus','stock_opname_adjustment_minus')
+      GROUP BY product_id");
+    $st->execute([$opnameId]);
+    foreach ($st->fetchAll() as $r) {
+      $net = (float)$r['qty_in'] - (float)$r['qty_out'];
+      if (abs($net) < 0.00001) continue;
+      add_stock_ledger([
+        'branch_id' => (int)$header['branch_id'],
+        'product_id' => (int)$r['product_id'],
+        'trans_type' => $net > 0 ? 'stock_opname_reversal_out' : 'stock_opname_reversal_in',
+        'ref_table' => 'stock_opname_headers',
+        'ref_id' => $opnameId,
+        'qty_in' => $net < 0 ? abs($net) : 0,
+        'qty_out' => $net > 0 ? abs($net) : 0,
+        'unit_cost' => null,
+        'note' => 'Pembatalan stok opname ' . (string)$header['opname_no'],
+        'created_by' => $userId,
+      ]);
+    }
+  } elseif (($header['status'] ?? '') !== 'draft') {
+    throw new Exception('Hanya draft atau posted/approved yang bisa dibatalkan.');
+  }
+
+  $stmt = $db->prepare("UPDATE stock_opname_headers SET status='cancelled', updated_at=NOW() WHERE id=?");
+  $stmt->execute([$opnameId]);
 }
 
 function stock_card_rows(int $branchId, int $productId, string $dateFrom = '', string $dateTo = ''): array {

@@ -63,6 +63,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'submit') {
       $id = (int)($_POST['id'] ?? 0);
+      $itemIds = $_POST['item_id'] ?? [];
+      $systemQtys = $_POST['system_qty'] ?? [];
+      $physicalQtys = $_POST['physical_qty'] ?? [];
+      $reasonNotes = $_POST['reason_note'] ?? [];
+      $lineNotes = $_POST['line_note'] ?? [];
+      $rows = [];
+      if (is_array($itemIds)) {
+        foreach ($itemIds as $idx => $itemId) {
+          $rows[] = [
+            'id' => (int)$itemId,
+            'system_qty' => parse_number_input($systemQtys[$idx] ?? 0),
+            'physical_qty' => parse_number_input($physicalQtys[$idx] ?? 0),
+            'reason_note' => trim((string)($reasonNotes[$idx] ?? '')),
+            'line_note' => trim((string)($lineNotes[$idx] ?? '')),
+          ];
+        }
+      }
+      if ($rows) save_stock_opname_items($db, $id, $rows);
       submit_stock_opname($db, $id);
       $db->commit();
       redirect(base_url('admin/stock_opname.php'));
@@ -88,7 +106,7 @@ function variance_badge(float $variance): string {
 ?>
 <!doctype html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Form Stok Opname</title><link rel="icon" href="<?php echo e(favicon_url()); ?>"><link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>"><style><?php echo $customCss; ?></style>
+<title>Form Stok Opname</title><style>.opname-table{font-size:13px}.opname-table th,.opname-table td{padding:7px 8px;vertical-align:middle}.opname-table input{min-height:34px;padding:6px 8px;font-size:13px}.variance-plus{background:#dcfce7!important;border-color:#86efac!important;color:#166534!important}.variance-minus{background:#fee2e2!important;border-color:#fecaca!important;color:#991b1b!important}.variance-zero{background:#f1f5f9!important;border-color:#cbd5e1!important;color:#475569!important}.opname-help{font-size:11px;color:#64748b;display:block;margin-top:2px}</style><link rel="icon" href="<?php echo e(favicon_url()); ?>"><link rel="stylesheet" href="<?php echo e(asset_url('assets/app.css')); ?>"><style><?php echo $customCss; ?></style>
 </head><body><div class="container"><?php include __DIR__ . '/partials_sidebar.php'; ?>
 <div class="main"><div class="topbar"><button class="btn" data-toggle-sidebar type="button">Menu</button></div><div class="content">
 <?php if($err): ?><div class="card" style="border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.10)"><?php echo e($err); ?></div><?php endif; ?>
@@ -120,7 +138,7 @@ function variance_badge(float $variance): string {
 <div class="card">
 <form method="post">
 <input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="save_items"><input type="hidden" name="id" value="<?php echo e((string)$id); ?>">
-<table class="table"><thead><tr><th>Barang</th><th>Sistem Qty</th><th>Physical Qty</th><th>Variance</th><th>Warning</th><th>Alasan Selisih</th><th>Catatan</th></tr></thead><tbody>
+<table class="table opname-table"><thead><tr><th>Barang</th><th>Sistem Qty</th><th>Physical Qty</th><th>Selisih</th><th>Warning</th><th>Alasan Selisih</th><th>Catatan</th></tr></thead><tbody>
 <?php foreach($items as $idx => $it):
   $variance = (float)$it['variance_qty'];
   $needsWarning = stock_variance_needs_warning($variance);
@@ -133,23 +151,37 @@ function variance_badge(float $variance): string {
     <input type="hidden" name="system_qty[]" value="<?php echo e((string)$it['system_qty']); ?>">
   </td>
   <td><?php echo e(format_qty((float)$it['system_qty'], $unitMeta['base_unit'])); ?></td>
-  <td><input type="number" step="0.0001" min="0" name="physical_qty[]" value="<?php echo e((string)$it['physical_qty']); ?>" <?php echo !$isDraft?'readonly':''; ?> required><small><?php echo e('Input dalam ' . $unitMeta['base_unit']); ?></small></td>
-  <td><span class="badge"><?php echo e(format_qty((float)$variance, $unitMeta['base_unit'])); ?></span></td>
+  <td><input type="number" step="0.0001" min="0" class="opname-physical" data-system="<?php echo e((string)$it['system_qty']); ?>" name="physical_qty[]" value="<?php echo e((string)$it['physical_qty']); ?>" <?php echo !$isDraft?'readonly':''; ?> required><small><?php echo e('Input dalam ' . $unitMeta['base_unit']); ?></small></td>
+  <td><span class="badge opname-variance" data-unit="<?php echo e($unitMeta['base_unit']); ?>"><?php echo e(format_qty((float)$variance, $unitMeta['base_unit'])); ?></span></td>
   <td><?php if($needsWarning): ?><span class="badge" style="background:#fff7ed;border-color:#fdba74;color:#9a3412">Selisih > <?php echo e(format_qty(stock_opname_warning_threshold(), $unitMeta['base_unit'])); ?></span><?php else: ?>-<?php endif; ?></td>
   <td><input type="text" name="reason_note[]" value="<?php echo e((string)($it['reason_note'] ?? '')); ?>" <?php echo !$isDraft?'readonly':''; ?> placeholder="Wajib jika variance != 0"></td>
   <td><input type="text" name="line_note[]" value="<?php echo e((string)($it['line_note'] ?? '')); ?>" <?php echo !$isDraft?'readonly':''; ?>></td>
 </tr>
 <?php endforeach; ?>
 </tbody></table>
-<?php if($isDraft): ?><button class="btn" type="submit">Simpan Draft</button><?php endif; ?>
+<?php if($isDraft): ?><button class="btn btn-light" type="submit">Simpan Draft</button> <button class="btn" type="submit" name="action" value="submit">Posting Opname</button><?php endif; ?>
 <a class="btn btn-light" href="<?php echo e(base_url('admin/stock_opname.php')); ?>">Kembali</a>
 </form>
-<?php if($isDraft): ?>
-<form method="post" style="margin-top:10px"><input type="hidden" name="_csrf" value="<?php echo e(csrf_token()); ?>"><input type="hidden" name="action" value="submit"><input type="hidden" name="id" value="<?php echo e((string)$id); ?>"><button class="btn" type="submit">Submit Menunggu Approval</button></form>
-<?php endif; ?>
+
 </div>
 <?php endif; ?>
 
 </div></div></div>
 <script defer src="<?php echo e(asset_url('assets/app.js')); ?>"></script>
-</body></html>
+<script>
+document.addEventListener('input', function(ev){
+  var input = ev.target.closest('.opname-physical');
+  if(!input) return;
+  var tr = input.closest('tr');
+  var badge = tr ? tr.querySelector('.opname-variance') : null;
+  if(!badge) return;
+  var system = parseFloat(input.dataset.system || '0') || 0;
+  var physical = parseFloat(input.value || '0') || 0;
+  var variance = Math.round((physical - system) * 10000) / 10000;
+  var unit = badge.dataset.unit || '';
+  badge.textContent = variance.toLocaleString('id-ID', {maximumFractionDigits:4}) + (unit ? ' ' + unit : '');
+  badge.classList.remove('variance-plus','variance-minus','variance-zero');
+  badge.classList.add(variance > 0 ? 'variance-plus' : (variance < 0 ? 'variance-minus' : 'variance-zero'));
+});
+document.querySelectorAll('.opname-physical').forEach(function(el){ el.dispatchEvent(new Event('input', {bubbles:true})); });
+</script></body></html>

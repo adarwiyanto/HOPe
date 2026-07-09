@@ -9,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const qrisPreview = document.querySelector('[data-qris-preview]');
   const qrisImg = qrisPreview ? qrisPreview.querySelector('img') : null;
   const qrisRetake = document.querySelector('[data-qris-retake]');
+  const qrisMaxBytes = 1024 * 1024;
+  let qrisPreviewUrl = '';
   if (printBtn) {
     printBtn.addEventListener('click', () => {
       window.print();
@@ -33,6 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const resetQrisPreview = () => {
+    if (qrisPreviewUrl) {
+      URL.revokeObjectURL(qrisPreviewUrl);
+      qrisPreviewUrl = '';
+    }
     if (qrisInput) qrisInput.value = '';
     if (qrisPreview) qrisPreview.hidden = true;
     if (qrisImg) qrisImg.src = '';
@@ -42,7 +48,14 @@ document.addEventListener('DOMContentLoaded', () => {
     qrisInput.addEventListener('change', () => {
       const file = qrisInput.files && qrisInput.files[0];
       if (!file || !qrisPreview || !qrisImg) return;
-      qrisImg.src = URL.createObjectURL(file);
+      if (file.size > qrisMaxBytes) {
+        alert('Ukuran foto QRIS maksimal 1 MB. Ambil ulang foto dengan jarak lebih dekat atau gunakan aplikasi HOPe agar foto otomatis dikompresi.');
+        resetQrisPreview();
+        return;
+      }
+      if (qrisPreviewUrl) URL.revokeObjectURL(qrisPreviewUrl);
+      qrisPreviewUrl = URL.createObjectURL(file);
+      qrisImg.src = qrisPreviewUrl;
       qrisPreview.hidden = false;
     });
   }

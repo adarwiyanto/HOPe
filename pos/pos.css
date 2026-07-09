@@ -588,15 +588,20 @@
   flex-direction:column;
   gap:8px;
   align-items:flex-start;
+  width:min(100%, 420px);
 }
 
 .pos-qris-preview img{
+  display:block;
   width:100%;
-  max-width:280px;
-  max-height:220px;
+  aspect-ratio:16 / 9;
+  max-width:420px;
+  max-height:236px;
+  padding:6px;
   border-radius:12px;
   border:1px solid var(--border);
-  object-fit:cover;
+  background:#f8fafc;
+  object-fit:contain;
 }
 
 .pos-qris-retake{

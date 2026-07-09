@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="http://schemas.android.com/tools">
+    <color name="ic_launcher_background">#E4311F</color>
+    <color name="purple_500">#6750A4</color>
+    <color name="purple_700">#4F378B</color>
+    <color name="teal_200">#03DAC5</color>
+    <color name="white">#FFFFFFFF</color>
+    <string name="app_name">HOPe POS</string>
+    <string name="kiosk_device_admin_description">Mengunci tablet ke aplikasi Hope saat mode kiosk aktif.</string>
+    <string name="printer_status_not_selected">Printer: belum dipilih</string>
+    <style name="Theme.HopePos" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor" ns1:targetApi="l">@android:color/transparent</item>
+    </style>
+</resources>

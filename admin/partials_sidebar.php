@@ -100,7 +100,6 @@ $isOwner = current_user_is_owner();
         <div class="submenu" id="m-stok">
           <?php if ($can('inventory.stocks')): ?><a href="<?php echo e(base_url('admin/stocks.php')); ?>">Daftar Stok</a><?php endif; ?>
           <?php if ($can('stock_opname')): ?><a href="<?php echo e(base_url('admin/stock_opname.php')); ?>">Stok Opname</a><?php endif; ?>
-          <?php if ($can('stock_opname', 'approve')): ?><a href="<?php echo e(base_url('admin/stock_opname_approval.php')); ?>">Approval Opname</a><?php endif; ?>
           <?php if ($can('inventory.stocks')): ?><a href="<?php echo e(base_url('admin/stock_card.php')); ?>">Kartu Stok</a><?php endif; ?>
         </div>
       </div>
@@ -128,6 +127,7 @@ $isOwner = current_user_is_owner();
           <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a>
           <a href="<?php echo e(base_url('admin/loyalty.php')); ?>">Loyalti Point</a>
           <a href="<?php echo e(base_url('admin/inventory_settings.php')); ?>">Setting Produksi/Inventory</a>
+          <a href="<?php echo e(base_url('admin/dapur_connection.php')); ?>">Koneksi ke Dapur</a>
           <?php if ($isOwner): ?>
             <a href="<?php echo e(base_url('admin/backup.php')); ?>">Backup Database</a>
           <?php endif; ?>
