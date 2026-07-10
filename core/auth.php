@@ -4,6 +4,78 @@ require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/security.php';
 require_once __DIR__ . '/permissions.php';
 
+const REMEMBER_LOGIN_LIFETIME = 315360000;
+
+function remember_cookie_name(): string { return 'HOPE_ADMIN_REMEMBER'; }
+function remember_cookie_secure(): bool {
+  return (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+}
+function ensure_remember_login_table(): void {
+  db()->exec("CREATE TABLE IF NOT EXISTS user_remember_tokens (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    selector CHAR(24) NOT NULL,
+    validator_hash CHAR(64) NOT NULL,
+    password_fingerprint CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    last_used_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_user_remember_selector (selector),
+    KEY idx_user_remember_user (user_id),
+    KEY idx_user_remember_expires (expires_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+}
+function remember_set_cookie(string $value, int $expires): void {
+  if (headers_sent()) return;
+  setcookie(remember_cookie_name(), $value, ['expires'=>$expires,'path'=>'/','secure'=>remember_cookie_secure(),'httponly'=>true,'samesite'=>'Lax']);
+}
+function remember_forget_current_device(): void {
+  $raw=(string)($_COOKIE[remember_cookie_name()] ?? '');
+  $parts=explode(':',$raw,2);
+  if(count($parts)===2 && preg_match('/^[a-f0-9]{24}$/',$parts[0])){
+    try { ensure_remember_login_table(); db()->prepare("DELETE FROM user_remember_tokens WHERE selector=?")->execute([$parts[0]]); } catch(Throwable $e){}
+  }
+  unset($_COOKIE[remember_cookie_name()]);
+  remember_set_cookie('',time()-42000);
+}
+function remember_issue_for_user(int $userId,string $passwordHash): void {
+  remember_forget_current_device();
+  ensure_remember_login_table();
+  try { db()->exec("DELETE FROM user_remember_tokens WHERE expires_at <= NOW()"); } catch(Throwable $e){}
+  $selector=bin2hex(random_bytes(12)); $validator=bin2hex(random_bytes(32)); $expires=time()+REMEMBER_LOGIN_LIFETIME;
+  $st=db()->prepare("INSERT INTO user_remember_tokens (user_id,selector,validator_hash,password_fingerprint,expires_at) VALUES (?,?,?,?,?)");
+  $st->execute([$userId,$selector,hash('sha256',$validator),hash('sha256',$passwordHash),date('Y-m-d H:i:s',$expires)]);
+  remember_set_cookie($selector.':'.$validator,$expires);
+}
+function remember_restore_user(): ?array {
+  static $attempted=false; if($attempted) return null; $attempted=true;
+  $raw=(string)($_COOKIE[remember_cookie_name()] ?? ''); $parts=explode(':',$raw,2);
+  if(count($parts)!==2 || !preg_match('/^[a-f0-9]{24}$/',$parts[0]) || !preg_match('/^[a-f0-9]{64}$/',$parts[1])){
+    if($raw!=='') remember_forget_current_device(); return null;
+  }
+  try {
+    ensure_remember_login_table(); ensure_roles_permissions_schema();
+    $st=db()->prepare("SELECT t.id token_id,t.validator_hash,t.password_fingerprint,u.id,u.username,u.name,u.role,u.role_id,u.email,u.avatar_path,u.password_hash,r.role_key
+      FROM user_remember_tokens t JOIN users u ON u.id=t.user_id LEFT JOIN roles r ON r.id=u.role_id
+      WHERE t.selector=? AND t.expires_at>NOW() LIMIT 1");
+    $st->execute([$parts[0]]); $u=$st->fetch();
+    $valid=$u && hash_equals((string)$u['validator_hash'],hash('sha256',$parts[1]))
+      && hash_equals((string)$u['password_fingerprint'],hash('sha256',(string)$u['password_hash']));
+    if(!$valid){ remember_forget_current_device(); return null; }
+    $roleKey=normalize_role_key((string)($u['role_key'] ?? $u['role'] ?? ''));
+    if(!in_array($roleKey,['admin','owner','manager','gudang','kasir'],true)){ remember_forget_current_device(); return null; }
+    if((int)($u['role_id'] ?? 0)<=0){ $role=role_by_key($roleKey); $u['role_id']=(int)($role['id'] ?? 0); }
+    if((int)$u['role_id']<=0){ remember_forget_current_device(); return null; }
+    $tokenId=(int)$u['token_id']; unset($u['token_id'],$u['validator_hash'],$u['password_fingerprint'],$u['password_hash']);
+    $u['role_key']=$roleKey; $u['role']=$roleKey;
+    $expires=time()+REMEMBER_LOGIN_LIFETIME;
+    db()->prepare("UPDATE user_remember_tokens SET expires_at=?,last_used_at=NOW() WHERE id=?")->execute([date('Y-m-d H:i:s',$expires),$tokenId]);
+    remember_set_cookie($raw,$expires); session_regenerate_id(true); $_SESSION['user']=$u; return $u;
+  } catch(Throwable $e){ return null; }
+}
+
 function start_session(): void {
   start_secure_session();
 }
@@ -32,10 +104,11 @@ function require_admin(): void {
 
 function current_user(): ?array {
   start_session();
+  if (empty($_SESSION['user'])) remember_restore_user();
   return $_SESSION['user'] ?? null;
 }
 
-function login_attempt(string $username, string $password): bool {
+function login_attempt(string $username, string $password, bool $remember = false): bool {
   ensure_user_profile_columns();
   ensure_roles_permissions_schema();
   $stmt = db()->prepare("SELECT u.id, u.username, u.name, u.role, u.role_id, u.email, u.avatar_path, u.password_hash, r.role_key
@@ -69,11 +142,13 @@ function login_attempt(string $username, string $password): bool {
     $newHash = password_hash($password, PASSWORD_DEFAULT);
     $stmt = db()->prepare("UPDATE users SET password_hash=? WHERE id=?");
     $stmt->execute([$newHash, (int)$u['id']]);
+    $hash = $newHash;
   }
   if (!$verified) {
     $newHash = password_hash($password, PASSWORD_DEFAULT);
     $stmt = db()->prepare("UPDATE users SET password_hash=? WHERE id=?");
     $stmt->execute([$newHash, (int)$u['id']]);
+    $hash = $newHash;
   }
   unset($u['password_hash']);
   $roleKey = normalize_role_key((string)($u['role_key'] ?? $u['role'] ?? ''));
@@ -84,12 +159,15 @@ function login_attempt(string $username, string $password): bool {
     $u['role_id'] = (int)($role['id'] ?? 0);
   }
   $_SESSION['user'] = $u;
+  if ($remember) remember_issue_for_user((int)$u['id'], $hash);
+  else remember_forget_current_device();
   login_clear_failed_attempts();
   return true;
 }
 
 function logout(): void {
   start_session();
+  remember_forget_current_device();
   $_SESSION = [];
   session_destroy();
 }
