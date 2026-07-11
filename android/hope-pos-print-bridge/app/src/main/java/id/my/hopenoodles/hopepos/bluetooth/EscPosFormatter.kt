@@ -10,26 +10,15 @@ object EscPosFormatter {
     private const val LINE_58 = 32
 
     fun formatReceipt(payload: ReceiptPayload, logo: Bitmap?): ByteArray {
-        val out = ByteArrayOutputStream()
-        out.write(byteArrayOf(0x1B, 0x40))
-        out.write(alignCenter())
-
-        if (logo != null) {
-            out.write(bitmapToEscPos(logo))
-            out.write(newLine())
+        return if (payload.documentType == "sales_report") {
+            formatSalesReport(payload, logo)
+        } else {
+            formatTransactionReceipt(payload, logo)
         }
+    }
 
-        out.write(bold(true))
-        out.write(doubleHeight(true))
-        out.write(text(payload.storeName.uppercase(Locale.getDefault())))
-        out.write(newLine())
-        out.write(doubleHeight(false))
-        out.write(bold(false))
-
-        writeCenteredLine(out, payload.storeSubtitle)
-        writeCenteredLine(out, payload.storeAddress)
-        writeCenteredLine(out, payload.storePhone)
-        divider(out)
+    private fun formatTransactionReceipt(payload: ReceiptPayload, logo: Bitmap?): ByteArray {
+        val out = startDocument(payload, logo)
 
         out.write(alignLeft())
         out.write(text("ID   : ${payload.receiptId}")); out.write(newLine())
@@ -46,17 +35,95 @@ object EscPosFormatter {
         }
 
         divider(out)
+        out.write(bold(true))
         out.write(text(twoColumn("TOTAL", money(payload.total)))); out.write(newLine())
+        out.write(bold(false))
         out.write(text(twoColumn("BAYAR", money(payload.bayar)))); out.write(newLine())
         out.write(text(twoColumn("KEMBALI", money(payload.kembalian)))); out.write(newLine())
-        out.write(text("Metode: ${payload.paymentMethod}")); out.write(newLine())
+        out.write(text("Metode: ${payload.paymentMethod.uppercase(Locale.getDefault())}")); out.write(newLine())
         divider(out)
         writeCenteredLine(out, payload.footer)
-
-        out.write(newLine())
-        out.write(newLine())
-        out.write(newLine())
+        finishDocument(out)
         return out.toByteArray()
+    }
+
+    private fun formatSalesReport(payload: ReceiptPayload, logo: Bitmap?): ByteArray {
+        val out = startDocument(payload, logo)
+
+        out.write(alignCenter())
+        out.write(bold(true))
+        out.write(text(payload.reportTitle.ifBlank { "LAPORAN PENJUALAN" }))
+        out.write(newLine())
+        out.write(bold(false))
+        writeCenteredWrapped(out, payload.periodLabel)
+        divider(out)
+
+        out.write(alignLeft())
+        out.write(text("Dicetak: ${payload.tanggalJam}")); out.write(newLine())
+        out.write(text("Oleh   : ${payload.cashier}")); out.write(newLine())
+        divider(out)
+
+        payload.summaryLines.forEach { line ->
+            if (line.emphasis) {
+                divider(out)
+                out.write(bold(true))
+            }
+            out.write(text(twoColumn(line.label, line.value)))
+            out.write(newLine())
+            if (line.emphasis) {
+                out.write(bold(false))
+            }
+        }
+        divider(out)
+
+        out.write(bold(true))
+        out.write(text("REKAP PRODUK")); out.write(newLine())
+        out.write(bold(false))
+        if (payload.items.isEmpty()) {
+            out.write(text("Belum ada produk terjual.")); out.write(newLine())
+        } else {
+            payload.items.forEach { item ->
+                writeWrappedLeft(out, item.name)
+                val qtyLabel = "${trimDouble(item.qty)} item"
+                out.write(text(twoColumn(qtyLabel, money(item.subtotal))))
+                out.write(newLine())
+            }
+        }
+
+        divider(out)
+        writeCenteredLine(out, payload.footer)
+        finishDocument(out)
+        return out.toByteArray()
+    }
+
+    private fun startDocument(payload: ReceiptPayload, logo: Bitmap?): ByteArrayOutputStream {
+        val out = ByteArrayOutputStream()
+        out.write(byteArrayOf(0x1B, 0x40))
+        out.write(alignCenter())
+
+        if (logo != null) {
+            out.write(bitmapToEscPos(logo))
+            out.write(newLine())
+        }
+
+        out.write(bold(true))
+        out.write(doubleHeight(true))
+        out.write(text(payload.storeName.uppercase(Locale.getDefault())))
+        out.write(newLine())
+        out.write(doubleHeight(false))
+        out.write(bold(false))
+
+        writeCenteredWrapped(out, payload.storeSubtitle)
+        writeCenteredWrapped(out, payload.storeAddress)
+        writeCenteredWrapped(out, payload.storePhone)
+        divider(out)
+        return out
+    }
+
+    private fun finishDocument(out: ByteArrayOutputStream) {
+        out.write(newLine())
+        out.write(newLine())
+        out.write(newLine())
     }
 
     fun formatTestPrint(nowText: String): ByteArray {
@@ -76,8 +143,47 @@ object EscPosFormatter {
     private fun writeCenteredLine(out: ByteArrayOutputStream, value: String) {
         if (value.isBlank()) return
         out.write(alignCenter())
-        out.write(text(value))
+        out.write(text(value.take(LINE_58)))
         out.write(newLine())
+    }
+
+    private fun writeCenteredWrapped(out: ByteArrayOutputStream, value: String) {
+        if (value.isBlank()) return
+        wrapText(value).forEach { writeCenteredLine(out, it) }
+    }
+
+    private fun writeWrappedLeft(out: ByteArrayOutputStream, value: String) {
+        out.write(alignLeft())
+        wrapText(value).forEach {
+            out.write(text(it))
+            out.write(newLine())
+        }
+    }
+
+    private fun wrapText(value: String): List<String> {
+        val normalized = value.trim().replace(Regex("\\s+"), " ")
+        if (normalized.isBlank()) return emptyList()
+        val lines = mutableListOf<String>()
+        var current = ""
+        normalized.split(" ").forEach { word ->
+            if (word.length > LINE_58) {
+                if (current.isNotBlank()) {
+                    lines += current
+                    current = ""
+                }
+                word.chunked(LINE_58).forEach { lines += it }
+            } else {
+                val candidate = if (current.isBlank()) word else "$current $word"
+                if (candidate.length <= LINE_58) {
+                    current = candidate
+                } else {
+                    lines += current
+                    current = word
+                }
+            }
+        }
+        if (current.isNotBlank()) lines += current
+        return lines
     }
 
     private fun divider(out: ByteArrayOutputStream) {

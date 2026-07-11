@@ -743,7 +743,7 @@ class MainActivity : AppCompatActivity() {
 
         val payload = try {
             val parsed = ReceiptPayload.fromJson(payloadRaw ?: "")
-            Log.d(TAG, "Bridge payload parse result=ok items=${parsed.items.size} total=${parsed.total}")
+            Log.d(TAG, "Bridge payload parse result=ok type=${parsed.documentType} items=${parsed.items.size} total=${parsed.total}")
             parsed
         } catch (e: IllegalArgumentException) {
             Log.e(TAG, "Payload print invalid", e)
@@ -766,13 +766,14 @@ class MainActivity : AppCompatActivity() {
 
         return if (result.isSuccess) {
             Log.d(TAG, "Bridge write printer sukses")
-            showToast("Print receipt berhasil")
-            WebAppBridge.BridgeResult(true, "PRINT_OK", "Print receipt berhasil")
+            val successMessage = if (payload.documentType == "sales_report") "Print laporan berhasil" else "Print receipt berhasil"
+            showToast(successMessage)
+            WebAppBridge.BridgeResult(true, "PRINT_OK", successMessage)
         } else {
             val error = result.exceptionOrNull()
             Log.e(TAG, "Bridge write printer gagal", error)
             val code = (error as? BluetoothPrinterManager.PrinterException)?.code ?: "PRINT_FAILED"
-            val message = error?.message ?: "Gagal mencetak receipt"
+            val message = error?.message ?: if (payload.documentType == "sales_report") "Gagal mencetak laporan" else "Gagal mencetak receipt"
             if (code == "MISSING_PERMISSION" || code == "MISSING_CONNECT_PERMISSION" || code == "MISSING_SCAN_PERMISSION") {
                 ensureBluetoothPermissions()
             }

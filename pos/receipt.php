@@ -3,9 +3,17 @@ require_once __DIR__ . '/../core/db.php';
 require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/security.php';
 require_once __DIR__ . '/../core/auth.php';
+require_once __DIR__ . '/../core/permissions.php';
+require_once __DIR__ . '/../core/inventory.php';
+require_once __DIR__ . '/../core/pos_sales_history.php';
 
 start_secure_session();
 require_login();
+require_menu_access('pos');
+ensure_sales_transaction_code_column();
+ensure_sales_user_column();
+ensure_inventory_module_schema();
+ensure_sales_revision_schema();
 ensure_pos_print_jobs_table();
 expire_old_pos_print_jobs();
 
@@ -17,16 +25,26 @@ $storeAddress = setting('store_address', '');
 $storePhone = setting('store_phone', '');
 $receiptFooter = setting('receipt_footer', '');
 
-$receipt = $_SESSION['pos_receipt'] ?? null;
-$receiptId = trim((string)($_GET['id'] ?? ''));
+$historyCode = trim((string)($_GET['code'] ?? ''));
+$receipt = $historyCode !== '' ? null : ($_SESSION['pos_receipt'] ?? null);
+$receiptId = $historyCode !== '' ? $historyCode : trim((string)($_GET['id'] ?? ''));
 $jobToken = trim((string)($_GET['token'] ?? ''));
 $sessionJobToken = trim((string)($receipt['print_job_token'] ?? ''));
-if ($jobToken === '' && $sessionJobToken !== '') {
+if ($historyCode === '' && $jobToken === '' && $sessionJobToken !== '') {
   $jobToken = $sessionJobToken;
 }
 
 $receiptValid = $receipt && $receiptId !== '' && $receiptId === (string)($receipt['id'] ?? '');
 $printJobStatus = null;
+
+if (!$receiptValid && $historyCode !== '') {
+  $historyDetail = pos_sales_history_detail($historyCode, active_branch_id());
+  if ($historyDetail) {
+    $receipt = pos_sales_receipt_from_detail($historyDetail);
+    $receiptId = (string)$receipt['id'];
+    $receiptValid = true;
+  }
+}
 
 if (!$receiptValid && $jobToken !== '') {
   $job = get_pos_print_job_by_token($jobToken, ['allow_printed' => true]);
@@ -81,7 +99,7 @@ if ($receiptValid && $jobToken === '') {
   ]);
   if ($printJob && !empty($printJob['job_token'])) {
     $jobToken = (string)$printJob['job_token'];
-    if (is_array($_SESSION['pos_receipt'] ?? null)) {
+    if ($historyCode === '' && is_array($_SESSION['pos_receipt'] ?? null)) {
       $_SESSION['pos_receipt']['print_job_token'] = $jobToken;
     }
     $printJobStatus = 'pending';
@@ -107,6 +125,9 @@ if ($receiptValid) {
     'paid_amount' => (float)($receipt['paid_amount'] ?? $receipt['total'] ?? 0),
   ]);
 }
+$backUrl = $historyCode !== ''
+  ? base_url('pos/history.php?detail=' . urlencode($historyCode))
+  : base_url('pos/index.php');
 $deepLink = $jobToken !== ''
   ? 'hopepos://print?token=' . rawurlencode($jobToken) . '&base=' . rawurlencode($baseUrl)
   : '';
@@ -145,7 +166,7 @@ $deepLink = $jobToken !== ''
         <button class="btn" type="button" data-print-via-app>Cetak</button>
         <button class="btn btn-secondary" type="button" data-print-window>Print Browser</button>
         <button class="btn btn-muted" type="button" data-open-printer-settings hidden>Pengaturan Printer</button>
-        <a class="btn btn-muted" href="<?php echo e(base_url('pos/index.php')); ?>">Kembali</a>
+        <a class="btn btn-muted" href="<?php echo e($backUrl); ?>">Kembali</a>
       </div>
     </div>
 

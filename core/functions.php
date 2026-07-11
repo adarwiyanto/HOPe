@@ -824,7 +824,13 @@ function build_pos_receipt_payload(array $receipt, array $opts = []): array {
     ];
   }
 
+  $logoUrl = null;
+  if ($storeLogo !== '') {
+    $logoUrl = preg_match('/^https?:\/\//i', $storeLogo) ? $storeLogo : upload_url($storeLogo, 'image');
+  }
+
   return [
+    'document_type' => 'receipt',
     'receipt_id' => (string)($receipt['id'] ?? ''),
     'tanggal_jam' => (string)($receipt['time'] ?? date('d/m/Y H:i')),
     'cashier' => (string)($receipt['cashier'] ?? 'Kasir'),
@@ -838,7 +844,7 @@ function build_pos_receipt_payload(array $receipt, array $opts = []): array {
     'bayar' => $paidAmount,
     'kembalian' => max($paidAmount - $total, 0),
     'items' => $items,
-    'logo_url' => $storeLogo !== '' ? upload_url($storeLogo, 'image') : null,
+    'logo_url' => $logoUrl,
     'currency' => [
       'code' => 'IDR',
       'symbol' => 'Rp',

@@ -1,0 +1,14 @@
+.report-receipt{font-size:11px}
+.report-title{text-align:center;font-size:14px;font-weight:900;margin:9px 0 7px;letter-spacing:.5px}
+.report-summary{border-top:1px dashed #000;border-bottom:1px dashed #000;padding:6px 0;margin-top:7px}
+.report-summary .receipt-line{padding:2px 0}
+.report-emphasis{font-weight:900;font-size:12px;border-top:1px dashed #000;margin-top:4px;padding-top:5px!important}
+.report-section-title{text-align:left;font-weight:900;border-bottom:1px dashed #000;padding:7px 0 4px;margin-top:5px}
+.report-products{gap:6px;padding-top:5px}
+.report-products .receipt-item{padding-bottom:5px;border-bottom:1px dotted #888}
+.report-products .receipt-item:last-child{border-bottom:0}
+.report-empty{text-align:center;padding:10px 0;color:#555}
+.report-daily{padding-top:5px}
+.report-daily .receipt-line{padding:1px 0}
+.report-daily-net{font-weight:800;padding-bottom:5px!important;border-bottom:1px dotted #999;margin-bottom:4px}
+@media print{.report-receipt{font-size:10px}.report-title{font-size:13px}}

@@ -690,3 +690,19 @@
     display:none !important;
   }
 }
+
+/* Riwayat transaksi POS */
+.pos-history-button{
+  margin-left:12px;
+  min-height:40px;
+  padding:7px 13px;
+  background:#fff;
+  color:#174ea6;
+  border-color:rgba(255,255,255,.55);
+  font-weight:800;
+  white-space:nowrap;
+}
+.pos-history-button:hover{background:#eef4ff;color:#0f3f8c}
+@media(max-width:700px){
+  .pos-history-button{margin-left:6px;padding:7px 9px;font-size:12px}
+}

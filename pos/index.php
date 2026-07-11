@@ -612,6 +612,7 @@ if (!empty($rewardCart)) {
   <div class="pos-page">
     <div class="topbar pos-topbar">
       <div class="title"><?php echo e($appName); ?> POS</div>
+      <a class="btn pos-history-button" href="<?php echo e(base_url('pos/history.php')); ?>">Riwayat Transaksi</a>
       <div class="spacer"></div>
       <div class="pos-user-menu">
         <button class="pos-user-button" type="button" data-toggle-submenu="#pos-user-menu">
