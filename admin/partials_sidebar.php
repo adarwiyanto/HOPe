@@ -126,12 +126,14 @@ $isOwner = current_user_is_owner();
           <a href="<?php echo e(base_url('admin/store.php')); ?>">Profil Toko</a>
           <a href="<?php echo e(base_url('admin/theme.php')); ?>">Tema / CSS</a>
           <a href="<?php echo e(base_url('admin/loyalty.php')); ?>">Loyalti Point</a>
-          <a href="<?php echo e(base_url('admin/inventory_settings.php')); ?>">Setting Produksi/Inventory</a>
-          <a href="<?php echo e(base_url('admin/dapur_connection.php')); ?>">Koneksi ke Dapur</a>
+          <details class="nav-sub system-settings"><summary>Setting System</summary>
+            <a href="<?php echo e(base_url('admin/dapur_connection.php')); ?>">API &amp; Integrasi</a>
+            <a href="<?php echo e(base_url('admin/dapur_connection.php')); ?>">Pairing Back Office</a>
+            <a href="<?php echo e(base_url('admin/inventory_settings.php')); ?>">Setting Produksi/Inventory</a>
+            <?php if ($isOwner): ?><a href="<?php echo e(base_url('admin/backup.php')); ?>">Setting Backup Google Drive</a><?php endif; ?>
+          </details>
           <?php if ($isOwner): ?><a href="<?php echo e(base_url('admin/api_error_log.php')); ?>">Error Log API</a><?php endif; ?>
-          <?php if ($isOwner): ?>
-            <a href="<?php echo e(base_url('admin/backup.php')); ?>">Setting Backup Google Drive</a>
-          <?php endif; ?>
+
         </div>
       </div>
     <?php endif; ?>
