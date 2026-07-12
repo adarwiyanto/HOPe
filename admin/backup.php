@@ -48,7 +48,8 @@ if ($svc) {
     $cronCommand = backup_build_cron_command($svc, $cronFile);
     $relativeCron = base_url('cron_backup.php?key='.rawurlencode($cronSecret));
     $cronUrl = preg_match('~^https?://~i', $relativeCron) ? $relativeCron : (((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http').'://'.($_SERVER['HTTP_HOST'] ?? 'localhost').'/'.ltrim($relativeCron, '/'));
-    backup_render_settings($svc, $callback, $cronCommand, $cronUrl, '<input type="hidden" name="_csrf" value="'.e(csrf_token()).'">');
+    $connectUrl = base_url('admin/backup_google_connect.php?token='.rawurlencode(csrf_token()));
+    backup_render_settings($svc, $callback, $cronCommand, $cronUrl, '<input type="hidden" name="_csrf" value="'.e(csrf_token()).'">', '', $connectUrl);
 } else { backup_safe_render_error($loadError, $backupRoot); }
 backup_safe_finish();
 ?></div></div></div><script defer src="<?=e(asset_url('assets/app.js'))?>"></script></body></html>
