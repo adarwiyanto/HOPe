@@ -94,7 +94,7 @@ function pos_sales_history_headers(array $range, int $branchId, int $limit = 50,
       MIN(u.name) AS cashier_name,
       SUM(s.qty) AS item_qty,
       COUNT(*) AS item_lines,
-      CASE WHEN MAX(s.grand_total) > 0 THEN MAX(s.grand_total) ELSE SUM(s.total) END AS total_amount,
+      GREATEST(0, SUM(s.total) - MAX(COALESCE(s.discount_amount,0)) + MAX(COALESCE(s.tax_amount,0)) + MAX(COALESCE(s.extra_fee,0))) AS total_amount,
       MAX(CASE WHEN s.returned_at IS NOT NULL THEN 1 ELSE 0 END) AS is_returned,
       MAX(s.returned_at) AS returned_at,
       MAX(s.return_reason) AS return_reason,
@@ -173,8 +173,9 @@ function pos_sales_history_detail(string $transactionCode, int $branchId): ?arra
   $discount = (float)($first['discount_amount'] ?? 0);
   $tax = (float)($first['tax_amount'] ?? 0);
   $extraFee = (float)($first['extra_fee'] ?? 0);
-  $grandTotal = (float)($first['grand_total'] ?? 0);
-  $total = $grandTotal > 0 ? $grandTotal : max(0, $subtotal - $discount + $tax + $extraFee);
+  // Total transaksi selalu direkonstruksi dari seluruh baris item.
+  // grand_total lama dapat berisi subtotal per item akibat migrasi terdahulu.
+  $total = max(0, $subtotal - $discount + $tax + $extraFee);
 
   return [
     'transaction_code' => (string)$first['transaction_code'],
@@ -204,7 +205,7 @@ function pos_sales_history_summary(array $range, int $branchId): array {
       MIN(s.payment_method) AS payment_method,
       MIN(u.name) AS cashier_name,
       SUM(s.qty) AS item_qty,
-      CASE WHEN MAX(s.grand_total) > 0 THEN MAX(s.grand_total) ELSE SUM(s.total) END AS total_amount,
+      GREATEST(0, SUM(s.total) - MAX(COALESCE(s.discount_amount,0)) + MAX(COALESCE(s.tax_amount,0)) + MAX(COALESCE(s.extra_fee,0))) AS total_amount,
       MAX(CASE WHEN s.returned_at IS NOT NULL THEN 1 ELSE 0 END) AS is_returned
     FROM sales s
     LEFT JOIN users u ON u.id=s.created_by

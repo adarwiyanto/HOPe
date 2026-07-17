@@ -384,6 +384,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           ];
         }
       }
+      // Simpan grand total transaksi yang sama pada seluruh baris item.
+      // Ini mencegah laporan mengambil subtotal salah dari salah satu item.
+      $stmtGrandTotal = $db->prepare("UPDATE sales SET grand_total=? WHERE transaction_code=?");
+      $stmtGrandTotal->execute([$receiptTotal, $transactionCode]);
+
       if (!empty($autoProductionIds)) {
         $stmtLink = $db->prepare("INSERT INTO sales_production_links (transaction_code, production_id, branch_id) VALUES (?,?,?)");
         foreach ($autoProductionIds as $productionId) {

@@ -59,7 +59,16 @@ ALTER TABLE sales
   ADD COLUMN sale_status VARCHAR(30) NOT NULL DEFAULT 'completed' AFTER notes;
 
 UPDATE sales SET base_sale_code=COALESCE(NULLIF(transaction_code,''), CONCAT('LEGACY-',id)) WHERE base_sale_code IS NULL OR base_sale_code='';
-UPDATE sales SET grand_total=total WHERE grand_total IS NULL OR grand_total=0;
+UPDATE sales s
+JOIN (
+  SELECT transaction_code,
+    GREATEST(0, SUM(total) - MAX(COALESCE(discount_amount,0)) + MAX(COALESCE(tax_amount,0)) + MAX(COALESCE(extra_fee,0))) AS calculated_total
+  FROM sales
+  WHERE transaction_code IS NOT NULL AND transaction_code <> ''
+  GROUP BY transaction_code
+) x ON x.transaction_code=s.transaction_code
+SET s.grand_total=x.calculated_total
+WHERE s.grand_total IS NULL OR s.grand_total=0;
 UPDATE sales SET revision_status='active' WHERE revision_status IS NULL OR revision_status='';
 
 CREATE INDEX idx_sales_revision_active ON sales (base_sale_code, is_active_revision, revision_no);

@@ -40,7 +40,16 @@ function ensure_sales_revision_schema(): void {
       WHERE base_sale_code IS NULL OR base_sale_code=''");
     db()->exec("UPDATE sales SET revision_no=0 WHERE revision_no IS NULL");
     db()->exec("UPDATE sales SET revision_status='active' WHERE revision_status IS NULL OR revision_status=''");
-    db()->exec("UPDATE sales SET grand_total=total WHERE grand_total IS NULL OR grand_total=0");
+    db()->exec("UPDATE sales s
+      JOIN (
+        SELECT transaction_code,
+          GREATEST(0, SUM(total) - MAX(COALESCE(discount_amount,0)) + MAX(COALESCE(tax_amount,0)) + MAX(COALESCE(extra_fee,0))) AS calculated_total
+        FROM sales
+        WHERE transaction_code IS NOT NULL AND transaction_code <> ''
+        GROUP BY transaction_code
+      ) x ON x.transaction_code=s.transaction_code
+      SET s.grand_total=x.calculated_total
+      WHERE s.grand_total IS NULL OR s.grand_total=0");
   } catch (Throwable $e) {}
 }
 
@@ -87,8 +96,8 @@ function sale_version_header(array $items): array {
   $discount = (float)($first['discount_amount'] ?? 0);
   $tax = (float)($first['tax_amount'] ?? 0);
   $fee = (float)($first['extra_fee'] ?? 0);
-  $grand = (float)($first['grand_total'] ?? 0);
-  if ($grand <= 0) $grand = max(0, $subtotal - $discount + $tax + $fee);
+  // Rekonstruksi dari semua item agar data lama dengan grand_total per item tidak salah dibaca.
+  $grand = max(0, $subtotal - $discount + $tax + $fee);
   return [
     'id' => (int)$first['id'],
     'transaction_code' => (string)$first['transaction_code'],
